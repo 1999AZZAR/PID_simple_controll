@@ -30,7 +30,7 @@ BLDC_PID_Controller/
 │   └── README.md               # Detailed Arduino Uno documentation
 ├── attiny85/                    # Production implementation
 │   ├── attiny85.ino            # Production ATTiny85 code
-│   ├── ATTiny85_README.md       # ATTiny85 documentation
+│   ├── README.md               # ATTiny85 documentation
 │   └── ATTiny85_hardware_schematic.txt # ATTiny85 hardware setup
 └── README.md                   # This overview file
 ```
@@ -43,7 +43,7 @@ BLDC_PID_Controller/
 
 2. **Follow the platform-specific README:**
    - `arduino_uno/README.md` for Arduino Uno setup
-   - `attiny85/ATTiny85_README.md` for ATTiny85 setup
+   - `attiny85/README.md` for ATTiny85 setup
 
 3. **Hardware setup:** Refer to the schematic files in each platform folder
 
