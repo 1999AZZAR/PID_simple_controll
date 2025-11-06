@@ -2,6 +2,23 @@
 
 This is the production-ready version of the BLDC PID controller running on ATtiny85 microcontroller. All tuning is done on Arduino first, then optimal values are hardcoded for reliable production operation.
 
+## Table of Contents
+
+- [Production Design Philosophy](#production-design-philosophy)
+- [Key Features](#key-features)
+  - [Hardware Simplicity](#hardware-simplicity)
+  - [Robust Control](#robust-control)
+- [Hardware Setup](#hardware-setup)
+- [Software Setup](#software-setup)
+- [Deployment Process](#deployment-process)
+- [Why ATtiny85 for Production?](#why-attiny85-for-production)
+- [Performance Considerations](#performance-considerations)
+- [Troubleshooting](#troubleshooting)
+- [Code Optimization Tips](#code-optimization-tips)
+- [Comparison: Arduino vs ATtiny85](#comparison-arduino-vs-attiny85)
+- [Advanced Features](#advanced-features)
+- [Migration from Arduino](#migration-from-arduino)
+
 ## Production Design Philosophy
 
 - **Zero User Controls**: No potentiometers, switches, or adjustments needed

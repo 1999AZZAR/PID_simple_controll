@@ -2,6 +2,28 @@
 
 A robust PID control system for maintaining a BLDC motor at exactly 1440 RPM, featuring real-time tuning capabilities and anti-windup protection.
 
+## Table of Contents
+
+- [Project Structure](#project-structure)
+- [Overview](#overview)
+- [Implementations](#implementations)
+  - [Arduino Uno Version](#arduino-uno-version-arduino_uno)
+  - [ATTiny85 Version](#attiny85-version-attiny85)
+- [Hardware Requirements](#hardware-requirements)
+- [Software Architecture](#software-architecture)
+- [Operating Modes](#operating-modes)
+- [Tuning Procedure](#tuning-procedure)
+- [Configuration Parameters](#configuration-parameters)
+- [Serial Commands](#serial-commands)
+- [Serial Plotter Output](#serial-plotter-output)
+- [Safety Features](#safety-features)
+- [Usage Instructions](#usage-instructions)
+- [Troubleshooting](#troubleshooting)
+- [Performance Optimization](#performance-optimization)
+- [Future Enhancements](#future-enhancements)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Project Structure
 
 ```
