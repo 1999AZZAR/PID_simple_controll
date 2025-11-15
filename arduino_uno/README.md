@@ -1,309 +1,223 @@
-# BLDC Motor PID Controller
+# Arduino Uno BLDC PID Controller
 
-A robust PID control system for maintaining a BLDC motor at exactly 1440 RPM, featuring real-time tuning capabilities and anti-windup protection.
+**Development implementation** for the BLDC Motor PID Controller - Full-featured environment with real-time tuning capabilities.
 
-## Table of Contents
+## Overview
 
-- [Project Structure](#project-structure)
-- [Overview](#overview)
-- [Implementations](#implementations)
-  - [Arduino Uno Version](#arduino-uno-version-arduino_uno)
-  - [ATTiny85 Version](#attiny85-version-attiny85)
-- [Hardware Requirements](#hardware-requirements)
-- [Software Architecture](#software-architecture)
-- [Operating Modes](#operating-modes)
-- [Tuning Procedure](#tuning-procedure)
-- [Configuration Parameters](#configuration-parameters)
-- [Serial Commands](#serial-commands)
-- [Serial Plotter Output](#serial-plotter-output)
-- [Safety Features](#safety-features)
-- [Usage Instructions](#usage-instructions)
-- [Troubleshooting](#troubleshooting)
-- [Performance Optimization](#performance-optimization)
-- [Future Enhancements](#future-enhancements)
-- [Contributing](#contributing)
-- [License](#license)
+The Arduino Uno version provides a complete development platform for tuning and testing BLDC motor PID control. It includes potentiometer tuning, comprehensive serial commands, EEPROM storage, and real-time monitoring.
+
+### Key Features
+
+- **Potentiometer Tuning**: 4 potentiometers for real-time PID parameter adjustment
+- **Serial Command Interface**: Complete command set for parameter tuning and monitoring
+- **Serial Plotter Integration**: Real-time visualization of control performance
+- **EEPROM Parameter Storage**: Persistent settings across power cycles
+- **Modular Configuration**: All settings centralized in `config.h`
+- **Debug Mode**: Optional detailed logging for development
+- **Three Operating Modes**: Production, Potentiometer Tuning, and Serial Tuning
+
+## Quick Start
+
+1. **Hardware Setup**: Connect components according to pin assignments below
+2. **Upload Code**: Load `arduino_uno.ino` to Arduino Uno
+3. **Configure**: Modify `config.h` for your specific setup
+4. **Tune Parameters**: Use potentiometers or serial commands
+5. **Monitor**: Use Serial Plotter for real-time feedback
 
 ## Project Structure
 
 ```
 arduino_uno/
-├── arduino_uno.ino          # Arduino Uno code with serial tuning
+├── arduino_uno.ino          # Main Arduino sketch
+├── config.h                 # Configuration header (all settings)
 ├── hardware_schematic.md   # Hardware setup guide
-└── README.md               # Arduino Uno documentation
+└── README.md               # This documentation
 ```
 
-## Overview
-
-This Arduino-based controller implements a PID (Proportional-Integral-Derivative) algorithm to precisely control BLDC motor speed. The system maintains exact RPM even under varying load conditions through:
-
-- **PID Control**: Proportional, Integral, and Derivative terms for optimal speed regulation
-- **Anti-Windup Protection**: Prevents integral windup during stall or high-load conditions
-- **Three Mode Operation**: Production mode for stable operation, potentiometer tuning for hardware adjustment, and serial tuning for software-based parameter optimization
-- **Real-time Feedback**: RPM sensor integration for accurate speed measurement
-- **Flexible Tuning**: Four potentiometers for hardware tuning or serial commands for software tuning
-- **Parameter Persistence**: EEPROM storage for saving and loading tuned PID parameters
-- **Multi-Platform Support**: Arduino Uno for development and ATTiny85 for production deployment
-
-## Implementations
-
-### Arduino Uno Version (`arduino_uno/`)
-**Best for**: Development, testing, and tuning
-- Full serial command interface for real-time PID parameter adjustment
-- EEPROM storage for parameter persistence
-- Serial Plotter support for monitoring
-- Optional potentiometer tuning
-- More memory for debugging features
-
-### ATTiny85 Version (`attiny85/`)
-**Best for**: Production deployment
-- Minimal resource usage (31% flash, 8% RAM)
-- No external dependencies
-- Optimized for power efficiency
-- Pre-tuned PID parameters for stable operation
-- Smaller footprint, lower cost
-
-## Hardware Requirements
+## Hardware Setup
 
 ### Required Components
-- Arduino board (Uno, Mega, or similar)
-- **3-Hall BLDC motor** (such as 42BLF20-22.0223 or equivalent with built-in Hall sensors)
-- **BLDC motor controller (ESC)** compatible with the specific motor model
-- **BLDC motor Hall sensors** (built into the motor - Hall A, B, or C wires)
+- Arduino Uno (or compatible board)
+- 3-Hall BLDC motor (42BLF20-22.0223 or equivalent)
+- BLDC motor controller (ESC) compatible with motor
 - SPDT switch or jumper (mode selection)
-- Power supply suitable for motor and Arduino (5V for Hall sensor compatibility)
 
-### Optional Components (for Hardware Tuning)
-- 4x 10kΩ potentiometers (for potentiometer-based tuning mode)
+### Optional Components (for potentiometer tuning)
+- 4x 10kΩ potentiometers
+- Breadboard and jumper wires
 
 ### Pin Connections
 
 | Component | Arduino Pin | Description |
 |-----------|-------------|-------------|
-| BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from BLDC motor (interrupt-capable pin) |
+| BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from motor (interrupt pin) |
 | PWM Output | Digital Pin 9 | PWM signal to ESC |
-| Mode Switch | Digital Pin 3 | LOW = Potentiometer tuning mode, HIGH = Production/Serial mode |
-| Target RPM Pot | Analog A0 | Sets target RPM (0-3000 RPM) - Optional |
-| Kp Pot | Analog A1 | Proportional gain (0-2.0) - Optional |
-| Ki Pot | Analog A2 | Integral gain (0-1.0) - Optional |
-| Kd Pot | Analog A3 | Derivative gain (0-0.1) - Optional |
+| Mode Switch | Digital Pin 3 | LOW = Potentiometer mode, HIGH = Production/Serial mode |
+| Target RPM Pot | Analog A0 | Sets target RPM (0-3000 RPM) |
+| Kp Pot | Analog A1 | Proportional gain (0-2.0) |
+| Ki Pot | Analog A2 | Integral gain (0-1.0) |
+| Kd Pot | Analog A3 | Derivative gain (0-0.1) |
 
-## Software Architecture
+## Configuration
 
-### Control Loop
-- **Frequency**: 100 Hz (10ms cycle time)
-- **RPM Calculation**: Updated every 100ms for stability
-- **PID Computation**: Calculated each control cycle
-- **PWM Output**: Updated immediately after PID computation
-- **Serial Command Processing**: Asynchronous command parsing and execution
+All Arduino Uno settings are centralized in `config.h`:
 
-### PID Algorithm
+### Pin Definitions
+```cpp
+#define RPM_SENSOR_PIN      2   // Hall sensor input (interrupt)
+#define PWM_OUTPUT_PIN      9   // PWM output to ESC
+#define MODE_SWITCH_PIN     3   // Mode selection switch
+#define POT_TARGET_RPM      A0  // Target RPM potentiometer
+#define POT_KP              A1  // Proportional gain pot
+#define POT_KI              A2  // Integral gain pot
+#define POT_KD              A3  // Derivative gain pot
 ```
-error = target_RPM - current_RPM
-proportional = Kp × error
-integral += Ki × error (with anti-windup clamping)
-derivative = Kd × (error - previous_error)
-output = proportional + integral + derivative
-```
-
-### Anti-Windup Protection
-- Integral term clamped between -100 and +100
-- Prevents runaway during motor stall or maximum load
-- Maintains system stability under adverse conditions
-
-## Operating Modes
-
-### Production Mode (Default)
-- Uses hardcoded optimal PID parameters
-- Target RPM: 1440 RPM
-- Kp: 0.5, Ki: 0.1, Kd: 0.01
-- Ignores potentiometer inputs and serial commands
-- Stable, predictable operation
-
-### Potentiometer Tuning Mode
-- Activated when mode switch is LOW
-- Real-time parameter adjustment via potentiometers
-- Serial Plotter visualization
-- Live system response monitoring
-
-### Serial Tuning Mode
-- Activated by sending "MODE SERIAL" command via serial
-- Real-time parameter adjustment via serial commands
-- Interactive command interface with immediate feedback
-- Parameter persistence through EEPROM storage
-
-## Tuning Procedure
-
-### Potentiometer Tuning
-
-1. **Set Mode Switch to Tuning**: Connect mode pin to GND
-2. **Open Serial Plotter**: Tools → Serial Plotter in Arduino IDE
-3. **Adjust Parameters**:
-   - **Pot 1 (Target RPM)**: Set to desired speed (start with 1440)
-   - **Pot 2 (Kp)**: Start low (0.1), increase until oscillations begin
-   - **Pot 3 (Ki)**: Add small amount to eliminate steady-state error
-   - **Pot 4 (Kd)**: Add minimal damping for stability
-4. **Monitor Response**: Observe target vs current RPM in Serial Plotter
-5. **Record Optimal Values**: Note the potentiometer settings that give best response
-6. **Update Production Constants**: Replace default values in code
-
-### Serial Tuning
-
-1. **Open Serial Monitor**: Tools → Serial Monitor in Arduino IDE (115200 baud)
-2. **Enter Serial Mode**: Type `MODE SERIAL` and press Enter
-3. **View Available Commands**: Type `HELP` and press Enter
-4. **Set Parameters**: Use commands like:
-   - `SET TARGET 1440`
-   - `SET KP 0.5`
-   - `SET KI 0.1`
-   - `SET KD 0.01`
-5. **Monitor Response**: Use `GET PARAMS` to view current values
-6. **Save Parameters**: Type `SAVE` to store parameters in EEPROM
-7. **Test Performance**: Monitor motor response and adjust as needed
-
-## Configuration Parameters
 
 ### Control Parameters
 ```cpp
-#define CONTROL_LOOP_HZ     100     // Control loop frequency
-#define PULSES_PER_REV      6       // Sensor pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223)
-#define RPM_CALC_INTERVAL   100     // RPM update interval (ms)
-#define SERIAL_BUFFER_SIZE  64      // Serial command buffer size
+#define PRODUCTION_TARGET_RPM 1440.0  // Default target RPM
+#define PRODUCTION_KP         0.5     // Default proportional gain
+#define PRODUCTION_KI         0.1     // Default integral gain
+#define PRODUCTION_KD         0.01    // Default derivative gain
+#define DEFAULT_PULSES_PER_REV  6     // Hall sensor pulses per revolution
 ```
 
-### EEPROM Storage Addresses
+### Debug and Safety Settings
 ```cpp
-#define EEPROM_TARGET_RPM_ADDR 0    // Target RPM storage address
-#define EEPROM_KP_ADDR         4    // Kp gain storage address
-#define EEPROM_KI_ADDR         8    // Ki gain storage address
-#define EEPROM_KD_ADDR         12   // Kd gain storage address
+#define DEBUG_MODE_ENABLED     false  // Enable detailed logging
+#define SOFT_START_DURATION_MS  2000  // Soft-start ramp time
+#define MIN_PULSE_WIDTH_US      100   // Debounce filter threshold
 ```
 
-### PID Limits
-```cpp
-#define PID_OUTPUT_MIN      -255    // Minimum PID output
-#define PID_OUTPUT_MAX      255     // Maximum PID output
-#define INTEGRAL_WINDUP_MIN -100    // Anti-windup integral minimum
-#define INTEGRAL_WINDUP_MAX 100     // Anti-windup integral maximum
-```
+## Operating Modes
 
-### Production Mode Defaults
-```cpp
-#define PRODUCTION_TARGET_RPM 1440.0
-#define PRODUCTION_KP         0.5
-#define PRODUCTION_KI         0.1
-#define PRODUCTION_KD         0.01
-```
+The Arduino Uno version supports three operating modes selected by the mode switch (Digital Pin 3):
+
+### Production Mode (Default)
+- **Mode Switch**: HIGH or floating
+- **Behavior**: Uses pre-configured PID parameters for stable operation
+- **Features**: Ignores potentiometers and most serial commands
+- **Use Case**: Final production deployment
+
+### Potentiometer Tuning Mode
+- **Mode Switch**: LOW (connected to GND)
+- **Behavior**: Real-time parameter adjustment via 4 potentiometers
+- **Monitoring**: Serial Plotter shows live control response
+- **Use Case**: Initial PID tuning and testing
+
+### Serial Tuning Mode
+- **Mode Switch**: HIGH or floating
+- **Activation**: Send `MODE SERIAL` command via Serial Monitor
+- **Behavior**: Full serial command interface for parameter adjustment
+- **Features**: EEPROM storage and detailed monitoring
+- **Use Case**: Precise tuning and parameter optimization
 
 ## Serial Commands
 
-The system supports interactive serial commands for parameter tuning and monitoring:
+Available when in Serial Tuning Mode (115200 baud):
 
-### Parameter Setting
+### Parameter Commands
 - `SET TARGET <rpm>` - Set target RPM (0-5000)
 - `SET KP <value>` - Set proportional gain (0-10.0)
 - `SET KI <value>` - Set integral gain (0-5.0)
 - `SET KD <value>` - Set derivative gain (0-1.0)
+- `SET PULSES <value>` - Set pulses per revolution (1-100)
 
-### Mode Control
+### Mode Commands
 - `MODE PRODUCTION` - Switch to production mode
 - `MODE SERIAL` - Switch to serial tuning mode
 
-### Monitoring and Storage
+### Monitoring Commands
 - `GET PARAMS` - Display current parameters and status
 - `SAVE` - Save current parameters to EEPROM
 - `LOAD` - Load parameters from EEPROM
 - `RESET INTEGRAL` - Reset integral term to zero
-
-### Information
 - `HELP` - Display available commands
 
 ## Serial Plotter Output
 
-The system outputs four comma-separated values for visualization:
-- `Target`: Desired RPM
-- `Current`: Measured RPM
-- `Error`: Difference between target and current
-- `PID_Output`: Computed PID control value
+The system outputs four comma-separated values for Serial Plotter visualization:
+```
+Target,Current,Error,PID_Output
+```
 
-Note: Serial Plotter output is available in all operating modes.
+- **Target**: Desired RPM setpoint
+- **Current**: Measured motor RPM
+- **Error**: Difference between target and current
+- **PID_Output**: Computed PID control value
 
-## Safety Features
+### Plotter Setup
+1. Open Arduino IDE → Tools → Serial Plotter
+2. Set baud rate to 115200
+3. Four traces will display real-time control performance
 
-- **Output Clamping**: PID output constrained to safe PWM range
-- **Integral Windup Protection**: Prevents integrator runaway
-- **Startup Delay**: 1-second initialization period
-- **Pull-up Resistors**: RPM sensor pin configured with internal pull-up
-- **EEPROM Validation**: Parameters loaded from EEPROM are validated for reasonable ranges
-- **Command Validation**: Serial commands are parsed and validated before execution
+## Tuning Procedure
 
-## Usage Instructions
+### Potentiometer Tuning
+1. Set mode switch to LOW (potentiometer mode)
+2. Open Serial Plotter (115200 baud)
+3. Adjust potentiometers while monitoring response:
+   - **Pot A0 (Target RPM)**: Set desired speed (start with 1440)
+   - **Pot A1 (Kp)**: Start low (0.1), increase until oscillations start
+   - **Pot A2 (Ki)**: Add small amount to eliminate steady-state error
+   - **Pot A3 (Kd)**: Add minimal damping for stability
+4. Record optimal potentiometer positions
+5. Transfer values to production constants in `config.h`
 
-1. **Hardware Setup**: Connect all components according to pin assignments
-2. **Upload Code**: Load `arduino_uno.ino` to Arduino
-3. **Initial Testing**: Run in production mode first
-4. **Tuning Options**:
-   - **Potentiometer Tuning**: Set mode switch LOW and adjust potentiometers
-   - **Serial Tuning**: Open Serial Monitor (115200 baud) and use commands
-5. **Save Parameters**: Use `SAVE` command or update constants in code
-6. **Production**: Switch back to production mode for stable operation
+### Serial Tuning
+1. Open Serial Monitor (115200 baud)
+2. Send `MODE SERIAL` command
+3. Send `HELP` for available commands
+4. Use `SET` commands to adjust parameters:
+   ```bash
+   SET KP 0.5
+   SET KI 0.1
+   SET KD 0.01
+   ```
+5. Monitor with `GET PARAMS` and Serial Plotter
+6. Save optimal parameters with `SAVE` command
+
+## EEPROM Storage
+
+Parameters are automatically saved to EEPROM addresses:
+- Address 0: Target RPM (4 bytes)
+- Address 4: Kp gain (4 bytes)
+- Address 8: Ki gain (4 bytes)
+- Address 12: Kd gain (4 bytes)
+- Address 16: Pulses per revolution (4 bytes)
+
+Parameters are validated on load and revert to defaults if corrupted.
 
 ## Troubleshooting
 
-### Common Issues
+### Motor Not Starting
+- Verify PWM output pin (Digital Pin 9) connected to ESC signal input
+- Check ESC power supply and motor connections
+- Confirm Hall sensor providing pulses (monitor with Serial Plotter)
+- Verify PID parameters not set to extreme values
 
-**Motor Not Starting**
-- Check ESC calibration and power connections
-- Verify PWM output pin connection
-- Confirm RPM sensor is providing pulses
+### No RPM Reading
+- Confirm Hall sensor wire connected to Digital Pin 2
+- Check sensor power (5V) and ground connections
+- Verify `DEFAULT_PULSES_PER_REV` matches your motor (usually 6 for 3-Hall)
+- Test with oscilloscope on sensor pin for pulse signals
 
-**Unstable Control**
-- Reduce Kp gain
+### Unstable Control
+- Reduce Kp gain first, then adjust Ki and Kd
 - Check for electrical noise on sensor lines
-- Verify proper grounding
+- Verify proper motor/ESC grounding
+- Ensure clean power supplies for Arduino and motor
 
-**No RPM Reading**
-- Confirm sensor type and pulse count configuration
-- Check interrupt pin connection
-- Verify sensor power and signal levels
-
-**Serial Plotter Issues**
-- Ensure baud rate matches (115200)
-- Check Arduino serial connection
-- Verify no other serial devices are conflicting
-
-**Serial Command Issues**
-- Commands must end with newline character
+### Serial Communication Issues
+- Verify baud rate set to 115200
 - Check Serial Monitor line ending settings
-- Ensure commands are in uppercase
-- Use HELP command to verify available commands
+- Commands must be in uppercase
+- Use Serial Plotter for graphical monitoring
 
-## Performance Optimization
+## Performance Notes
 
-### PID Tuning Guidelines
-1. **Start with P only**: Set Ki=0, Kd=0, tune Kp for stability
-2. **Add Integral**: Slowly increase Ki to eliminate steady-state error
-3. **Add Derivative**: Small Kd values for improved damping
-4. **Fine-tune**: Make small adjustments and observe response
-
-### Hardware Considerations
-- Use shielded cables for sensor connections
-- Separate power supplies for logic and motor power
-- Add RC filters on PWM output if ESC is sensitive to noise
-
-## Future Enhancements
-
-- Multiple PID profiles for different operating conditions
-- Temperature compensation
-- Advanced filtering for noisy RPM measurements
-- CAN bus integration for multi-motor systems
-- Web-based tuning interface
-- Data logging for performance analysis
-
-## License
-
-This project is released under the MIT License. Feel free to modify and distribute.
-
-## Contributing
-
-Contributions are welcome! Please submit issues and pull requests on GitHub.
+- **Memory Usage**: ~93% RAM usage (normal for feature-rich Arduino sketch)
+- **Control Frequency**: 100Hz main loop, 10Hz RPM calculation
+- **PWM Frequency**: ~490Hz (Timer0 with prescaler 8)
+- **Interrupt Response**: Hall sensor debounce filter prevents false triggers
+- **EEPROM Wear**: Parameters saved only on explicit SAVE command

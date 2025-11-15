@@ -31,6 +31,7 @@ A robust PID control system for maintaining a BLDC motor at exactly 1440 RPM, wi
 BLDC_PID_Controller/
 ├── arduino_uno/                 # Development implementation
 │   ├── arduino_uno.ino          # Arduino Uno code with serial tuning
+│   ├── config.h                 # Configuration header with all settings
 │   ├── hardware_schematic.md   # Hardware setup guide
 │   └── README.md               # Detailed Arduino Uno documentation
 ├── attiny85/                    # Production implementation
