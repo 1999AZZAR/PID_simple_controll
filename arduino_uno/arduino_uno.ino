@@ -29,7 +29,8 @@
  * Optional Hardware (for potentiometer tuning):
  * - 4 potentiometers for real-time tuning
  *
- * Author: AI Assistant
+ * Author: azzar budiyanto
+ * Co-Author: azzar persona (AI assistant)
  * Date: November 2025
  */
 

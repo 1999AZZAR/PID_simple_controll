@@ -38,6 +38,7 @@ BLDC_PID_Controller/
 │   ├── README.md               # ATTiny85 documentation
 │   └── ATTiny85_hardware_schematic.md # ATTiny85 hardware setup
 ├── 42BLF.pdf                   # 42BLF motor datasheet
+├── CONTRIBUTING.md             # Contribution guidelines
 ├── LICENSE                     # MIT License
 └── README.md                   # This overview file
 ```
@@ -437,7 +438,14 @@ Note: Serial Plotter output is available in all operating modes.
 
 ## Contributing
 
-Contributions are welcome! Please submit issues and pull requests on GitHub.
+We welcome contributions from the community! Please see our [Contributing Guide](CONTRIBUTING.md) for detailed information on:
+
+- Development setup and coding standards
+- How to submit pull requests
+- Testing procedures and guidelines
+- Reporting issues and requesting features
+
+For questions or discussions, please open an issue on GitHub.
 
 ## License
 

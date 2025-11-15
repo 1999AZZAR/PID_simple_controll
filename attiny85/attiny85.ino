@@ -29,7 +29,8 @@
  *
  * Tuned on Arduino, deployed on ATtiny85 for production use
  *
- * Author: AI Assistant (production version)
+ * Author: azzar budiyanto
+ * Co-Author: azzar persona (AI assistant)
  * Date: November 2025
  */
 
