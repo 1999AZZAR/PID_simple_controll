@@ -287,7 +287,8 @@ output = proportional + integral + derivative
 
 ```cpp
 #define CONTROL_LOOP_HZ     100     // Control loop frequency
-#define PULSES_PER_REV      6       // Sensor pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223 - see 42BLF.pdf)
+#define DEFAULT_PULSES_PER_REV  6   // Default sensor pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223 - see 42BLF.pdf)
+// Note: Arduino Uno version uses runtime variable pulsesPerRev (configurable via serial/EEPROM)
 #define RPM_CALC_INTERVAL   100     // RPM update interval (ms)
 #define SERIAL_BUFFER_SIZE  64      // Serial command buffer size
 ```
