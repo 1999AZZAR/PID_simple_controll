@@ -1,5 +1,14 @@
 # BLDC PID Controller - Arduino Uno Hardware Schematic
 
+## Table of Contents
+
+- [Arduino Board Layout](#arduino-board-layout)
+- [Connections](#connections)
+- [Power Supply](#power-supply)
+- [BLDC Hall Sensor Configuration](#bldc-hall-sensor-configuration)
+- [Wiring Notes](#wiring-notes)
+- [Calibration](#calibration)
+
 ## Arduino Board Layout
 
 ```

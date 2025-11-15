@@ -1,5 +1,19 @@
 # BLDC PID Controller - ATtiny85 Production Version
 
+## Table of Contents
+
+- [Production Configuration](#production-configuration)
+- [ATtiny85 Physical Pin Mapping](#attiny85-physical-pin-mapping)
+- [Required Connections (Only 2 Pins!)](#required-connections-only-2-pins)
+- [Programming Connections](#programming-connections)
+- [Power Supply](#power-supply)
+- [Limitations & Workarounds](#limitations--workarounds)
+- [Tuning Procedure (ATtiny85)](#tuning-procedure-attiny85)
+- [Alternative Tuning Method](#alternative-tuning-method)
+- [Compilation Notes](#compilation-notes)
+- [Fuse Settings](#fuse-settings)
+- [Troubleshooting](#troubleshooting)
+
 ## Production Configuration
 **No Potentiometers Required!** All PID gains are pre-tuned and hardcoded from Arduino development.
 

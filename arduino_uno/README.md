@@ -2,6 +2,21 @@
 
 **Development implementation** for the BLDC Motor PID Controller - Full-featured environment with real-time tuning capabilities.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Hardware Setup](#hardware-setup)
+- [Configuration](#configuration)
+- [Operating Modes](#operating-modes)
+- [Serial Commands](#serial-commands)
+- [Serial Plotter Output](#serial-plotter-output)
+- [Tuning Procedure](#tuning-procedure)
+- [EEPROM Storage](#eeprom-storage)
+- [Troubleshooting](#troubleshooting)
+- [Performance Notes](#performance-notes)
+
 ## Overview
 
 The Arduino Uno version provides a complete development platform for tuning and testing BLDC motor PID control. It includes potentiometer tuning, comprehensive serial commands, EEPROM storage, and real-time monitoring.

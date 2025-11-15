@@ -74,6 +74,7 @@ volatile unsigned long timer_us = 0;  // Microsecond counter for debounce
 volatile unsigned long lastPulseMicros = 0;
 unsigned long lastRPMCalcTime = 0;
 float currentRPM = 0.0;
+const int pulsesPerRev = PULSES_PER_REV; // Runtime variable for consistency
 
 // PID variables - Pre-tuned values from Arduino
 const float targetRPM = PRODUCTION_TARGET_RPM;
@@ -199,7 +200,7 @@ float calculateRPM() {
         unsigned long pulseDiff = pulsesNow - lastPulseCount;
 
         // Calculate RPM: (pulses / time) * (60 seconds / pulses_per_rev)
-        float rpm = (pulseDiff * 60000.0) / (timeDiff * PULSES_PER_REV);
+        float rpm = (pulseDiff * 60000.0) / (timeDiff * pulsesPerRev);
 
         lastPulseCount = pulsesNow;
         lastCalcTime = timer_ms;
