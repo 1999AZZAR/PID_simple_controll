@@ -4,6 +4,7 @@
 // Include necessary libraries
 #include <Arduino.h>
 #include <EEPROM.h>
+#include <avr/wdt.h>
 
 // Pin definitions
 #define RPM_SENSOR_PIN      2   // Interrupt pin for BLDC Hall sensor (any Hall wire from motor)
@@ -54,6 +55,8 @@
 #define SOFT_START_STEPS       20     // Number of ramp steps
 
 // Safety parameters
+#define WATCHDOG_ENABLED           true   // Enable watchdog timer for hang protection
+#define WATCHDOG_TIMEOUT           WDTO_4S  // 4-second watchdog timeout
 #define EMERGENCY_STOP_ENABLED     true   // Enable emergency stop feature (now enabled after memory optimization)
 #define EMERGENCY_STOP_TIMEOUT_MS  5000  // Stop PWM if no pulses received for 5 seconds
 

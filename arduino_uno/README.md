@@ -102,6 +102,11 @@ All Arduino Uno settings are centralized in `config.h`:
 #define DEBUG_MODE_ENABLED     false  // Enable detailed logging
 #define SOFT_START_DURATION_MS  2000  // Soft-start ramp time
 #define MIN_PULSE_WIDTH_US      100   // Debounce filter threshold
+
+// Safety features (recommended to keep enabled)
+#define WATCHDOG_ENABLED           true   // Hardware watchdog protection (4s timeout)
+#define EMERGENCY_STOP_ENABLED     true   // Emergency stop on motor faults
+#define EMERGENCY_STOP_TIMEOUT_MS  5000  // Emergency stop timeout (5 seconds)
 ```
 
 ## Operating Modes

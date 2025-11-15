@@ -68,17 +68,23 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 - EEPROM storage for parameter persistence
 - Serial Plotter support for monitoring
 - Optional potentiometer tuning
+- Watchdog timer protection and emergency stop
+- Soft-start protection for current surge prevention
+- Resource usage: 42% flash, 23% RAM
 - More memory for debugging features
 
 ### ATTiny85 Version (`attiny85/`)
 
 **Best for**: Production deployment
 
-- Minimal resource usage (31% flash, 8% RAM)
+- Minimal resource usage (40% flash, 14% RAM)
+- **Advanced safety systems**: Watchdog timer, emergency stop, soft-start
+- **Modular configuration**: `config.h` for easy parameter adjustment
 - No external dependencies
 - Optimized for power efficiency
 - Pre-tuned PID parameters for stable operation
 - Smaller footprint, lower cost
+- Production-ready with comprehensive protection
 
 ## Quick Start
 
@@ -423,12 +429,19 @@ Note: Serial Plotter output is available in all operating modes.
 
 ## Safety Features
 
-- **Output Clamping**: PID output constrained to safe PWM range
-- **Integral Windup Protection**: Prevents integrator runaway
-- **Startup Delay**: 1-second initialization period
-- **Pull-up Resistors**: RPM sensor pin configured with internal pull-up
+### Hardware-Level Protection
+- **Watchdog Timer**: Hardware-level hang protection (4s Arduino Uno, 8s ATtiny85)
+- **Emergency Stop**: Automatic shutdown on motor faults or pulse loss
+- **Soft-Start Protection**: Gradual power ramp-up to prevent current surges
+
+### Software-Level Protection
+- **Output Clamping**: PID output constrained to safe PWM range (0-255)
+- **Integral Windup Protection**: Prevents integrator runaway during stall conditions
+- **RPM Validation**: Multiple safety conditions monitor motor operation
 - **EEPROM Validation**: Parameters loaded from EEPROM are validated for reasonable ranges
 - **Command Validation**: Serial commands are parsed and validated before execution
+- **Startup Delay**: 1-second initialization period
+- **Pull-up Resistors**: RPM sensor pin configured with internal pull-up
 
 ## Usage Instructions
 

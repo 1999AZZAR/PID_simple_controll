@@ -94,6 +94,8 @@ void processSerialCommands();
 void parseSerialCommand(String command);
 void saveParametersToEEPROM();
 void loadParametersFromEEPROM();
+void setupWatchdog();
+void watchdogISR();
 void printHelp();
 void printParameters();
 
@@ -118,6 +120,11 @@ void setup() {
     // Load parameters from EEPROM
     loadParametersFromEEPROM();
 
+    // Setup watchdog timer for safety
+    if (WATCHDOG_ENABLED) {
+        setupWatchdog();
+    }
+
     Serial.println(F("BLDC PID Controller Started"));
     Serial.println(F("Mode: Production (default)"));
     Serial.print(F("Target RPM: "));
@@ -127,6 +134,11 @@ void setup() {
 }
 
 void loop() {
+    // Feed watchdog timer at start of main loop
+    if (WATCHDOG_ENABLED) {
+        wdt_reset();
+    }
+
     unsigned long currentTime = millis();
 
     // Process serial commands
@@ -337,6 +349,9 @@ void printDebugInfo() {
         Serial.println(integral, 2);
         Serial.print(F("Soft Starting: "));
         Serial.println(softStarting ? F("YES") : F("NO"));
+#if WATCHDOG_ENABLED
+        Serial.println(F("Watchdog: ENABLED"));
+#endif
 #if EMERGENCY_STOP_ENABLED
         Serial.print(F("Emergency Stop: "));
         Serial.println(emergencyStop ? F("ACTIVE") : F("Inactive"));
@@ -466,6 +481,31 @@ void saveParametersToEEPROM() {
     EEPROM.put(EEPROM_KI_ADDR, ki);
     EEPROM.put(EEPROM_KD_ADDR, kd);
     EEPROM.put(EEPROM_PULSES_PER_REV_ADDR, pulsesPerRev);
+}
+
+// Setup watchdog timer for Arduino Uno (ATmega328P)
+void setupWatchdog() {
+    // Configure watchdog timer with interrupt and system reset mode
+    // This provides both interrupt warning and system reset if not handled
+    wdt_reset();
+    WDTCSR |= (1 << WDCE) | (1 << WDE);  // Enable configuration change
+    WDTCSR = (1 << WDIE) | WATCHDOG_TIMEOUT;  // Interrupt + System Reset mode, set timeout
+}
+
+// Watchdog timer interrupt (called before system reset)
+ISR(WDT_vect) {
+    // Emergency shutdown before system reset
+    watchdogISR();
+}
+
+// Watchdog timeout handler - emergency shutdown
+void watchdogISR() {
+    // Force emergency stop before watchdog reset
+    if (EMERGENCY_STOP_ENABLED) {
+        emergencyStop = true;
+        analogWrite(PWM_OUTPUT_PIN, 0);  // Immediate PWM shutdown
+        integral = 0.0;  // Reset integral term
+    }
 }
 
 // Load parameters from EEPROM

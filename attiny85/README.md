@@ -33,6 +33,12 @@ This is the production-ready version of the BLDC PID controller running on ATtin
 - **No External Components**: No potentiometers, switches, or LEDs needed
 - **Direct Operation**: Powers on and maintains 1440 RPM automatically
 
+### Advanced Safety Systems
+- **Watchdog Timer**: Hardware-level hang protection with 8-second timeout
+- **Emergency Stop**: Automatic shutdown if motor stalls or runs away
+- **Soft-Start Protection**: Gradual power ramp-up to prevent current surges
+- **Multiple Safety Conditions**: RPM monitoring, pulse detection, and runaway prevention
+
 ### Robust Control
 - **Anti-windup Protection**: Prevents integrator runaway
 - **100Hz Control Loop**: Responsive motor control
@@ -79,6 +85,33 @@ This is the production-ready version of the BLDC PID controller running on ATtin
 2. Upload code using **Sketch → Upload Using Programmer**
 3. Remove programming connections
 4. Connect motor control hardware
+
+## Configuration
+
+### Config File Structure
+The ATtiny85 version now uses a modular `config.h` file (similar to Arduino Uno) for easy configuration:
+
+```cpp
+// Pin definitions
+#define RPM_SENSOR_PIN     PB3  // Hall sensor input
+#define PWM_OUTPUT_PIN     PB0  // PWM output to ESC
+
+// Safety parameters
+#define WATCHDOG_ENABLED        true   // Hardware watchdog protection
+#define EMERGENCY_STOP_ENABLED  true   // Emergency stop functionality
+#define EMERGENCY_STOP_TIMEOUT_MS  5000  // 5-second timeout
+
+// Control parameters
+#define PRODUCTION_TARGET_RPM 1440.0   // Target RPM
+#define PRODUCTION_KP         0.5      // Proportional gain
+#define PRODUCTION_KI         0.1      // Integral gain
+#define PRODUCTION_KD         0.01     // Derivative gain
+```
+
+### Safety Feature Configuration
+- **Watchdog Timer**: Set `WATCHDOG_ENABLED` to `false` to disable (not recommended)
+- **Emergency Stop**: Set `EMERGENCY_STOP_ENABLED` to `false` to disable safety features
+- **Timeout Settings**: Adjust `EMERGENCY_STOP_TIMEOUT_MS` based on application requirements
 
 ## Deployment Process
 

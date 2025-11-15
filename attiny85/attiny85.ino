@@ -2,7 +2,7 @@
  * BLDC Motor PID Controller - ATtiny85 Production Version
  *
  * Production-ready PID controller for ATtiny85 microcontroller
- * Maintains exact 1440 RPM using pre-tuned PID gains
+ * Maintains exact 1440 RPM using pre-tuned PID gains with enhanced safety features
  *
  * Motor Compatibility:
  * - Designed for 3-Hall BLDC motors (such as 42BLF20-22.0223)
@@ -26,6 +26,7 @@
  * - No mode switch (always production mode)
  * - Minimal pin usage for maximum reliability
  * - Optimized for size and power efficiency
+ * - Enhanced safety: Watchdog timer, emergency stop, soft-start
  *
  * Tuned on Arduino, deployed on ATtiny85 for production use
  *
@@ -34,38 +35,13 @@
  * Date: November 2025
  */
 
-// ATtiny85 configuration
-#define F_CPU 8000000UL  // 8MHz internal oscillator
+// Include configuration header
+#include "config.h"
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
 #include <avr/wdt.h>
-
-// Pin definitions (ATtiny85 physical pins) - Production Version
-#define RPM_SENSOR_PIN     PB3  // Physical pin 2, BLDC Hall sensor input (interrupt capable)
-#define PWM_OUTPUT_PIN     PB0  // Physical pin 5, PWM capable
-
-// Control parameters
-#define CONTROL_LOOP_HZ     100 // Control loop frequency (100 Hz)
-#define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
-
-// RPM calculation parameters
-#define PULSES_PER_REV      6   // Number of pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223)
-#define RPM_CALC_INTERVAL   100 // RPM calculation interval in ms
-#define MIN_PULSE_WIDTH_US  100 // Minimum pulse width to reject EMI spikes (100-500us)
-
-// PID limits
-#define PID_OUTPUT_MIN      -255 // Minimum PID output
-#define PID_OUTPUT_MAX      255  // Maximum PID output
-#define INTEGRAL_WINDUP_MIN -50  // Reduced anti-windup for ATtiny85
-#define INTEGRAL_WINDUP_MAX 50   // Reduced anti-windup for ATtiny85
-
-// Production mode default values
-#define PRODUCTION_TARGET_RPM 1440.0
-#define PRODUCTION_KP         0.5
-#define PRODUCTION_KI         0.1
-#define PRODUCTION_KD         0.01
 
 // Global variables - Production Mode Only
 volatile unsigned long pulseCount = 0;
@@ -85,24 +61,44 @@ float previousError = 0.0;
 float integral = 0.0;
 float pidOutput = 0.0;
 
+// Safety features
+volatile bool emergencyStop = false;
+volatile bool motorRunning = false;
+volatile unsigned long lastPulseMillis = 0;
+
 // Soft-start ramping to avoid current surges (ATtiny85 version)
-#define SOFT_START_DURATION_MS  2000  // 2 seconds ramp up time
-#define SOFT_START_STEPS       20     // Number of ramp steps
 volatile bool softStarting = true;
 volatile unsigned long softStartStartTime = 0;
 
 // Function prototypes
 void setupPins();
 void setupTimer();
+void setupWatchdog();
 void rpmSensorISR();
+void watchdogISR();
 float calculateRPM();
 float computePID(float error);
 void outputToESC(uint8_t pwmValue);
+void checkSafetyConditions();
+void emergencyShutdown();
+int constrain_value(int value, int min, int max);
+long map(long x, long in_min, long in_max, long out_min, long out_max);
 
 // Timer1 interrupt for millisecond and microsecond timing (ATtiny85 Timer1)
 ISR(TIM1_COMPA_vect) {
     timer_ms++;
     timer_us += 1000;  // Increment microseconds by 1000 (1ms)
+
+    // Feed watchdog timer periodically
+    if (WATCHDOG_ENABLED) {
+        wdt_reset();
+    }
+}
+
+// Watchdog timer interrupt (called before reset)
+ISR(WDT_vect) {
+    // Emergency shutdown on watchdog timeout
+    emergencyShutdown();
 }
 
 // RPM sensor interrupt with debounce filtering
@@ -111,12 +107,18 @@ ISR(INT0_vect) {
     if (t - lastPulseMicros > MIN_PULSE_WIDTH_US) {
         pulseCount++;
         lastPulseMicros = t;
+        lastPulseMillis = timer_ms;  // Track last pulse time for safety
+        motorRunning = true;         // Motor is actively producing pulses
     }
 }
 
 void setup() {
-    // Disable watchdog timer
-    wdt_disable();
+    // Setup watchdog timer first (before disabling it)
+    if (WATCHDOG_ENABLED) {
+        setupWatchdog();
+    } else {
+        wdt_disable();
+    }
 
     setupPins();
     setupTimer();
@@ -133,10 +135,28 @@ void setup() {
 
 void loop() {
     static unsigned long lastLoopTime = 0;
+    static unsigned long lastSafetyCheck = 0;
+
+    // Feed watchdog at start of main loop
+    if (WATCHDOG_ENABLED) {
+        wdt_reset();
+    }
 
     // Control loop timing - Production mode only
     if (timer_ms - lastLoopTime >= CONTROL_PERIOD_MS) {
         lastLoopTime = timer_ms;
+
+        // Safety checks (run less frequently than main control loop)
+        if (EMERGENCY_STOP_ENABLED && timer_ms - lastSafetyCheck >= 250) { // Every 250ms
+            checkSafetyConditions();
+            lastSafetyCheck = timer_ms;
+        }
+
+        // Skip PID control if emergency stop is active
+        if (emergencyStop) {
+            outputToESC(0);  // Emergency stop: zero PWM
+            return;  // Exit loop early for emergency stop
+        }
 
         // Calculate RPM at regular intervals
         if (timer_ms - lastRPMCalcTime >= RPM_CALC_INTERVAL) {
@@ -185,6 +205,51 @@ void setupTimer() {
     TCCR0B = (1 << CS01); // Prescaler 8, ~1kHz PWM frequency
 }
 
+void setupWatchdog() {
+    // Configure watchdog timer with interrupt mode (not reset)
+    wdt_reset();
+    WDTCR |= (1 << WDCE) | (1 << WDE);  // Enable configuration change
+    WDTCR = (1 << WDIE) | WATCHDOG_TIMEOUT;  // Interrupt mode, set timeout
+}
+
+void checkSafetyConditions() {
+    if (!EMERGENCY_STOP_ENABLED) return;
+
+    // Emergency stop condition 1: No pulses received for timeout period
+    if (motorRunning && (timer_ms - lastPulseMillis > EMERGENCY_STOP_TIMEOUT_MS)) {
+        emergencyStop = true;
+        return;
+    }
+
+    // Emergency stop condition 2: Motor running too fast (potential runaway)
+    if (currentRPM > targetRPM * 2.0) {  // More than 2x target RPM
+        emergencyStop = true;
+        return;
+    }
+
+    // Emergency stop condition 3: Motor not spinning when it should be
+    if (pidOutput > 50 && currentRPM < 10.0) {  // High PWM but no RPM
+        emergencyStop = true;
+        return;
+    }
+
+    // Reset emergency stop if conditions are normal
+    emergencyStop = false;
+}
+
+void emergencyShutdown() {
+    // Force PWM to zero in emergency
+    OCR0A = 0;
+
+    // Disable interrupts to prevent further operation
+    cli();
+
+    // Infinite loop - requires external reset
+    while (1) {
+        _delay_ms(100);
+    }
+}
+
 float calculateRPM() {
     static unsigned long lastPulseCount = 0;
     static unsigned long lastCalcTime = 0;
@@ -210,7 +275,6 @@ float calculateRPM() {
 
     return currentRPM; // Return previous value if not enough time has passed
 }
-
 
 float computePID(float error) {
     // Proportional term
