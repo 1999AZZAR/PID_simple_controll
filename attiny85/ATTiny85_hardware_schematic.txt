@@ -15,11 +15,11 @@ ATtiny85 Physical Pin Mapping:
 REQUIRED CONNECTIONS (Only 2 Pins!):
 ===================================
 
-RPM Sensor Input:
-- Signal wire → ATtiny85 Physical Pin 2 (PB3)
-- Power → 5V
-- Ground → GND
+BLDC Hall Sensor Input:
+- Any Hall wire (A, B, or C) → ATtiny85 Physical Pin 2 (PB3)
+- Hall sensors share power/ground with ATtiny85 (5V/GND)
 - Note: PB3 is interrupt-capable (INT0) for accurate RPM counting
+- 6 pulses per revolution from 3-Hall BLDC motors
 
 PWM Output to ESC:
 - ATtiny85 Physical Pin 5 (PB0) → ESC signal input
@@ -65,17 +65,18 @@ TUNING PROCEDURE (ATtiny85):
 ===========================
 
 1. Upload code with Arduino as ISP
-2. Connect potentiometers as shown
-3. Set mode switch to tuning position (GND)
-4. Power on system
-5. Adjust potentiometers:
+2. Connect potentiometers as shown (if using Arduino version for tuning)
+3. Connect BLDC Hall sensor to physical pin 2
+4. Set mode switch to tuning position (GND)
+5. Power on system
+6. Adjust potentiometers:
    - Target RPM: Set to 1440
    - Kp: Start low (0.1), increase until oscillation
    - Ki/Kd: Wait for parameter to appear, adjust accordingly
-6. Note optimal values
-7. Update PRODUCTION_* constants in code
-8. Re-upload with tuned values
-9. Switch to production mode
+7. Note optimal values
+8. Update PRODUCTION_* constants in code
+9. Re-upload production version with tuned values
+10. Connect only Hall sensor and PWM output for final deployment
 
 ALTERNATIVE TUNING METHOD:
 =========================
@@ -110,8 +111,10 @@ TROUBLESHOOTING:
    - Test with fixed PWM value first
 
 2. RPM Not Reading:
-   - Verify interrupt pin connection (physical pin 2)
-   - Check sensor signal level and pull-up
+   - Verify BLDC Hall sensor connection to physical pin 2
+   - Ensure Hall sensor has power (5V) and ground
+   - Check that you're using any of the three Hall wires (A, B, or C)
+   - Verify PULSES_PER_REV is set to 6 for 3-Hall motors
 
 3. Unstable Control:
    - Reduce PID gains (start with Arduino-tuned values)

@@ -16,7 +16,7 @@
  * Hardware Requirements:
  * - Arduino board
  * - BLDC motor with ESC
- * - RPM sensor (Hall effect or optical)
+ * - Hall sensor from BLDC motor (any one of the three Hall wires)
  * - Mode switch (jumper/digital input)
  *
  * Optional Hardware (for potentiometer tuning):
@@ -31,7 +31,7 @@
 #include <EEPROM.h>
 
 // Pin definitions
-#define RPM_SENSOR_PIN      2   // Interrupt pin for RPM sensor
+#define RPM_SENSOR_PIN      2   // Interrupt pin for BLDC Hall sensor (any Hall wire from motor)
 #define PWM_OUTPUT_PIN      9   // PWM output to ESC
 #define MODE_SWITCH_PIN     3   // Digital input for mode selection
 #define POT_TARGET_RPM      A0  // Potentiometer for target RPM
@@ -44,7 +44,7 @@
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
 // RPM calculation parameters
-#define PULSES_PER_REV      1   // Number of pulses per revolution (adjust based on sensor)
+#define PULSES_PER_REV      6   // Number of pulses per revolution (6 for 3-Hall BLDC motors, adjust for other sensors)
 #define RPM_CALC_INTERVAL   100 // RPM calculation interval in ms
 
 // PID limits
@@ -112,7 +112,7 @@ void setup() {
     pinMode(PWM_OUTPUT_PIN, OUTPUT);
     pinMode(MODE_SWITCH_PIN, INPUT_PULLUP);
 
-    // Attach interrupt for RPM sensor
+    // Attach interrupt for BLDC Hall sensor
     attachInterrupt(digitalPinToInterrupt(RPM_SENSOR_PIN), rpmSensorISR, RISING);
 
     // Initialize PWM output to stopped position

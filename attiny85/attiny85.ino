@@ -7,7 +7,7 @@
  * Hardware Connections (Minimal):
  * Physical Pin | Function
  *     1        | VCC (Power)
- *     2        | RPM Sensor (interrupt input)
+ *     2        | BLDC Hall Sensor (any Hall wire from motor, interrupt input)
  *     3        | Not Connected
  *     4        | GND (Ground)
  *     5        | PWM to ESC (motor control output)
@@ -36,7 +36,7 @@
 #include <avr/wdt.h>
 
 // Pin definitions (ATtiny85 physical pins) - Production Version
-#define RPM_SENSOR_PIN     PB3  // Physical pin 2, interrupt capable
+#define RPM_SENSOR_PIN     PB3  // Physical pin 2, BLDC Hall sensor input (interrupt capable)
 #define PWM_OUTPUT_PIN     PB0  // Physical pin 5, PWM capable
 
 // Control parameters
@@ -44,7 +44,7 @@
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
 // RPM calculation parameters
-#define PULSES_PER_REV      1   // Number of pulses per revolution
+#define PULSES_PER_REV      6   // Number of pulses per revolution (6 for 3-Hall BLDC motors)
 #define RPM_CALC_INTERVAL   100 // RPM calculation interval in ms
 
 // PID limits

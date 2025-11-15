@@ -19,10 +19,10 @@ Arduino Board Layout:
 Connections:
 -----------
 
-RPM Sensor:
-- Signal wire → Arduino Pin 2
-- Power → 5V (or sensor voltage)
-- Ground → GND
+BLDC Hall Sensor:
+- Any Hall wire (A, B, or C) → Arduino Pin 2
+- Hall sensors share power/ground with Arduino (5V/GND)
+- No additional components needed for most BLDC motors
 
 Mode Switch:
 - One side → Arduino Pin 3
@@ -43,21 +43,16 @@ Power Supply:
 - Motor/ESC: Separate supply as required by motor
 - Common ground between Arduino and motor supply
 
-Sensor Types:
-------------
+BLDC Hall Sensor Configuration:
+------------------------------
 
-Hall Effect Sensor:
-- Typically 3 wires: Power, Ground, Signal
-- Rising edge on signal pin per magnet pass
-
-Optical Encoder:
-- Power, Ground, Channel A (use as signal)
-- Quadrature encoders have Channel B for direction
-
-Tachometer Wire (from ESC):
-- Some ESCs provide RPM signal output
-- Usually 1 pulse per revolution
-- Check ESC documentation for voltage levels
+3-Hall BLDC Motor Sensors:
+- Most BLDC motors have 3 built-in Hall sensors (Hall A, B, C)
+- Each Hall sensor provides 2 pulses per revolution
+- Total: 6 pulses per revolution when using any single Hall wire
+- Connect ANY Hall wire to Arduino Pin 2
+- Hall sensors operate at 5V, compatible with Arduino
+- No diode isolation required between controller and motor
 
 Wiring Notes:
 ------------
@@ -79,7 +74,9 @@ ESC Calibration (if required):
 5. ESC should beep to confirm calibration
 
 RPM Sensor Calibration:
-- Adjust PULSES_PER_REV constant based on sensor type
-- Hall sensors: Usually 1-2 pulses per revolution
-- Encoders: Varies (check datasheet)
-- Tachometer: Usually 1 pulse per revolution
+- PULSES_PER_REV is set to 6 for 3-Hall BLDC motors
+- If using a different sensor type, adjust this constant:
+  - Single Hall sensor: Usually 2 pulses per revolution
+  - Optical encoder: Check datasheet for pulses per revolution
+  - Tachometer: Usually 1 pulse per revolution
+  - Other sensors: Measure actual pulses per revolution

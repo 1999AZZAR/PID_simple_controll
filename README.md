@@ -86,26 +86,61 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 ## Hardware Requirements
 
 ### Required Components
-- Arduino board (Uno, Mega, or similar)
+- Arduino board (Uno, Mega, or similar) or ATtiny85 microcontroller
 - BLDC motor with Electronic Speed Controller (ESC)
-- RPM sensor (Hall effect, optical encoder, or tachometer)
-- SPDT switch or jumper (mode selection)
-- Power supply suitable for motor and Arduino
+- BLDC motor Hall sensors (built into most 3-phase BLDC motors)
+- SPDT switch or jumper (mode selection, Arduino version only)
+- Power supply suitable for motor and microcontroller
 
 ### Optional Components (for Hardware Tuning)
 - 4x 10kΩ potentiometers (for potentiometer-based tuning mode)
 
 ### Pin Connections
 
+#### Arduino Uno Version
 | Component | Arduino Pin | Description |
 |-----------|-------------|-------------|
-| RPM Sensor | Digital Pin 2 | Interrupt-capable pin for pulse counting |
+| BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from BLDC motor (interrupt-capable pin) |
 | PWM Output | Digital Pin 9 | PWM signal to ESC |
 | Mode Switch | Digital Pin 3 | LOW = Potentiometer tuning mode, HIGH = Production/Serial mode |
 | Target RPM Pot | Analog A0 | Sets target RPM (0-3000 RPM) - Optional |
 | Kp Pot | Analog A1 | Proportional gain (0-2.0) - Optional |
 | Ki Pot | Analog A2 | Integral gain (0-1.0) - Optional |
 | Kd Pot | Analog A3 | Derivative gain (0-0.1) - Optional |
+
+#### ATtiny85 Version
+| Component | ATtiny85 Physical Pin | Description |
+|-----------|----------------------|-------------|
+| BLDC Hall Sensor | Pin 2 (PB3) | Any Hall wire from BLDC motor (interrupt-capable pin) |
+| PWM Output | Pin 5 (PB0) | PWM signal to ESC |
+
+### BLDC Hall Sensor Wiring
+
+Most 3-phase BLDC motors have three built-in Hall effect sensors that provide 6 pulses per revolution (one pulse per 60° of rotation). Connect **any one** of the three Hall sensor wires to the microcontroller input pin.
+
+#### Wiring Diagram:
+```
+BLDC Motor Hall Sensors → Controller/Microcontroller → ESC → Motor Power
+     |                        |                        |
+     |                        |                        |
+   Hall A ──────────────┐     |                        |
+   Hall B ──────────────┼─────┼─── Digital Pin 2 ──────┘
+   Hall C ──────────────┘     |       (Arduino)
+                              |       Pin 2 (PB3)
+                              |       (ATtiny85)
+                              |
+                              └───── PWM Pin 9 ────── ESC Signal Input
+                                     (Arduino)
+                                     Pin 5 (PB0)
+                                     (ATtiny85)
+```
+
+#### Key Points:
+- **Any Hall wire works**: Connect Hall A, B, or C to the sensor input pin
+- **No isolation needed**: The controller and BLDC motor can safely share Hall wires
+- **6 pulses per revolution**: Code is configured for 3-Hall BLDC motors
+- **Power sharing**: Hall sensors typically operate at 5V, same as microcontroller
+- **Common ground**: Ensure all components share a common ground connection
 
 ## Software Architecture
 
@@ -185,7 +220,7 @@ output = proportional + integral + derivative
 ### Control Parameters
 ```cpp
 #define CONTROL_LOOP_HZ     100     // Control loop frequency
-#define PULSES_PER_REV      1       // Sensor pulses per revolution
+#define PULSES_PER_REV      6       // Sensor pulses per revolution (6 for 3-Hall BLDC motors)
 #define RPM_CALC_INTERVAL   100     // RPM update interval (ms)
 #define SERIAL_BUFFER_SIZE  64      // Serial command buffer size
 ```

@@ -68,7 +68,7 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 ### Required Components
 - Arduino board (Uno, Mega, or similar)
 - BLDC motor with Electronic Speed Controller (ESC)
-- RPM sensor (Hall effect, optical encoder, or tachometer)
+- BLDC motor Hall sensors (built into most 3-phase BLDC motors)
 - SPDT switch or jumper (mode selection)
 - Power supply suitable for motor and Arduino
 
@@ -79,7 +79,7 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 
 | Component | Arduino Pin | Description |
 |-----------|-------------|-------------|
-| RPM Sensor | Digital Pin 2 | Interrupt-capable pin for pulse counting |
+| BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from BLDC motor (interrupt-capable pin) |
 | PWM Output | Digital Pin 9 | PWM signal to ESC |
 | Mode Switch | Digital Pin 3 | LOW = Potentiometer tuning mode, HIGH = Production/Serial mode |
 | Target RPM Pot | Analog A0 | Sets target RPM (0-3000 RPM) - Optional |
@@ -165,7 +165,7 @@ output = proportional + integral + derivative
 ### Control Parameters
 ```cpp
 #define CONTROL_LOOP_HZ     100     // Control loop frequency
-#define PULSES_PER_REV      1       // Sensor pulses per revolution
+#define PULSES_PER_REV      6       // Sensor pulses per revolution (6 for 3-Hall BLDC motors)
 #define RPM_CALC_INTERVAL   100     // RPM update interval (ms)
 #define SERIAL_BUFFER_SIZE  64      // Serial command buffer size
 ```
