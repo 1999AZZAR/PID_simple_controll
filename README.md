@@ -37,6 +37,7 @@ BLDC_PID_Controller/
 │   ├── attiny85.ino            # Production ATTiny85 code
 │   ├── README.md               # ATTiny85 documentation
 │   └── ATTiny85_hardware_schematic.md # ATTiny85 hardware setup
+├── 42BLF.pdf                   # 42BLF motor datasheet
 ├── LICENSE                     # MIT License
 └── README.md                   # This overview file
 ```
@@ -45,7 +46,7 @@ BLDC_PID_Controller/
 
 This Arduino-based controller implements a PID (Proportional-Integral-Derivative) algorithm to precisely control BLDC motor speed. The system maintains exact RPM even under varying load conditions through:
 
-- **Motor Compatibility**: Designed for 3-Hall BLDC motors (such as 42BLF20-22.0223 or equivalent)
+- **Motor Compatibility**: Designed for 3-Hall BLDC motors (such as 42BLF20-22.0223 or equivalent) - see `42BLF.pdf` for complete specifications
 - **Hall Sensor Integration**: Direct connection to motor Hall sensors (6 pulses per electrical revolution)
 - **PID Control**: Proportional, Integral, and Derivative terms for optimal speed regulation
 - **Anti-Windup Protection**: Prevents integral windup during stall or high-load conditions
@@ -58,7 +59,9 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 ## Implementations
 
 ### Arduino Uno Version (`arduino_uno/`)
+
 **Best for**: Development, testing, and tuning
+
 - Full serial command interface for real-time PID parameter adjustment
 - EEPROM storage for parameter persistence
 - Serial Plotter support for monitoring
@@ -66,7 +69,9 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 - More memory for debugging features
 
 ### ATTiny85 Version (`attiny85/`)
+
 **Best for**: Production deployment
+
 - Minimal resource usage (31% flash, 8% RAM)
 - No external dependencies
 - Optimized for power efficiency
@@ -76,52 +81,57 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 ## Quick Start
 
 1. **Choose your platform:**
+
    - Open `arduino_uno/arduino_uno.ino` for development
    - Open `attiny85/attiny85.ino` for production
-
 2. **Follow the platform-specific README:**
+
    - `arduino_uno/README.md` for Arduino Uno setup
    - `attiny85/README.md` for ATTiny85 setup
-
 3. **Hardware setup:** Refer to the schematic files in each platform folder
 
 ## Hardware Requirements
 
 ### Required Components
+
 - Arduino board (Uno, Mega, or similar) or ATtiny85 microcontroller
-- **3-Hall BLDC motor** (such as 42BLF20-22.0223 or equivalent with built-in Hall sensors)
+- **3-Hall BLDC motor** (such as 42BLF20-22.0223 or equivalent with built-in Hall sensors) - see `42BLF.pdf` datasheet for specifications
 - **BLDC motor controller (ESC)** compatible with the specific motor model
 - **BLDC motor Hall sensors** (built into the motor - any Hall wire A/B/C can be used)
 - SPDT switch or jumper (mode selection, Arduino version only)
 - Power supply suitable for motor and microcontroller (5V for Hall sensor compatibility)
 
 ### Optional Components (for Hardware Tuning)
+
 - 4x 10kΩ potentiometers (for potentiometer-based tuning mode)
 
 ### Pin Connections
 
 #### Arduino Uno Version
-| Component | Arduino Pin | Description |
-|-----------|-------------|-------------|
-| BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from BLDC motor (interrupt-capable pin) |
-| PWM Output | Digital Pin 9 | PWM signal to ESC |
-| Mode Switch | Digital Pin 3 | LOW = Potentiometer tuning mode, HIGH = Production/Serial mode |
-| Target RPM Pot | Analog A0 | Sets target RPM (0-3000 RPM) - Optional |
-| Kp Pot | Analog A1 | Proportional gain (0-2.0) - Optional |
-| Ki Pot | Analog A2 | Integral gain (0-1.0) - Optional |
-| Kd Pot | Analog A3 | Derivative gain (0-0.1) - Optional |
+
+| Component        | Arduino Pin   | Description                                                    |
+| ---------------- | ------------- | -------------------------------------------------------------- |
+| BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from BLDC motor (interrupt-capable pin)          |
+| PWM Output       | Digital Pin 9 | PWM signal to ESC                                              |
+| Mode Switch      | Digital Pin 3 | LOW = Potentiometer tuning mode, HIGH = Production/Serial mode |
+| Target RPM Pot   | Analog A0     | Sets target RPM (0-3000 RPM) - Optional                        |
+| Kp Pot           | Analog A1     | Proportional gain (0-2.0) - Optional                           |
+| Ki Pot           | Analog A2     | Integral gain (0-1.0) - Optional                               |
+| Kd Pot           | Analog A3     | Derivative gain (0-0.1) - Optional                             |
 
 #### ATtiny85 Version
-| Component | ATtiny85 Physical Pin | Description |
-|-----------|----------------------|-------------|
-| BLDC Hall Sensor | Pin 2 (PB3) | Any Hall wire from BLDC motor (interrupt-capable pin) |
-| PWM Output | Pin 5 (PB0) | PWM signal to ESC |
+
+| Component        | ATtiny85 Physical Pin | Description                                           |
+| ---------------- | --------------------- | ----------------------------------------------------- |
+| BLDC Hall Sensor | Pin 2 (PB3)           | Any Hall wire from BLDC motor (interrupt-capable pin) |
+| PWM Output       | Pin 5 (PB0)           | PWM signal to ESC                                     |
 
 ### BLDC Hall Sensor Wiring
 
-This controller is designed for **3-Hall BLDC motors** such as the 42BLF20-22.0223 or equivalent motors with built-in Hall effect sensors. These motors have three Hall sensors (Hall A, Hall B, Hall C) that provide 6 pulses per electrical revolution (one pulse per 60° of rotation). Connect **any one** of the three Hall sensor wires to the microcontroller input pin.
+This controller is designed for **3-Hall BLDC motors** such as the 42BLF20-22.0223 or equivalent motors with built-in Hall effect sensors (see `42BLF.pdf` for complete motor specifications). These motors have three Hall sensors (Hall A, Hall B, Hall C) that provide 6 pulses per electrical revolution (one pulse per 60° of rotation). Connect **any one** of the three Hall sensor wires to the microcontroller input pin.
 
 #### Wiring Diagram:
+
 ```
 BLDC Motor Hall Sensors → Controller/Microcontroller → ESC → Motor Power
      |                        |                        |
@@ -139,6 +149,7 @@ BLDC Motor Hall Sensors → Controller/Microcontroller → ESC → Motor Power
 ```
 
 #### Key Points:
+
 - **Any Hall wire works**: Connect Hall A, B, or C to the sensor input pin
 - **No isolation needed**: The controller and BLDC motor can safely share Hall wires
 - **6 pulses per revolution**: Code is configured for 3-Hall BLDC motors
@@ -148,6 +159,7 @@ BLDC Motor Hall Sensors → Controller/Microcontroller → ESC → Motor Power
 ## Software Architecture
 
 ### Control Loop
+
 - **Frequency**: 100 Hz (10ms cycle time)
 - **RPM Calculation**: Updated every 100ms for stability
 - **PID Computation**: Calculated each control cycle
@@ -155,6 +167,7 @@ BLDC Motor Hall Sensors → Controller/Microcontroller → ESC → Motor Power
 - **Serial Command Processing**: Asynchronous command parsing and execution
 
 ### PID Algorithm
+
 ```
 error = target_RPM - current_RPM
 proportional = Kp × error
@@ -164,6 +177,7 @@ output = proportional + integral + derivative
 ```
 
 ### Anti-Windup Protection
+
 - Integral term clamped between -100 and +100
 - Prevents runaway during motor stall or maximum load
 - Maintains system stability under adverse conditions
@@ -171,6 +185,7 @@ output = proportional + integral + derivative
 ## Operating Modes
 
 ### Production Mode (Default)
+
 - Uses hardcoded optimal PID parameters
 - Target RPM: 1440 RPM
 - Kp: 0.5, Ki: 0.1, Kd: 0.01
@@ -178,12 +193,14 @@ output = proportional + integral + derivative
 - Stable, predictable operation
 
 ### Potentiometer Tuning Mode
+
 - Activated when mode switch is LOW
 - Real-time parameter adjustment via potentiometers
 - Serial Plotter visualization
 - Live system response monitoring
 
 ### Serial Tuning Mode
+
 - Activated by sending "MODE SERIAL" command via serial
 - Real-time parameter adjustment via serial commands
 - Interactive command interface with immediate feedback
@@ -221,14 +238,16 @@ output = proportional + integral + derivative
 ## Configuration Parameters
 
 ### Control Parameters
+
 ```cpp
 #define CONTROL_LOOP_HZ     100     // Control loop frequency
-#define PULSES_PER_REV      6       // Sensor pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223)
+#define PULSES_PER_REV      6       // Sensor pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223 - see 42BLF.pdf)
 #define RPM_CALC_INTERVAL   100     // RPM update interval (ms)
 #define SERIAL_BUFFER_SIZE  64      // Serial command buffer size
 ```
 
 ### EEPROM Storage Addresses
+
 ```cpp
 #define EEPROM_TARGET_RPM_ADDR 0    // Target RPM storage address
 #define EEPROM_KP_ADDR         4    // Kp gain storage address
@@ -237,6 +256,7 @@ output = proportional + integral + derivative
 ```
 
 ### PID Limits
+
 ```cpp
 #define PID_OUTPUT_MIN      -255    // Minimum PID output
 #define PID_OUTPUT_MAX      255     // Maximum PID output
@@ -245,6 +265,7 @@ output = proportional + integral + derivative
 ```
 
 ### Production Mode Defaults
+
 ```cpp
 #define PRODUCTION_TARGET_RPM 1440.0
 #define PRODUCTION_KP         0.5
@@ -257,27 +278,32 @@ output = proportional + integral + derivative
 The system supports interactive serial commands for parameter tuning and monitoring:
 
 ### Parameter Setting
+
 - `SET TARGET <rpm>` - Set target RPM (0-5000)
 - `SET KP <value>` - Set proportional gain (0-10.0)
 - `SET KI <value>` - Set integral gain (0-5.0)
 - `SET KD <value>` - Set derivative gain (0-1.0)
 
 ### Mode Control
+
 - `MODE PRODUCTION` - Switch to production mode
 - `MODE SERIAL` - Switch to serial tuning mode
 
 ### Monitoring and Storage
+
 - `GET PARAMS` - Display current parameters and status
 - `SAVE` - Save current parameters to EEPROM
 - `LOAD` - Load parameters from EEPROM
 - `RESET INTEGRAL` - Reset integral term to zero
 
 ### Information
+
 - `HELP` - Display available commands
 
 ## Serial Plotter Output
 
 The system outputs four comma-separated values for visualization:
+
 - `Target`: Desired RPM
 - `Current`: Measured RPM
 - `Error`: Difference between target and current
@@ -310,26 +336,31 @@ Note: Serial Plotter output is available in all operating modes.
 ### Common Issues
 
 **Motor Not Starting**
+
 - Check ESC calibration and power connections
 - Verify PWM output pin connection
 - Confirm RPM sensor is providing pulses
 
 **Unstable Control**
+
 - Reduce Kp gain
 - Check for electrical noise on sensor lines
 - Verify proper grounding
 
 **No RPM Reading**
+
 - Confirm sensor type and pulse count configuration
 - Check interrupt pin connection
 - Verify sensor power and signal levels
 
 **Serial Plotter Issues**
+
 - Ensure baud rate matches (115200)
 - Check Arduino serial connection
 - Verify no other serial devices are conflicting
 
 **Serial Command Issues**
+
 - Commands must end with newline character
 - Check Serial Monitor line ending settings
 - Ensure commands are in uppercase
@@ -338,12 +369,14 @@ Note: Serial Plotter output is available in all operating modes.
 ## Performance Optimization
 
 ### PID Tuning Guidelines
+
 1. **Start with P only**: Set Ki=0, Kd=0, tune Kp for stability
 2. **Add Integral**: Slowly increase Ki to eliminate steady-state error
 3. **Add Derivative**: Small Kd values for improved damping
 4. **Fine-tune**: Make small adjustments and observe response
 
 ### Hardware Considerations
+
 - Use shielded cables for sensor connections
 - Separate power supplies for logic and motor power
 - Add RC filters on PWM output if ESC is sensitive to noise
@@ -363,4 +396,4 @@ Contributions are welcome! Please submit issues and pull requests on GitHub.
 
 ## License
 
-This project is released under the MIT License.
+This project is released under the [MIT License](LICENSE).
