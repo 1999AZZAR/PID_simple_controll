@@ -31,12 +31,12 @@ A robust PID control system for maintaining a BLDC motor at exactly 1440 RPM, wi
 BLDC_PID_Controller/
 ├── arduino_uno/                 # Development implementation
 │   ├── arduino_uno.ino          # Arduino Uno code with serial tuning
-│   ├── hardware_schematic.txt   # Hardware setup guide
+│   ├── hardware_schematic.md   # Hardware setup guide
 │   └── README.md               # Detailed Arduino Uno documentation
 ├── attiny85/                    # Production implementation
 │   ├── attiny85.ino            # Production ATTiny85 code
 │   ├── README.md               # ATTiny85 documentation
-│   └── ATTiny85_hardware_schematic.txt # ATTiny85 hardware setup
+│   └── ATTiny85_hardware_schematic.md # ATTiny85 hardware setup
 ├── LICENSE                     # MIT License
 └── README.md                   # This overview file
 ```
@@ -45,10 +45,12 @@ BLDC_PID_Controller/
 
 This Arduino-based controller implements a PID (Proportional-Integral-Derivative) algorithm to precisely control BLDC motor speed. The system maintains exact RPM even under varying load conditions through:
 
+- **Motor Compatibility**: Designed for 3-Hall BLDC motors (such as 42BLF20-22.0223 or equivalent)
+- **Hall Sensor Integration**: Direct connection to motor Hall sensors (6 pulses per electrical revolution)
 - **PID Control**: Proportional, Integral, and Derivative terms for optimal speed regulation
 - **Anti-Windup Protection**: Prevents integral windup during stall or high-load conditions
 - **Three Mode Operation**: Production mode for stable operation, potentiometer tuning for hardware adjustment, and serial tuning for software-based parameter optimization
-- **Real-time Feedback**: RPM sensor integration for accurate speed measurement
+- **Real-time Feedback**: Hall sensor RPM measurement for accurate closed-loop control
 - **Flexible Tuning**: Four potentiometers for hardware tuning or serial commands for software tuning
 - **Parameter Persistence**: EEPROM storage for saving and loading tuned PID parameters
 - **Multi-Platform Support**: Arduino Uno for development and ATTiny85 for production deployment
@@ -87,10 +89,11 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 
 ### Required Components
 - Arduino board (Uno, Mega, or similar) or ATtiny85 microcontroller
-- BLDC motor with Electronic Speed Controller (ESC)
-- BLDC motor Hall sensors (built into most 3-phase BLDC motors)
+- **3-Hall BLDC motor** (such as 42BLF20-22.0223 or equivalent with built-in Hall sensors)
+- **BLDC motor controller (ESC)** compatible with the specific motor model
+- **BLDC motor Hall sensors** (built into the motor - any Hall wire A/B/C can be used)
 - SPDT switch or jumper (mode selection, Arduino version only)
-- Power supply suitable for motor and microcontroller
+- Power supply suitable for motor and microcontroller (5V for Hall sensor compatibility)
 
 ### Optional Components (for Hardware Tuning)
 - 4x 10kΩ potentiometers (for potentiometer-based tuning mode)
@@ -116,7 +119,7 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 
 ### BLDC Hall Sensor Wiring
 
-Most 3-phase BLDC motors have three built-in Hall effect sensors that provide 6 pulses per revolution (one pulse per 60° of rotation). Connect **any one** of the three Hall sensor wires to the microcontroller input pin.
+This controller is designed for **3-Hall BLDC motors** such as the 42BLF20-22.0223 or equivalent motors with built-in Hall effect sensors. These motors have three Hall sensors (Hall A, Hall B, Hall C) that provide 6 pulses per electrical revolution (one pulse per 60° of rotation). Connect **any one** of the three Hall sensor wires to the microcontroller input pin.
 
 #### Wiring Diagram:
 ```
@@ -220,7 +223,7 @@ output = proportional + integral + derivative
 ### Control Parameters
 ```cpp
 #define CONTROL_LOOP_HZ     100     // Control loop frequency
-#define PULSES_PER_REV      6       // Sensor pulses per revolution (6 for 3-Hall BLDC motors)
+#define PULSES_PER_REV      6       // Sensor pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223)
 #define RPM_CALC_INTERVAL   100     // RPM update interval (ms)
 #define SERIAL_BUFFER_SIZE  64      // Serial command buffer size
 ```

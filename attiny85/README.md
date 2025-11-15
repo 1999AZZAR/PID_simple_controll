@@ -46,19 +46,20 @@ This is the production-ready version of the BLDC PID controller running on ATtin
 | Physical Pin | Function | Connection |
 |-------------|----------|------------|
 | 1 (RST) | Reset | Programming only |
-| 2 (PB3) | BLDC Hall Sensor | Any Hall wire from BLDC motor |
+| 2 (PB3) | BLDC Hall Sensor | Any Hall wire (A/B/C) from 3-Hall BLDC motor |
 | 3 (PB4) | Not Connected | - |
-| 4 (GND) | Ground | Common ground |
+| 4 (GND) | Ground | Common ground with motor Hall sensors |
 | 5 (PB0) | PWM to ESC | Motor controller input |
 | 6 (PB1) | Not Connected | - |
 | 7 (PB2) | Not Connected | - |
-| 8 (VCC) | Power | 5V supply |
+| 8 (VCC) | Power | 5V supply (Hall sensor compatible) |
 
 ### Power & Connections
-- **ATtiny85 Supply**: 2.7-5.5V (recommended 5V)
+- **ATtiny85 Supply**: 2.7-5.5V (recommended 5V for Hall sensor compatibility)
 - **Motor/ESC Supply**: Separate supply with common ground
-- **BLDC Hall Sensor**: Connect any Hall wire to pin 2, Hall sensors share power/ground with ATtiny85
-- **ESC Input**: Connect pin 5 to ESC signal input
+- **BLDC Hall Sensor**: Connect any Hall wire (A/B/C) from 3-Hall BLDC motor to pin 2
+- **Hall Sensor Power**: Hall sensors share 5V/GND with ATtiny85 (no additional circuitry needed)
+- **ESC Input**: Connect pin 5 to ESC signal input (compatible with 3-Hall BLDC motors)
 - **Total Connections**: Only 2 signal wires + power/ground!
 
 ## Software Setup

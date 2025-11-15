@@ -4,20 +4,27 @@
  * This Arduino sketch implements a PID controller to maintain a BLDC motor
  * at exactly 1440 RPM, even under varying load conditions.
  *
+ * Motor Compatibility:
+ * - Designed for 3-Hall BLDC motors (such as 42BLF20-22.0223)
+ * - Works with any BLDC motor that has 3 built-in Hall effect sensors
+ * - Hall sensors provide 6 pulses per electrical revolution
+ * - Compatible with standard BLDC motor controllers (ESC)
+ *
  * Features:
  * - PID control with anti-windup protection
  * - Three operating modes: Production, Potentiometer Tuning, and Serial Tuning
- * - RPM feedback via sensor
+ * - RPM feedback via Hall sensor (direct motor connection)
  * - PWM output to ESC
  * - Real-time tuning via potentiometers, serial commands, or Serial Plotter
  * - EEPROM storage for PID parameters
  * - Interactive serial command interface
  *
  * Hardware Requirements:
- * - Arduino board
- * - BLDC motor with ESC
- * - Hall sensor from BLDC motor (any one of the three Hall wires)
- * - Mode switch (jumper/digital input)
+ * - Arduino board (Uno, Mega, or similar)
+ * - 3-Hall BLDC motor (such as 42BLF20-22.0223 or equivalent)
+ * - BLDC motor controller (ESC) compatible with the motor
+ * - Any one Hall sensor wire from the BLDC motor (Hall A, B, or C)
+ * - Mode switch (jumper/digital input for tuning mode)
  *
  * Optional Hardware (for potentiometer tuning):
  * - 4 potentiometers for real-time tuning
@@ -44,7 +51,7 @@
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
 // RPM calculation parameters
-#define PULSES_PER_REV      6   // Number of pulses per revolution (6 for 3-Hall BLDC motors, adjust for other sensors)
+#define PULSES_PER_REV      6   // Number of pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223)
 #define RPM_CALC_INTERVAL   100 // RPM calculation interval in ms
 
 // PID limits

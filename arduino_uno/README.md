@@ -29,7 +29,7 @@ A robust PID control system for maintaining a BLDC motor at exactly 1440 RPM, fe
 ```
 arduino_uno/
 ├── arduino_uno.ino          # Arduino Uno code with serial tuning
-├── hardware_schematic.txt   # Hardware setup guide
+├── hardware_schematic.md   # Hardware setup guide
 └── README.md               # Arduino Uno documentation
 ```
 
@@ -67,10 +67,11 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 
 ### Required Components
 - Arduino board (Uno, Mega, or similar)
-- BLDC motor with Electronic Speed Controller (ESC)
-- BLDC motor Hall sensors (built into most 3-phase BLDC motors)
+- **3-Hall BLDC motor** (such as 42BLF20-22.0223 or equivalent with built-in Hall sensors)
+- **BLDC motor controller (ESC)** compatible with the specific motor model
+- **BLDC motor Hall sensors** (built into the motor - Hall A, B, or C wires)
 - SPDT switch or jumper (mode selection)
-- Power supply suitable for motor and Arduino
+- Power supply suitable for motor and Arduino (5V for Hall sensor compatibility)
 
 ### Optional Components (for Hardware Tuning)
 - 4x 10kΩ potentiometers (for potentiometer-based tuning mode)
@@ -165,7 +166,7 @@ output = proportional + integral + derivative
 ### Control Parameters
 ```cpp
 #define CONTROL_LOOP_HZ     100     // Control loop frequency
-#define PULSES_PER_REV      6       // Sensor pulses per revolution (6 for 3-Hall BLDC motors)
+#define PULSES_PER_REV      6       // Sensor pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223)
 #define RPM_CALC_INTERVAL   100     // RPM update interval (ms)
 #define SERIAL_BUFFER_SIZE  64      // Serial command buffer size
 ```

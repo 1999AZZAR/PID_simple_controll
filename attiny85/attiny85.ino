@@ -4,12 +4,18 @@
  * Production-ready PID controller for ATtiny85 microcontroller
  * Maintains exact 1440 RPM using pre-tuned PID gains
  *
+ * Motor Compatibility:
+ * - Designed for 3-Hall BLDC motors (such as 42BLF20-22.0223)
+ * - Works with any BLDC motor that has 3 built-in Hall effect sensors
+ * - Hall sensors provide 6 pulses per electrical revolution
+ * - Optimized for production deployment with minimal hardware
+ *
  * Hardware Connections (Minimal):
  * Physical Pin | Function
- *     1        | VCC (Power)
- *     2        | BLDC Hall Sensor (any Hall wire from motor, interrupt input)
+ *     1        | VCC (Power - 5V for Hall sensor compatibility)
+ *     2        | BLDC Hall Sensor (any Hall wire A/B/C from motor, interrupt input)
  *     3        | Not Connected
- *     4        | GND (Ground)
+ *     4        | GND (Ground - common with motor Hall sensors)
  *     5        | PWM to ESC (motor control output)
  *     6        | Not Connected
  *     7        | Not Connected
@@ -44,7 +50,7 @@
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
 // RPM calculation parameters
-#define PULSES_PER_REV      6   // Number of pulses per revolution (6 for 3-Hall BLDC motors)
+#define PULSES_PER_REV      6   // Number of pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223)
 #define RPM_CALC_INTERVAL   100 // RPM calculation interval in ms
 
 // PID limits
