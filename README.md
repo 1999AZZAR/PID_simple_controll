@@ -96,7 +96,7 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 
 - Arduino board (Uno, Mega, or similar) or ATtiny85 microcontroller
 - **3-Hall BLDC motor** (such as 42BLF20-22.0223 or equivalent with built-in Hall sensors) - see `42BLF.pdf` datasheet for specifications
-- **BLDC motor controller (ESC)** compatible with the specific motor model
+- **BLDC motor controller (ESC)** compatible with the specific motor model - see PWM/ESC Interface section below
 - **BLDC motor Hall sensors** (built into the motor - any Hall wire A/B/C can be used)
 - SPDT switch or jumper (mode selection, Arduino version only)
 - Power supply suitable for motor and microcontroller (5V for Hall sensor compatibility)
@@ -155,6 +155,51 @@ BLDC Motor Hall Sensors → Controller/Microcontroller → ESC → Motor Power
 - **6 pulses per revolution**: Code is configured for 3-Hall BLDC motors
 - **Power sharing**: Hall sensors typically operate at 5V, same as microcontroller
 - **Common ground**: Ensure all components share a common ground connection
+
+#### Hall Sensor Edge Configuration
+
+BLDC motor Hall sensors can be either push-pull or open-collector outputs:
+
+- **Push-pull Hall sensors**: Output both HIGH and LOW states actively. Use RISING edge detection for reliable triggering.
+- **Open-collector Hall sensors**: Require pull-up resistors and only actively pull LOW. Use FALLING edge detection to avoid false triggers from slow rising edges.
+
+**Current Configuration:**
+- Arduino Uno: Uses RISING edge detection with INPUT_PULLUP (assumes push-pull or properly pulled-up open-collector sensors)
+- ATtiny85: Uses FALLING edge detection with internal pull-up (configured for open-collector sensors)
+
+**Verification Steps:**
+1. Check motor datasheet for Hall sensor output type
+2. Monitor Hall sensor signal with oscilloscope during motor rotation
+3. Adjust edge detection (RISING vs FALLING) based on observed signal characteristics
+4. Ensure pull-up resistors are appropriate for your sensor type
+
+### PWM/ESC Interface Requirements
+
+This controller outputs standard Arduino PWM signals (0-255 duty cycle) to control BLDC motor speed through an Electronic Speed Controller (ESC). The PWM frequency is approximately 490Hz (Arduino) or 1kHz (ATtiny85).
+
+#### PWM Signal Specifications
+
+- **Signal Type**: Digital PWM (Pulse Width Modulation)
+- **Frequency**: ~490Hz (Arduino Uno) or ~1kHz (ATtiny85)
+- **Duty Cycle Range**: 0-100% (0-255 in 8-bit resolution)
+- **Voltage Level**: 5V logic level
+- **Pulse Polarity**: Active HIGH (non-inverted)
+
+#### ESC Compatibility Notes
+
+- **Standard RC ESCs**: Many ESCs expect servo-style pulses (1-2ms pulses at 50Hz). If your ESC requires this format, you will need to modify the code to generate servo-compatible pulses instead of analogWrite() PWM.
+- **BLDC ESCs**: Most BLDC motor controllers accept standard PWM signals. Always check your ESC datasheet for signal requirements.
+- **Arming Sequence**: Some ESCs require an arming sequence (low throttle for 2+ seconds before operation). The soft-start feature helps with this.
+- **Signal Pin**: Connect to the ESC's throttle/signal input pin
+- **Power Supply**: Ensure the ESC shares a common ground with the microcontroller
+
+#### Testing PWM Output
+
+To verify PWM compatibility:
+1. Connect an oscilloscope or logic analyzer to the PWM output pin
+2. Monitor the signal frequency and duty cycle range
+3. Compare with your ESC's specifications
+4. If incompatible, consider using servo library functions for 50Hz servo pulses
 
 ## Software Architecture
 

@@ -52,6 +52,7 @@
 // RPM calculation parameters
 #define PULSES_PER_REV      6   // Number of pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223)
 #define RPM_CALC_INTERVAL   100 // RPM calculation interval in ms
+#define MIN_PULSE_WIDTH_US  100 // Minimum pulse width to reject EMI spikes (100-500us)
 
 // PID limits
 #define PID_OUTPUT_MIN      -255 // Minimum PID output
@@ -68,6 +69,8 @@
 // Global variables - Production Mode Only
 volatile unsigned long pulseCount = 0;
 volatile unsigned long timer_ms = 0;
+volatile unsigned long timer_us = 0;  // Microsecond counter for debounce
+volatile unsigned long lastPulseMicros = 0;
 unsigned long lastRPMCalcTime = 0;
 float currentRPM = 0.0;
 
@@ -80,6 +83,12 @@ float previousError = 0.0;
 float integral = 0.0;
 float pidOutput = 0.0;
 
+// Soft-start ramping to avoid current surges (ATtiny85 version)
+#define SOFT_START_DURATION_MS  2000  // 2 seconds ramp up time
+#define SOFT_START_STEPS       20     // Number of ramp steps
+volatile bool softStarting = true;
+volatile unsigned long softStartStartTime = 0;
+
 // Function prototypes
 void setupPins();
 void setupTimer();
@@ -88,14 +97,19 @@ float calculateRPM();
 float computePID(float error);
 void outputToESC(uint8_t pwmValue);
 
-// Timer1 interrupt for millisecond timing (ATtiny85 Timer1)
+// Timer1 interrupt for millisecond and microsecond timing (ATtiny85 Timer1)
 ISR(TIM1_COMPA_vect) {
     timer_ms++;
+    timer_us += 1000;  // Increment microseconds by 1000 (1ms)
 }
 
-// RPM sensor interrupt
+// RPM sensor interrupt with debounce filtering
 ISR(INT0_vect) {
-    pulseCount++;
+    unsigned long t = timer_us;
+    if (t - lastPulseMicros > MIN_PULSE_WIDTH_US) {
+        pulseCount++;
+        lastPulseMicros = t;
+    }
 }
 
 void setup() {
@@ -135,6 +149,8 @@ void loop() {
         // Convert PID output to PWM value and output to ESC
         int pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
         pwmValue = constrain_value(pwmValue, 0, 255);
+
+        // Normal operation - control motor
         outputToESC(pwmValue);
     }
 
@@ -174,12 +190,17 @@ float calculateRPM() {
     unsigned long timeDiff = timer_ms - lastCalcTime;
 
     if (timeDiff >= RPM_CALC_INTERVAL) {
-        unsigned long pulseDiff = pulseCount - lastPulseCount;
+        // Atomic read of volatile pulseCount to avoid race conditions
+        cli();
+        unsigned long pulsesNow = pulseCount;
+        sei();
+
+        unsigned long pulseDiff = pulsesNow - lastPulseCount;
 
         // Calculate RPM: (pulses / time) * (60 seconds / pulses_per_rev)
         float rpm = (pulseDiff * 60000.0) / (timeDiff * PULSES_PER_REV);
 
-        lastPulseCount = pulseCount;
+        lastPulseCount = pulsesNow;
         lastCalcTime = timer_ms;
 
         return rpm;
@@ -214,8 +235,34 @@ float computePID(float error) {
     return output;
 }
 
+// Apply soft-start ramping to avoid current surges (ATtiny85 version)
+uint8_t applySoftStart(uint8_t targetPWM) {
+    if (!softStarting) {
+        return targetPWM;  // Normal operation
+    }
+
+    unsigned long currentTime = timer_ms;
+
+    if (softStartStartTime == 0) {
+        softStartStartTime = currentTime;
+    }
+
+    unsigned long elapsed = currentTime - softStartStartTime;
+
+    if (elapsed >= SOFT_START_DURATION_MS) {
+        // Soft-start complete
+        softStarting = false;
+        return targetPWM;
+    }
+
+    // Simple linear ramp for ATtiny85 (avoid floating point)
+    unsigned long rampProgress = (elapsed * 255) / SOFT_START_DURATION_MS;
+    return (uint8_t)((targetPWM * rampProgress) / 255);
+}
+
 void outputToESC(uint8_t pwmValue) {
-    OCR0A = pwmValue; // Set PWM duty cycle
+    uint8_t safePWM = applySoftStart(pwmValue);
+    OCR0A = safePWM; // Set PWM duty cycle with soft-start protection
 }
 
 // Simple constrain function for ATtiny85

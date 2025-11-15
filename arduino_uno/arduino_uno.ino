@@ -51,8 +51,9 @@
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
 // RPM calculation parameters
-#define PULSES_PER_REV      6   // Number of pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223)
+#define DEFAULT_PULSES_PER_REV  6   // Default number of pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223)
 #define RPM_CALC_INTERVAL   100 // RPM calculation interval in ms
+#define MIN_PULSE_WIDTH_US  100 // Minimum pulse width to reject EMI spikes (100-500us)
 
 // PID limits
 #define PID_OUTPUT_MIN      -255 // Minimum PID output
@@ -71,17 +72,25 @@
 char serialBuffer[SERIAL_BUFFER_SIZE];
 int bufferIndex = 0;
 
+// Debug mode settings
+#define DEBUG_MODE_ENABLED     false  // Set to true for debug output
+#define DEBUG_INTERVAL_MS      1000   // Debug print interval
+unsigned long lastDebugTime = 0;
+
 // EEPROM addresses for storing parameters
-#define EEPROM_TARGET_RPM_ADDR 0
-#define EEPROM_KP_ADDR         4
-#define EEPROM_KI_ADDR         8
-#define EEPROM_KD_ADDR         12
+#define EEPROM_TARGET_RPM_ADDR     0
+#define EEPROM_KP_ADDR             4
+#define EEPROM_KI_ADDR             8
+#define EEPROM_KD_ADDR             12
+#define EEPROM_PULSES_PER_REV_ADDR 16
 
 // Global variables
 volatile unsigned long pulseCount = 0;
+volatile unsigned long lastPulseMicros = 0;
 unsigned long lastRPMCalcTime = 0;
 float currentRPM = 0.0;
 float targetRPM = PRODUCTION_TARGET_RPM;
+int pulsesPerRev = DEFAULT_PULSES_PER_REV; // Configurable pulses per revolution
 
 // PID variables
 float kp = PRODUCTION_KP;
@@ -94,6 +103,13 @@ float pidOutput = 0.0;
 // Mode selection
 bool tuningMode = false;
 bool serialTuningMode = false;
+
+// Soft-start ramping to avoid current surges
+#define SOFT_START_DURATION_MS  2000  // 2 seconds ramp up time
+#define SOFT_START_STEPS       20     // Number of ramp steps
+unsigned long softStartStartTime = 0;
+bool softStarting = true;
+int softStartStep = 0;
 
 // Function prototypes
 void rpmSensorISR();
@@ -180,16 +196,23 @@ void loop() {
     // Output to Serial Plotter for monitoring
     printToSerialPlotter();
 
+    // Debug output for bench testing
+    printDebugInfo();
+
     // Control loop timing
     delay(CONTROL_PERIOD_MS);
 }
 
-// Interrupt service routine for RPM sensor
+// Interrupt service routine for RPM sensor with debounce filtering
 void rpmSensorISR() {
-    pulseCount++;
+    unsigned long t = micros();
+    if (t - lastPulseMicros > MIN_PULSE_WIDTH_US) {
+        pulseCount++;
+        lastPulseMicros = t;
+    }
 }
 
-// Calculate RPM from pulse count
+// Calculate RPM from pulse count with atomic read
 float calculateRPM() {
     static unsigned long lastPulseCount = 0;
     static unsigned long lastCalcTime = 0;
@@ -198,12 +221,17 @@ float calculateRPM() {
     unsigned long timeDiff = currentTime - lastCalcTime;
 
     if (timeDiff >= RPM_CALC_INTERVAL) {
-        unsigned long pulseDiff = pulseCount - lastPulseCount;
+        // Atomic read of volatile pulseCount to avoid race conditions
+        noInterrupts();
+        unsigned long pulsesNow = pulseCount;
+        interrupts();
+
+        unsigned long pulseDiff = pulsesNow - lastPulseCount;
 
         // Calculate RPM: (pulses / time) * (60 seconds / pulses_per_rev)
-        float rpm = (pulseDiff * 60000.0) / (timeDiff * PULSES_PER_REV);
+        float rpm = (pulseDiff * 60000.0) / (timeDiff * pulsesPerRev);
 
-        lastPulseCount = pulseCount;
+        lastPulseCount = pulsesNow;
         lastCalcTime = currentTime;
 
         return rpm;
@@ -250,9 +278,35 @@ float computePID(float error) {
     return output;
 }
 
-// Output PWM value to ESC
+// Apply soft-start ramping to avoid current surges
+int applySoftStart(int targetPWM) {
+    if (!softStarting) {
+        return targetPWM;  // Normal operation
+    }
+
+    unsigned long currentTime = millis();
+
+    if (softStartStartTime == 0) {
+        softStartStartTime = currentTime;
+    }
+
+    unsigned long elapsed = currentTime - softStartStartTime;
+    float rampProgress = (float)elapsed / SOFT_START_DURATION_MS;
+
+    if (rampProgress >= 1.0) {
+        // Soft-start complete
+        softStarting = false;
+        return targetPWM;
+    }
+
+    // Apply ramped output
+    return (int)(targetPWM * rampProgress);
+}
+
+// Output PWM value to ESC with soft-start protection
 void outputToESC(int pwmValue) {
-    analogWrite(PWM_OUTPUT_PIN, pwmValue);
+    int safePWM = applySoftStart(pwmValue);
+    analogWrite(PWM_OUTPUT_PIN, safePWM);
 }
 
 // Print data for Serial Plotter
@@ -268,6 +322,42 @@ void printToSerialPlotter() {
     Serial.print(",");
     Serial.print("PID_Output:");
     Serial.println(pidOutput);
+}
+
+// Debug output for bench testing
+void printDebugInfo() {
+    if (!DEBUG_MODE_ENABLED) return;
+
+    unsigned long currentTime = millis();
+    if (currentTime - lastDebugTime >= DEBUG_INTERVAL_MS) {
+        lastDebugTime = currentTime;
+
+        // Atomic read of pulse count for debug
+        noInterrupts();
+        unsigned long debugPulseCount = pulseCount;
+        interrupts();
+
+        Serial.println("=== DEBUG INFO ===");
+        Serial.print("Pulse Count: ");
+        Serial.println(debugPulseCount);
+        Serial.print("Current RPM: ");
+        Serial.println(currentRPM, 1);
+        Serial.print("Target RPM: ");
+        Serial.println(targetRPM, 1);
+        Serial.print("Pulses per Rev: ");
+        Serial.println(pulsesPerRev);
+        Serial.print("PID Output: ");
+        Serial.println(pidOutput, 2);
+        Serial.print("Integral: ");
+        Serial.println(integral, 2);
+        Serial.print("Soft Starting: ");
+        Serial.println(softStarting ? "YES" : "NO");
+        Serial.print("Mode: ");
+        if (serialTuningMode) Serial.println("Serial Tuning");
+        else if (tuningMode) Serial.println("Potentiometer Tuning");
+        else Serial.println("Production");
+        Serial.println();
+    }
 }
 
 // Process incoming serial commands
@@ -318,6 +408,15 @@ void parseSerialCommand(String command) {
                 kd = value;
                 serialTuningMode = true;
                 Serial.println("Kd set to: " + String(kd));
+            } else if (paramName == "PULSES") {
+                int intValue = (int)value;
+                if (intValue >= 1 && intValue <= 100) {
+                    pulsesPerRev = intValue;
+                    serialTuningMode = true;
+                    Serial.println("Pulses per revolution set to: " + String(pulsesPerRev));
+                } else {
+                    Serial.println("Invalid pulses per revolution value (1-100): " + String(intValue));
+                }
             } else {
                 Serial.println("Unknown parameter: " + paramName);
             }
@@ -356,16 +455,19 @@ void saveParametersToEEPROM() {
     EEPROM.put(EEPROM_KP_ADDR, kp);
     EEPROM.put(EEPROM_KI_ADDR, ki);
     EEPROM.put(EEPROM_KD_ADDR, kd);
+    EEPROM.put(EEPROM_PULSES_PER_REV_ADDR, pulsesPerRev);
 }
 
 // Load parameters from EEPROM
 void loadParametersFromEEPROM() {
     float savedTargetRPM, savedKp, savedKi, savedKd;
+    int savedPulsesPerRev;
 
     EEPROM.get(EEPROM_TARGET_RPM_ADDR, savedTargetRPM);
     EEPROM.get(EEPROM_KP_ADDR, savedKp);
     EEPROM.get(EEPROM_KI_ADDR, savedKi);
     EEPROM.get(EEPROM_KD_ADDR, savedKd);
+    EEPROM.get(EEPROM_PULSES_PER_REV_ADDR, savedPulsesPerRev);
 
     // Check if EEPROM values are valid (not NaN or extreme values)
     if (!isnan(savedTargetRPM) && savedTargetRPM >= 0 && savedTargetRPM <= 5000) {
@@ -387,6 +489,11 @@ void loadParametersFromEEPROM() {
         kd = savedKd;
         Serial.println("Loaded Kd: " + String(kd));
     }
+
+    if (savedPulsesPerRev >= 1 && savedPulsesPerRev <= 100) {
+        pulsesPerRev = savedPulsesPerRev;
+        Serial.println("Loaded Pulses per Rev: " + String(pulsesPerRev));
+    }
 }
 
 // Print help information
@@ -396,6 +503,7 @@ void printHelp() {
     Serial.println("SET KP <value>       - Set proportional gain (0-10.0)");
     Serial.println("SET KI <value>       - Set integral gain (0-5.0)");
     Serial.println("SET KD <value>       - Set derivative gain (0-1.0)");
+    Serial.println("SET PULSES <value>   - Set pulses per revolution (1-100)");
     Serial.println("GET PARAMS           - Display current parameters");
     Serial.println("SAVE                 - Save parameters to EEPROM");
     Serial.println("LOAD                 - Load parameters from EEPROM");
@@ -417,6 +525,7 @@ void printParameters() {
     Serial.println("Kp: " + String(kp, 4));
     Serial.println("Ki: " + String(ki, 4));
     Serial.println("Kd: " + String(kd, 4));
+    Serial.println("Pulses per Rev: " + String(pulsesPerRev));
     Serial.println("Current RPM: " + String(currentRPM, 1));
     Serial.println("PID Output: " + String(pidOutput, 2));
     Serial.println("Integral: " + String(integral, 2));
