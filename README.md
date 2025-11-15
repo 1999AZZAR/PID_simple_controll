@@ -203,6 +203,68 @@ To verify PWM compatibility:
 3. Compare with your ESC's specifications
 4. If incompatible, consider using servo library functions for 50Hz servo pulses
 
+#### PWM vs Servo Pulse Verification Guide
+
+**Critical**: Your ESC may expect either standard PWM signals or RC servo pulses. Using the wrong signal type will result in no motor response or erratic behavior.
+
+##### Method 1: Oscilloscope Analysis (Recommended)
+1. **Connect oscilloscope** to PWM output pin (Arduino pin 9, ATtiny85 pin 5)
+2. **Observe signal characteristics**:
+   - **Frequency**: Arduino Uno outputs ~490Hz, ATtiny85 outputs ~1kHz
+   - **Duty cycle**: 0-100% (0-255 in code)
+   - **Waveform**: Square wave with varying pulse width
+
+3. **Compare with ESC specifications**:
+   - **PWM ESCs** expect: Variable duty cycle (0-100%) at high frequency (1-20kHz)
+   - **RC Servo ESCs** expect: Fixed 50Hz frequency with 1-2ms pulse width
+
+##### Method 2: Bench Testing Without Oscilloscope
+1. **Set fixed PWM values** and observe motor response:
+   ```arduino
+   // In setup(), temporarily replace PID output with fixed values:
+   analogWrite(PWM_OUTPUT_PIN, 64);   // 25% duty cycle
+   delay(2000);
+   analogWrite(PWM_OUTPUT_PIN, 128);  // 50% duty cycle
+   delay(2000);
+   analogWrite(PWM_OUTPUT_PIN, 192);  // 75% duty cycle
+   delay(2000);
+   ```
+
+2. **Expected behavior**:
+   - **PWM ESC**: Motor speed should change smoothly with each duty cycle change
+   - **RC Servo ESC**: Motor may not respond or respond erratically
+
+##### Method 3: ESC Documentation Check
+- **BLDC ESCs** (like those for quadcopters): Usually PWM input
+- **RC Car/Marine ESCs**: Usually servo pulse input (50Hz, 1-2ms)
+- **Industrial servo drives**: Check datasheet for "analog input" vs "pulse input"
+
+##### Converting to Servo Pulses (if needed)
+If your ESC requires servo pulses, modify the `outputToESC()` function:
+```arduino
+#include <Servo.h>
+Servo escServo;
+
+void setup() {
+    escServo.attach(PWM_OUTPUT_PIN);
+    // Arming sequence: minimum throttle for 2+ seconds
+    escServo.writeMicroseconds(1000);  // 1ms = minimum throttle
+    delay(2000);
+}
+
+void outputToESC(int pwmValue) {
+    // Convert 0-255 PWM to 1000-2000µs servo pulses
+    int servoPulse = map(pwmValue, 0, 255, 1000, 2000);
+    escServo.writeMicroseconds(servoPulse);
+}
+```
+
+##### Common Issues
+- **No motor response**: Wrong signal type (PWM vs servo)
+- **Erratic behavior**: Signal frequency too high/low for ESC
+- **Motor runs at full speed only**: ESC expecting servo pulses, getting PWM
+- **Noisy operation**: PWM frequency causing interference
+
 ## Software Architecture
 
 ### Control Loop

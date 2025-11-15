@@ -52,6 +52,9 @@ unsigned long lastDebugTime = 0;
 // Global variables
 volatile unsigned long pulseCount = 0;
 volatile unsigned long lastPulseMicros = 0;
+#if EMERGENCY_STOP_ENABLED
+volatile unsigned long lastPulseMillis = 0;  // For emergency stop timeout
+#endif
 unsigned long lastRPMCalcTime = 0;
 float currentRPM = 0.0;
 float targetRPM = PRODUCTION_TARGET_RPM;
@@ -68,6 +71,11 @@ float pidOutput = 0.0;
 // Mode selection
 bool tuningMode = false;
 bool serialTuningMode = false;
+
+// Safety features
+#if EMERGENCY_STOP_ENABLED
+bool emergencyStop = false;
+#endif
 
 // Soft-start ramping to avoid current surges
 unsigned long softStartStartTime = 0;
@@ -110,9 +118,10 @@ void setup() {
     // Load parameters from EEPROM
     loadParametersFromEEPROM();
 
-    Serial.println("BLDC PID Controller Started");
-    Serial.println("Mode: Production (default)");
-    Serial.println("Target RPM: " + String(PRODUCTION_TARGET_RPM));
+    Serial.println(F("BLDC PID Controller Started"));
+    Serial.println(F("Mode: Production (default)"));
+    Serial.print(F("Target RPM: "));
+    Serial.println(PRODUCTION_TARGET_RPM);
     Serial.println();
     printHelp();
 }
@@ -131,6 +140,16 @@ void loop() {
         currentRPM = calculateRPM();
         lastRPMCalcTime = currentTime;
     }
+
+#if EMERGENCY_STOP_ENABLED
+    // Emergency stop: check if motor has stopped (no pulses received recently)
+    emergencyStop = (currentTime - lastPulseMillis > EMERGENCY_STOP_TIMEOUT_MS);
+    if (emergencyStop && currentRPM > 10.0) {  // Only trigger if we were running
+        Serial.println(F("EMERGENCY STOP: No pulses"));
+        pidOutput = 0.0;  // Force zero output
+        integral = 0.0;   // Reset integral term
+    }
+#endif
 
     // Update PID gains based on mode
     if (serialTuningMode) {
@@ -172,6 +191,9 @@ void rpmSensorISR() {
     if (t - lastPulseMicros > MIN_PULSE_WIDTH_US) {
         pulseCount++;
         lastPulseMicros = t;
+#if EMERGENCY_STOP_ENABLED
+        lastPulseMillis = millis();  // Track last pulse time for emergency stop
+#endif
     }
 }
 
@@ -300,25 +322,29 @@ void printDebugInfo() {
         unsigned long debugPulseCount = pulseCount;
         interrupts();
 
-        Serial.println("=== DEBUG INFO ===");
-        Serial.print("Pulse Count: ");
+        Serial.println(F("=== DEBUG INFO ==="));
+        Serial.print(F("Pulse Count: "));
         Serial.println(debugPulseCount);
-        Serial.print("Current RPM: ");
+        Serial.print(F("Current RPM: "));
         Serial.println(currentRPM, 1);
-        Serial.print("Target RPM: ");
+        Serial.print(F("Target RPM: "));
         Serial.println(targetRPM, 1);
-        Serial.print("Pulses per Rev: ");
+        Serial.print(F("Pulses per Rev: "));
         Serial.println(pulsesPerRev);
-        Serial.print("PID Output: ");
+        Serial.print(F("PID Output: "));
         Serial.println(pidOutput, 2);
-        Serial.print("Integral: ");
+        Serial.print(F("Integral: "));
         Serial.println(integral, 2);
-        Serial.print("Soft Starting: ");
-        Serial.println(softStarting ? "YES" : "NO");
-        Serial.print("Mode: ");
-        if (serialTuningMode) Serial.println("Serial Tuning");
-        else if (tuningMode) Serial.println("Potentiometer Tuning");
-        else Serial.println("Production");
+        Serial.print(F("Soft Starting: "));
+        Serial.println(softStarting ? F("YES") : F("NO"));
+#if EMERGENCY_STOP_ENABLED
+        Serial.print(F("Emergency Stop: "));
+        Serial.println(emergencyStop ? F("ACTIVE") : F("Inactive"));
+#endif
+        Serial.print(F("Mode: "));
+        if (serialTuningMode) Serial.println(F("Serial Tuning"));
+        else if (tuningMode) Serial.println(F("Potentiometer Tuning"));
+        else Serial.println(F("Production"));
         Serial.println();
     }
 }
@@ -358,62 +384,83 @@ void parseSerialCommand(String command) {
             if (paramName == "TARGET") {
                 targetRPM = value;
                 serialTuningMode = true;
-                Serial.println("Target RPM set to: " + String(targetRPM));
+                Serial.print(F("Target RPM set to: "));
+                Serial.println(targetRPM);
             } else if (paramName == "KP") {
                 kp = value;
                 serialTuningMode = true;
-                Serial.println("Kp set to: " + String(kp));
+                Serial.print(F("Kp set to: "));
+                Serial.println(kp);
             } else if (paramName == "KI") {
                 ki = value;
                 serialTuningMode = true;
-                Serial.println("Ki set to: " + String(ki));
+                Serial.print(F("Ki set to: "));
+                Serial.println(ki);
             } else if (paramName == "KD") {
                 kd = value;
                 serialTuningMode = true;
-                Serial.println("Kd set to: " + String(kd));
+                Serial.print(F("Kd set to: "));
+                Serial.println(kd);
             } else if (paramName == "PULSES") {
                 int intValue = (int)value;
                 if (intValue >= 1 && intValue <= 100) {
                     pulsesPerRev = intValue;
                     serialTuningMode = true;
-                    Serial.println("Pulses per revolution set to: " + String(pulsesPerRev));
+                    Serial.print(F("Pulses per revolution set to: "));
+                    Serial.println(pulsesPerRev);
                 } else {
-                    Serial.println("Invalid pulses per revolution value (1-100): " + String(intValue));
+                    Serial.print(F("Invalid pulses per revolution value (1-100): "));
+                    Serial.println(intValue);
                 }
             } else {
-                Serial.println("Unknown parameter: " + paramName);
+                Serial.print(F("Unknown parameter: "));
+                Serial.println(paramName);
             }
         } else {
-            Serial.println("Invalid SET command format. Use: SET <PARAM> <VALUE>");
+            Serial.println(F("Invalid SET command format. Use: SET <PARAM> <VALUE>"));
         }
     } else if (command == "GET PARAMS") {
         printParameters();
     } else if (command == "SAVE") {
         saveParametersToEEPROM();
-        Serial.println("Parameters saved to EEPROM");
+        Serial.println(F("Parameters saved to EEPROM"));
     } else if (command == "LOAD") {
         loadParametersFromEEPROM();
-        Serial.println("Parameters loaded from EEPROM");
+        Serial.println(F("Parameters loaded from EEPROM"));
     } else if (command == "HELP") {
         printHelp();
     } else if (command == "MODE PRODUCTION") {
         serialTuningMode = false;
         tuningMode = false;
-        Serial.println("Switched to production mode");
+        Serial.println(F("Switched to production mode"));
     } else if (command == "MODE SERIAL") {
         serialTuningMode = true;
-        Serial.println("Switched to serial tuning mode");
+        Serial.println(F("Switched to serial tuning mode"));
     } else if (command == "RESET INTEGRAL") {
         integral = 0.0;
-        Serial.println("Integral term reset to 0");
+        Serial.println(F("Integral term reset to 0"));
     } else {
-        Serial.println("Unknown command: " + command);
-        Serial.println("Type HELP for available commands");
+        Serial.print(F("Unknown command: "));
+        Serial.println(command);
+        Serial.println(F("Type HELP for available commands"));
     }
 }
 
-// Save current parameters to EEPROM
+// Save current parameters to EEPROM with basic validation
 void saveParametersToEEPROM() {
+    // Basic validation without string operations to save memory
+    bool valid = true;
+    if (targetRPM < 0 || targetRPM > 5000 || isnan(targetRPM)) valid = false;
+    if (kp < 0 || kp > 10.0 || isnan(kp)) valid = false;
+    if (ki < 0 || ki > 5.0 || isnan(ki)) valid = false;
+    if (kd < 0 || kd > 1.0 || isnan(kd)) valid = false;
+    if (pulsesPerRev < 1 || pulsesPerRev > 100) valid = false;
+
+    if (!valid) {
+        Serial.println(F("EEPROM save failed: invalid params"));
+        return;
+    }
+
     EEPROM.put(EEPROM_TARGET_RPM_ADDR, targetRPM);
     EEPROM.put(EEPROM_KP_ADDR, kp);
     EEPROM.put(EEPROM_KI_ADDR, ki);
@@ -435,70 +482,81 @@ void loadParametersFromEEPROM() {
     // Check if EEPROM values are valid (not NaN or extreme values)
     if (!isnan(savedTargetRPM) && savedTargetRPM >= 0 && savedTargetRPM <= 5000) {
         targetRPM = savedTargetRPM;
-        Serial.println("Loaded Target RPM: " + String(targetRPM));
+        Serial.print(F("Loaded Target RPM: "));
+        Serial.println(targetRPM);
     }
 
     if (!isnan(savedKp) && savedKp >= 0 && savedKp <= 10.0) {
         kp = savedKp;
-        Serial.println("Loaded Kp: " + String(kp));
+        Serial.print(F("Loaded Kp: "));
+        Serial.println(kp);
     }
 
     if (!isnan(savedKi) && savedKi >= 0 && savedKi <= 5.0) {
         ki = savedKi;
-        Serial.println("Loaded Ki: " + String(ki));
+        Serial.print(F("Loaded Ki: "));
+        Serial.println(ki);
     }
 
     if (!isnan(savedKd) && savedKd >= 0 && savedKd <= 1.0) {
         kd = savedKd;
-        Serial.println("Loaded Kd: " + String(kd));
+        Serial.print(F("Loaded Kd: "));
+        Serial.println(kd);
     }
 
     if (savedPulsesPerRev >= 1 && savedPulsesPerRev <= 100) {
         pulsesPerRev = savedPulsesPerRev;
-        Serial.println("Loaded Pulses per Rev: " + String(pulsesPerRev));
+        Serial.print(F("Loaded Pulses per Rev: "));
+        Serial.println(pulsesPerRev);
     }
 }
 
 // Print help information
 void printHelp() {
-    Serial.println("=== BLDC PID Controller Commands ===");
-    Serial.println("SET TARGET <rpm>     - Set target RPM (0-5000)");
-    Serial.println("SET KP <value>       - Set proportional gain (0-10.0)");
-    Serial.println("SET KI <value>       - Set integral gain (0-5.0)");
-    Serial.println("SET KD <value>       - Set derivative gain (0-1.0)");
-    Serial.println("SET PULSES <value>   - Set pulses per revolution (1-100)");
-    Serial.println("GET PARAMS           - Display current parameters");
-    Serial.println("SAVE                 - Save parameters to EEPROM");
-    Serial.println("LOAD                 - Load parameters from EEPROM");
-    Serial.println("MODE PRODUCTION      - Switch to production mode");
-    Serial.println("MODE SERIAL          - Switch to serial tuning mode");
-    Serial.println("RESET INTEGRAL       - Reset integral term to 0");
-    Serial.println("HELP                 - Show this help message");
+    Serial.println(F("=== BLDC PID Controller Commands ==="));
+    Serial.println(F("SET TARGET <rpm>     - Set target RPM (0-5000)"));
+    Serial.println(F("SET KP <value>       - Set proportional gain (0-10.0)"));
+    Serial.println(F("SET KI <value>       - Set integral gain (0-5.0)"));
+    Serial.println(F("SET KD <value>       - Set derivative gain (0-1.0)"));
+    Serial.println(F("SET PULSES <value>   - Set pulses per revolution (1-100)"));
+    Serial.println(F("GET PARAMS           - Display current parameters"));
+    Serial.println(F("SAVE                 - Save parameters to EEPROM"));
+    Serial.println(F("LOAD                 - Load parameters from EEPROM"));
+    Serial.println(F("MODE PRODUCTION      - Switch to production mode"));
+    Serial.println(F("MODE SERIAL          - Switch to serial tuning mode"));
+    Serial.println(F("RESET INTEGRAL       - Reset integral term to 0"));
+    Serial.println(F("HELP                 - Show this help message"));
     Serial.println();
-    Serial.println("Current mode indicators:");
-    Serial.println("- Mode switch LOW = Potentiometer tuning");
-    Serial.println("- Serial MODE SERIAL = Serial tuning");
-    Serial.println("- Default = Production mode");
+    Serial.println(F("Modes: Mode switch LOW = Potentiometer, Serial MODE SERIAL = Serial, Default = Production"));
+    Serial.println(F("Safety: Emergency stop after 5s no pulses, Soft-start enabled"));
 }
 
 // Print current parameters
 void printParameters() {
-    Serial.println("=== Current Parameters ===");
-    Serial.println("Target RPM: " + String(targetRPM));
-    Serial.println("Kp: " + String(kp, 4));
-    Serial.println("Ki: " + String(ki, 4));
-    Serial.println("Kd: " + String(kd, 4));
-    Serial.println("Pulses per Rev: " + String(pulsesPerRev));
-    Serial.println("Current RPM: " + String(currentRPM, 1));
-    Serial.println("PID Output: " + String(pidOutput, 2));
-    Serial.println("Integral: " + String(integral, 2));
+    Serial.println(F("=== Current Parameters ==="));
+    Serial.print(F("Target RPM: "));
+    Serial.println(targetRPM);
+    Serial.print(F("Kp: "));
+    Serial.println(kp, 4);
+    Serial.print(F("Ki: "));
+    Serial.println(ki, 4);
+    Serial.print(F("Kd: "));
+    Serial.println(kd, 4);
+    Serial.print(F("Pulses per Rev: "));
+    Serial.println(pulsesPerRev);
+    Serial.print(F("Current RPM: "));
+    Serial.println(currentRPM, 1);
+    Serial.print(F("PID Output: "));
+    Serial.println(pidOutput, 2);
+    Serial.print(F("Integral: "));
+    Serial.println(integral, 2);
 
     if (serialTuningMode) {
-        Serial.println("Mode: Serial Tuning");
+        Serial.println(F("Mode: Serial Tuning"));
     } else if (tuningMode) {
-        Serial.println("Mode: Potentiometer Tuning");
+        Serial.println(F("Mode: Potentiometer Tuning"));
     } else {
-        Serial.println("Mode: Production");
+        Serial.println(F("Mode: Production"));
     }
     Serial.println();
 }

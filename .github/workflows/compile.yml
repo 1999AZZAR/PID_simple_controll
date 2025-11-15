@@ -1,0 +1,46 @@
+name: Compile Arduino Sketches
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Arduino CLI
+      uses: arduino/setup-arduino-cli@v1
+
+    - name: Install Arduino AVR core
+      run: arduino-cli core install arduino:avr
+
+    - name: Install ATTiny core
+      run: |
+        arduino-cli config init --additional-urls https://raw.githubusercontent.com/damellis/attiny/ide-1.6.x-boards-manager/package_damellis_attiny_index.json
+        arduino-cli core install attiny:avr
+
+    - name: Compile Arduino Uno sketch
+      run: |
+        cd arduino_uno
+        arduino-cli compile --fqbn arduino:avr:uno arduino_uno.ino
+
+    - name: Compile ATtiny85 sketch
+      run: |
+        cd attiny85
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal8 attiny85.ino
+
+    - name: Check memory usage
+      run: |
+        echo "Arduino Uno compilation results:"
+        cd arduino_uno
+        arduino-cli compile --fqbn arduino:avr:uno arduino_uno.ino | grep -E "(bytes|Maximum|Global variables)"
+
+        echo -e "\nATtiny85 compilation results:"
+        cd ../attiny85
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal8 attiny85.ino | grep -E "(bytes|Maximum|Global variables)"
