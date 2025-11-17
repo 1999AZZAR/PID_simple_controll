@@ -173,7 +173,11 @@ BLDC_PID_Controller/
 │   ├── attiny85.ino           # Main sketch
 │   ├── ATTiny85_hardware_schematic.md
 │   └── README.md
-├── 42BLF.pdf                  # Motor datasheet
+├── assets/
+│   ├── 42BLF.pdf              # Motor datasheet
+│   ├── High-level component diagram.png  # System diagrams
+│   ├── Main control flow.png
+│   └── Serial command sequence.png
 ├── CONTRIBUTING.md            # This file
 ├── README.md                  # Project overview
 └── LICENSE                    # License information

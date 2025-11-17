@@ -36,10 +36,16 @@ BLDC_PID_Controller/
 │   └── README.md               # Detailed Arduino Uno documentation
 ├── attiny85/                    # Production implementation
 │   ├── attiny85.ino            # Production ATTiny85 code
+│   ├── config.h                 # ATTiny85 configuration
 │   ├── README.md               # ATTiny85 documentation
 │   └── ATTiny85_hardware_schematic.md # ATTiny85 hardware setup
-├── 42BLF.pdf                   # 42BLF motor datasheet
+├── assets/                      # Documentation assets
+│   ├── 42BLF.pdf               # 42BLF motor datasheet
+│   ├── High-level component diagram.png  # System architecture
+│   ├── Main control flow.png    # Control algorithm flowchart
+│   └── Serial command sequence.png # Serial interface diagram
 ├── CONTRIBUTING.md             # Contribution guidelines
+├── howto.md                    # Detailed assembly guide
 ├── LICENSE                     # MIT License
 └── README.md                   # This overview file
 ```
@@ -48,7 +54,7 @@ BLDC_PID_Controller/
 
 This Arduino-based controller implements a PID (Proportional-Integral-Derivative) algorithm to precisely control BLDC motor speed. The system maintains exact RPM even under varying load conditions through:
 
-- **Motor Compatibility**: Designed for 3-Hall BLDC motors (such as 42BLF20-22.0223 or equivalent) - see `42BLF.pdf` for complete specifications
+- **Motor Compatibility**: Designed for 3-Hall BLDC motors (such as 42BLF20-22.0223 or equivalent) - see `assets/42BLF.pdf` for complete specifications
 - **Hall Sensor Integration**: Direct connection to motor Hall sensors (6 pulses per electrical revolution)
 - **PID Control**: Proportional, Integral, and Derivative terms for optimal speed regulation
 - **Anti-Windup Protection**: Prevents integral windup during stall or high-load conditions
@@ -57,6 +63,27 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 - **Flexible Tuning**: Four potentiometers for hardware tuning or serial commands for software tuning
 - **Parameter Persistence**: EEPROM storage for saving and loading tuned PID parameters
 - **Multi-Platform Support**: Arduino Uno for development and ATTiny85 for production deployment
+
+## Documentation Assets
+
+The `assets/` folder contains visual documentation and reference materials:
+
+- **`42BLF.pdf`**: Complete motor datasheet with specifications, dimensions, and electrical characteristics
+- **`High-level component diagram.png`**: System architecture showing all major components and connections
+- **`Main control flow.png`**: Flowchart of the PID control algorithm and system operation
+- **`Serial command sequence.png`**: Visual guide to serial command interactions and responses
+
+These diagrams provide visual reference for:
+- Hardware assembly and component identification
+- Understanding the control flow and algorithm logic
+- Serial communication protocol and command sequences
+- System integration and troubleshooting
+
+## System Architecture Overview
+
+![High-level Component Diagram](assets/High-level%20component%20diagram.png)
+
+*Figure 1: High-level system architecture showing Arduino Uno, BLDC motor, ESC, and sensor connections*
 
 ## Implementations
 
@@ -92,18 +119,22 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 
    - Open `arduino_uno/arduino_uno.ino` for development
    - Open `attiny85/attiny85.ino` for production
-2. **Follow the platform-specific README:**
+2. **Review documentation:**
+
+   - `howto.md` - Detailed step-by-step assembly guide
+   - `assets/` - Visual diagrams and motor datasheet
+3. **Follow the platform-specific README:**
 
    - `arduino_uno/README.md` for Arduino Uno setup
    - `attiny85/README.md` for ATTiny85 setup
-3. **Hardware setup:** Refer to the schematic files in each platform folder
+4. **Hardware setup:** Refer to the schematic files in each platform folder
 
 ## Hardware Requirements
 
 ### Required Components
 
 - Arduino board (Uno, Mega, or similar) or ATtiny85 microcontroller
-- **3-Hall BLDC motor** (such as 42BLF20-22.0223 or equivalent with built-in Hall sensors) - see `42BLF.pdf` datasheet for specifications
+- **3-Hall BLDC motor** (such as 42BLF20-22.0223 or equivalent with built-in Hall sensors) - see `assets/42BLF.pdf` datasheet for specifications
 - **BLDC motor controller (ESC)** compatible with the specific motor model - see PWM/ESC Interface section below
 - **BLDC motor Hall sensors** (built into the motor - any Hall wire A/B/C can be used)
 - SPDT switch or jumper (mode selection, Arduino version only)
@@ -136,10 +167,11 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 
 ### BLDC Hall Sensor Wiring
 
-This controller is designed for **3-Hall BLDC motors** such as the 42BLF20-22.0223 or equivalent motors with built-in Hall effect sensors (see `42BLF.pdf` for complete motor specifications). These motors have three Hall sensors (Hall A, Hall B, Hall C) that provide 6 pulses per electrical revolution (one pulse per 60° of rotation). Connect **any one** of the three Hall sensor wires to the microcontroller input pin.
+This controller is designed for **3-Hall BLDC motors** such as the 42BLF20-22.0223 or equivalent motors with built-in Hall effect sensors (see `assets/42BLF.pdf` for complete motor specifications). These motors have three Hall sensors (Hall A, Hall B, Hall C) that provide 6 pulses per electrical revolution (one pulse per 60° of rotation). Connect **any one** of the three Hall sensor wires to the microcontroller input pin.
 
 #### Wiring Diagram:
 
+**Text-based wiring reference:**
 ```
 BLDC Motor Hall Sensors → Controller/Microcontroller → ESC → Motor Power
      |                        |                        |
@@ -155,6 +187,8 @@ BLDC Motor Hall Sensors → Controller/Microcontroller → ESC → Motor Power
                                      Pin 5 (PB0)
                                      (ATtiny85)
 ```
+
+*See Figure 1 in System Architecture Overview for visual wiring diagram*
 
 #### Key Points:
 
@@ -306,6 +340,10 @@ void outputToESC(int pwmValue) {
 
 ### PID Algorithm
 
+![Main Control Flow](assets/Main%20control%20flow.png)
+
+*Figure 2: PID control algorithm flowchart showing error calculation, PID computation, and PWM output generation*
+
 ```
 error = target_RPM - current_RPM
 proportional = Kp × error
@@ -379,7 +417,7 @@ output = proportional + integral + derivative
 
 ```cpp
 #define CONTROL_LOOP_HZ     100     // Control loop frequency
-#define DEFAULT_PULSES_PER_REV  6   // Default sensor pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223 - see 42BLF.pdf)
+#define DEFAULT_PULSES_PER_REV  6   // Default sensor pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223 - see assets/42BLF.pdf)
 // Note: Arduino Uno version uses runtime variable pulsesPerRev (configurable via serial/EEPROM)
 #define RPM_CALC_INTERVAL   100     // RPM update interval (ms)
 #define SERIAL_BUFFER_SIZE  64      // Serial command buffer size
@@ -415,6 +453,10 @@ output = proportional + integral + derivative
 ## Serial Commands
 
 The system supports interactive serial commands for parameter tuning and monitoring:
+
+![Serial Command Sequence](assets/Serial%20command%20sequence.png)
+
+*Figure 3: Serial command interaction flow showing command parsing, execution, and response generation*
 
 ### Parameter Setting
 
@@ -546,6 +588,16 @@ We welcome contributions from the community! Please see our [Contributing Guide]
 - Reporting issues and requesting features
 
 For questions or discussions, please open an issue on GitHub.
+
+## Visual Documentation
+
+The README includes embedded diagrams that provide visual context for the system architecture and operation. These images are displayed inline when viewing this document in compatible markdown viewers (such as GitHub, GitLab, or modern IDEs).
+
+- **Figure 1**: System Architecture - High-level component diagram
+- **Figure 2**: Control Flow - PID algorithm flowchart
+- **Figure 3**: Serial Interface - Command sequence diagram
+
+For additional technical details, refer to the `assets/` folder containing the original high-resolution diagram files.
 
 ## License
 
