@@ -164,6 +164,29 @@ BLDC Motor Hall Sensors → Controller/Microcontroller → ESC → Motor Power
 - **Power sharing**: Hall sensors typically operate at 5V, same as microcontroller
 - **Common ground**: Ensure all components share a common ground connection
 
+#### Hall Sensor Signal Composition
+
+For optimal performance, the controller can use a composite signal from all three Hall sensors instead of relying on a single Hall sensor wire. This provides more robust position feedback and better motor control.
+
+**Signal Composition Methods:**
+1. **Single Hall Wire**: Connect any one Hall sensor (A, B, or C) - provides 2 pulses per electrical revolution
+2. **Composite Signal**: Combine all three Hall sensors using OR logic - provides 6 pulses per electrical revolution
+3. **Sensor Selection**: Use the Hall sensor that provides the most stable signal for your specific motor
+
+**Composite Signal Benefits:**
+- **Higher Resolution**: 6 pulses vs 2 pulses per electrical revolution
+- **Better Reliability**: Redundant position information from three sensors
+- **Improved Control**: More frequent position updates for smoother motor control
+
+**Implementation:**
+```cpp
+// Single Hall sensor (current implementation)
+attachInterrupt(digitalPinToInterrupt(HALL_PIN), hallISR, RISING);
+
+// Composite signal would require external OR gate or microcontroller OR logic
+// Each Hall sensor contributes to the composite pulse train
+```
+
 #### Hall Sensor Edge Configuration
 
 BLDC motor Hall sensors can be either push-pull or open-collector outputs:

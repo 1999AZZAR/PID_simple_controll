@@ -65,13 +65,37 @@ arduino_uno/
 
 | Component | Arduino Pin | Description |
 |-----------|-------------|-------------|
-| BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from motor (interrupt pin) |
+| BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from motor (interrupt pin) - provides 2 pulses per electrical revolution |
 | PWM Output | Digital Pin 9 | PWM signal to ESC |
 | Mode Switch | Digital Pin 3 | LOW = Potentiometer mode, HIGH = Production/Serial mode |
 | Target RPM Pot | Analog A0 | Sets target RPM (0-3000 RPM) |
 | Kp Pot | Analog A1 | Proportional gain (0-2.0) |
 | Ki Pot | Analog A2 | Integral gain (0-1.0) |
 | Kd Pot | Analog A3 | Derivative gain (0-0.1) |
+
+### Hall Sensor Signal Options
+
+The controller uses a single Hall sensor wire for RPM feedback, but for enhanced performance, you can implement a composite signal from all three Hall sensors:
+
+#### Single Hall Sensor (Current Implementation)
+- Connect any one Hall wire (A, B, or C) to Arduino Pin 2
+- Provides 2 pulses per electrical revolution
+- Simple wiring, reliable operation
+
+#### Composite Hall Sensor Signal (Advanced)
+- Combine all three Hall sensors using OR logic
+- Provides 6 pulses per electrical revolution
+- Higher resolution and smoother motor control
+- Requires external OR gate or additional microcontroller pins
+
+**Implementation Example for Composite Signal:**
+```cpp
+// Hardware OR gate connection
+// Hall A → Diode → Common line → Arduino Pin 2
+// Hall B → Diode → Common line
+// Hall C → Diode → Common line
+// Pulldown resistor on common line
+```
 
 ## Configuration
 

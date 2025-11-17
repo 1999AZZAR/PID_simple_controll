@@ -164,8 +164,14 @@ arduino-cli core install attiny:avr
 
 #### BLDC Hall Sensor Connection
 1. Identify the three Hall sensor wires on the BLDC motor (usually labeled Hall A, Hall B, Hall C)
-2. Connect ANY ONE of the Hall wires to Arduino digital pin 2
-3. Connect motor Hall sensor power and ground to Arduino 5V and GND pins
+2. **Option 1 - Single Hall Sensor (Recommended for beginners):**
+   - Connect ANY ONE of the Hall wires (A, B, or C) to Arduino digital pin 2
+   - This provides 2 pulses per electrical revolution
+3. **Option 2 - Composite Hall Sensor (Advanced - better performance):**
+   - Use external OR gate or diode circuit to combine all three Hall sensors
+   - Connect composite output to Arduino digital pin 2
+   - This provides 6 pulses per electrical revolution for smoother control
+4. Connect motor Hall sensor power and ground to Arduino 5V and GND pins
    - Most motors share power with the Hall sensors
    - Verify voltage compatibility (should be 5V)
 
@@ -246,9 +252,16 @@ Connect each potentiometer as follows:
 3. Add 10µF decoupling capacitor between VCC and GND (recommended)
 
 #### BLDC Hall Sensor
-1. Connect ANY Hall wire (A, B, or C) to ATtiny85 physical pin 2 (PB3)
-2. Connect motor Hall sensor power to ATtiny85 VCC (pin 8)
-3. Connect motor Hall sensor ground to ATtiny85 GND (pin 4)
+1. **Option 1 - Single Hall Sensor (Standard setup):**
+   - Connect ANY Hall wire (A, B, or C) to ATtiny85 physical pin 2 (PB3)
+   - Provides 2 pulses per electrical revolution
+2. **Option 2 - Composite Hall Sensor (Enhanced performance):**
+   - Use external OR gate IC (e.g., 74HC32) or diode OR circuit
+   - Combine all three Hall sensor outputs
+   - Connect composite signal to ATtiny85 physical pin 2 (PB3)
+   - Provides 6 pulses per electrical revolution
+3. Connect motor Hall sensor power to ATtiny85 VCC (pin 8)
+4. Connect motor Hall sensor ground to ATtiny85 GND (pin 4)
 
 #### PWM Output
 1. Connect ATtiny85 physical pin 5 (PB0) to ESC signal input
@@ -268,6 +281,90 @@ Connect each potentiometer as follows:
 1. Disconnect programming connections
 2. Connect motor to ESC
 3. Apply power to system
+
+## Hall Sensor Signal Composition
+
+### Understanding Hall Sensor Signals
+
+BLDC motors with 3 Hall sensors provide position feedback through three digital signals. Each Hall sensor outputs a square wave as the motor rotates:
+
+- **Single Hall sensor**: Provides 2 pulses per electrical revolution (120° electrical)
+- **All three Hall sensors combined**: Provides 6 pulses per electrical revolution (60° electrical)
+
+### Benefits of Composite Signals
+
+- **Higher Resolution**: More frequent position updates
+- **Smoother Control**: Better motor speed regulation
+- **Redundant Information**: Three sensors provide backup if one fails
+- **Improved Reliability**: Less sensitive to individual sensor variations
+
+### Implementation Methods
+
+#### Method 1: Diode OR Circuit (Simple, No IC Required)
+
+**Components needed:**
+- 3x small signal diodes (1N4148 or similar)
+- 1x 4.7kΩ resistor
+
+**Circuit:**
+```
+Hall A ──>|───┐
+Hall B ──>|───┼─── 4.7kΩ ──── Microcontroller Input Pin
+Hall C ──>|───┘
+              │
+              GND
+```
+
+**How it works:**
+- Each diode allows current to flow only when its Hall sensor is HIGH
+- The OR logic combines all three signals
+- Pull-down resistor ensures LOW state when all sensors are LOW
+
+#### Method 2: OR Gate IC (Professional)
+
+**Components needed:**
+- 1x OR gate IC (74HC32 or similar)
+- 1x 4.7kΩ resistor (optional pull-down)
+
+**Circuit:**
+```
+Hall A ──┬─── OR Gate ──── 4.7kΩ ──── Microcontroller Input Pin
+Hall B ──┼─── Input
+Hall C ──┘
+```
+
+**How it works:**
+- Dedicated OR gate combines all three inputs
+- Clean digital signal output
+- No diodes needed
+
+### Code Considerations
+
+When using composite signals, update the pulse configuration:
+
+```cpp
+// For single Hall sensor (2 pulses per electrical revolution)
+#define PULSES_PER_REV 2
+
+// For composite signal (6 pulses per electrical revolution)
+// #define PULSES_PER_REV 6
+```
+
+### Testing Signal Composition
+
+1. **Verify individual sensors:**
+   - Connect each Hall wire individually to oscilloscope
+   - Confirm each provides clean square wave during motor rotation
+
+2. **Test composite circuit:**
+   - Connect composite output to oscilloscope
+   - Verify combined signal provides expected pulse frequency
+   - Check for clean transitions and proper voltage levels
+
+3. **Motor testing:**
+   - Run motor at low speed first
+   - Monitor RPM stability and smoothness
+   - Compare performance with single sensor vs composite signal
 
 ## Software Installation
 

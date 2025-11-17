@@ -52,13 +52,41 @@ This is the production-ready version of the BLDC PID controller running on ATtin
 | Physical Pin | Function | Connection |
 |-------------|----------|------------|
 | 1 (RST) | Reset | Programming only |
-| 2 (PB3) | BLDC Hall Sensor | Any Hall wire (A/B/C) from 3-Hall BLDC motor |
+| 2 (PB3) | BLDC Hall Sensor | Any Hall wire (A/B/C) from 3-Hall BLDC motor - provides 2 pulses per electrical revolution |
 | 3 (PB4) | Not Connected | - |
 | 4 (GND) | Ground | Common ground with motor Hall sensors |
 | 5 (PB0) | PWM to ESC | Motor controller input |
 | 6 (PB1) | Not Connected | - |
 | 7 (PB2) | Not Connected | - |
 | 8 (VCC) | Power | 5V supply (Hall sensor compatible) |
+
+### Hall Sensor Signal Options
+
+The ATtiny85 uses a single Hall sensor wire for RPM feedback, but you can enhance performance with a composite signal:
+
+#### Single Hall Sensor (Current Implementation)
+- Connect any one Hall wire (A, B, or C) to physical pin 2 (PB3)
+- Provides 2 pulses per electrical revolution
+- Minimal wiring, reliable operation
+
+#### Composite Hall Sensor Signal (Enhanced Performance)
+- Combine all three Hall sensors using external OR gate
+- Provides 6 pulses per electrical revolution
+- Higher resolution for smoother motor control
+- Better position feedback reliability
+
+**Hardware Implementation for Composite Signal:**
+```cpp
+// External OR gate circuit
+// Hall A ──┬─── OR Gate ──── ATtiny85 Pin 2 (PB3)
+// Hall B ──┼─── Output
+// Hall C ──┘
+
+// Alternative: Diode OR circuit
+// Hall A ──>|───┐
+// Hall B ──>|───┼─── 4.7kΩ pull-down ── ATtiny85 Pin 2 (PB3)
+// Hall C ──>|───┘
+```
 
 ### Power & Connections
 - **ATtiny85 Supply**: 2.7-5.5V (recommended 5V for Hall sensor compatibility)
