@@ -20,6 +20,7 @@ A robust PID control system for maintaining a BLDC motor at exactly 1440 RPM, wi
 - [Safety Features](#safety-features)
 - [Usage Instructions](#usage-instructions)
 - [Troubleshooting](#troubleshooting)
+- [Mitigation Guide](mitigation.md)
 - [Performance Optimization](#performance-optimization)
 - [Future Enhancements](#future-enhancements)
 - [Contributing](#contributing)
@@ -46,6 +47,7 @@ BLDC_PID_Controller/
 │   └── Serial command sequence.png # Serial interface diagram
 ├── CONTRIBUTING.md             # Contribution guidelines
 ├── howto.md                    # Detailed assembly guide
+├── mitigation.md               # Comprehensive troubleshooting guide
 ├── LICENSE                     # MIT License
 └── README.md                   # This overview file
 ```
@@ -520,6 +522,10 @@ Note: Serial Plotter output is available in all operating modes.
 6. **Production**: Switch back to production mode for stable operation
 
 ## Troubleshooting
+
+**📋 For comprehensive troubleshooting guide with detailed mitigation strategies, see [`mitigation.md`](mitigation.md)**
+
+This document covers advanced issues including RPM measurement discrepancies, power supply conflicts, ATTiny85 programming problems, and PID tuning challenges.
 
 ### Common Issues
 
