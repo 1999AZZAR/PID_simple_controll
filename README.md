@@ -136,14 +136,21 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 - `25112025_PID_simple_controll.zip` (November 25, 2025)
 
 ### Workflow Triggers
-- **Push**: Auto-build on every push to main/master
-- **Release**: Creates ZIP and attaches to GitHub releases
+- **Push to main/master**: Auto-creates daily release with complete package
+- **Version Tags**: Creates versioned releases on tag pushes
 - **Manual**: Actions → "Compile Arduino Sketches" → Run workflow
-- **Pull Request**: Validates compilation on PRs
+- **Pull Request**: Validates compilation without creating releases
 
-### Output Location
+### Output Locations
 - **ZIP Downloads**: Actions → Compile Arduino Sketches → `complete-package` artifact
-- **Release Assets**: Automatically attached to GitHub releases
+- **Daily Releases**: Automatic releases created on main branch pushes
+- **Release Assets**: Complete packages automatically attached
+
+### Automatic Release System
+- **Daily Releases**: Every push creates a dated release (e.g., `25112025`)
+- **Complete Packages**: Source code + compiled firmware included
+- **No Manual Work**: Fully automated CI/CD pipeline
+- **Version Control**: Date-based versioning for easy tracking
 
 ### ZIP Contents
 ```
