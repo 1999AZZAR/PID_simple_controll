@@ -11,6 +11,8 @@ on:
 jobs:
   compile:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for creating releases
 
     steps:
     - name: Checkout code
@@ -64,7 +66,6 @@ jobs:
 
     - name: Create complete ZIP with compiled firmware
       run: |
-        cd ..
         # Create ZIP including source code and compiled firmware
         zip -r ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip . \
         -x "*.git*" \
@@ -73,6 +74,18 @@ jobs:
 
         echo "Complete ZIP created: ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip"
         ls -lh ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip
+
+        # Verify ZIP file exists and has content
+        if [ ! -f "${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip" ]; then
+          echo "ERROR: ZIP file was not created!"
+          exit 1
+        fi
+
+        ZIP_SIZE=$(stat -c%s "${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip")
+        echo "ZIP file size: $ZIP_SIZE bytes"
+        if [ "$ZIP_SIZE" -lt 1000 ]; then
+          echo "WARNING: ZIP file seems too small ($ZIP_SIZE bytes)"
+        fi
 
     - name: Upload complete ZIP as artifact
       uses: actions/upload-artifact@v4
@@ -83,17 +96,18 @@ jobs:
     - name: Create automatic release (on push to main/master)
       if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event.repository.fork == false
       run: |
+        echo "Checking release status for ${{ steps.date.outputs.date }}..."
+
         # Check if release already exists
         if gh release view ${{ steps.date.outputs.date }} >/dev/null 2>&1; then
           echo "Release ${{ steps.date.outputs.date }} already exists, updating..."
           # Update existing release with new files
           gh release upload ${{ steps.date.outputs.date }} ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip --clobber
+          echo "✅ Release updated successfully!"
         else
           echo "Creating new release ${{ steps.date.outputs.date }}..."
-          # Create new release
-          gh release create ${{ steps.date.outputs.date }} \
-            --title "Release ${{ steps.date.outputs.date }}" \
-            --notes "## 🚀 Automated Release ${{ steps.date.outputs.date }}
+          # Create new release with proper formatting
+          RELEASE_NOTES="## 🚀 Automated Release ${{ steps.date.outputs.date }}
 
           This release was automatically created by the CI/CD pipeline.
 
@@ -117,8 +131,15 @@ jobs:
           4. Or flash the pre-compiled \`.hex\` files directly
 
           ---
-          *This release was automatically generated on ${{ steps.date.outputs.date }}*" \
+          *This release was automatically generated on ${{ steps.date.outputs.date }}*"
+
+          # Create the release
+          echo "$RELEASE_NOTES" | gh release create ${{ steps.date.outputs.date }} \
+            --title "Release ${{ steps.date.outputs.date }}" \
+            --notes-file - \
             ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip
+
+          echo "✅ New release created successfully!"
         fi
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
