@@ -116,38 +116,54 @@ These diagrams provide visual reference for:
 - Smaller footprint, lower cost (~$2 vs $20)
 - Production-ready for cost-sensitive applications
 
-## Automated Build & ZIP Creation
+## Automated Build & Packaging
 
-This repository includes GitHub Actions workflows for automated compilation and packaging:
+This repository uses GitHub Actions for fully automated compilation and packaging:
 
-### Compilation Workflow (`compile.yml`)
-- **Compiles** both Arduino Uno and ATTiny85 firmware
-- **Generates** `.hex` and `.elf` files in `compiled/` folders
-- **Uploads** compiled firmware as workflow artifacts
-- **Displays** memory usage statistics
+### Primary Workflow: **Compile Arduino Sketches**
+- **One-Click Solution**: Compiles both platforms + creates complete ZIP
+- **Generates** ready-to-flash `.hex` files
+- **Creates** `ddmmyyyy_reponame.zip` with everything included
+- **Attaches** ZIP to GitHub releases automatically
 
-### ZIP Creation Workflow (`create-zip.yml`)
-- **Creates** ZIP archives with format: `ddmmyyyy_reponame.zip`
-- **Includes** source code + compiled firmware
-- **Dependencies** on compilation workflow
+### What You Get
+- ✅ **Source Code**: All Arduino sketches and configurations
+- ✅ **Compiled Firmware**: Flash-ready `.hex` files for both platforms
+- ✅ **Documentation**: Complete setup guides and troubleshooting
+- ✅ **Memory Reports**: Flash/RAM usage statistics
 
 ### Example Output
 - `25112025_PID_simple_controll.zip` (November 25, 2025)
 
-### ZIP Contents
-- ✅ **Source Code**: All Arduino sketches and documentation
-- ✅ **Compiled Firmware**: Ready-to-flash `.hex` files for both platforms
-- ✅ **Documentation**: Complete setup and usage guides
-
 ### Workflow Triggers
-- **Manual**: Actions → "Create Repository ZIP" → Run workflow
-- **Release**: Automatic compilation + ZIP creation on releases
-- **Push**: Full build pipeline on main/master branch pushes
+- **Push**: Auto-build on every push to main/master
+- **Release**: Creates ZIP and attaches to GitHub releases
+- **Manual**: Actions → "Compile Arduino Sketches" → Run workflow
+- **Pull Request**: Validates compilation on PRs
 
-### Output Locations
-- **Compiled Firmware**: Actions → Compile Arduino Sketches → Artifacts
-- **ZIP Archives**: Actions → Create Repository ZIP → Artifacts
+### Output Location
+- **ZIP Downloads**: Actions → Compile Arduino Sketches → `complete-package` artifact
 - **Release Assets**: Automatically attached to GitHub releases
+
+### ZIP Contents
+```
+25112025_PID_simple_controll.zip/
+├── arduino_uno/
+│   ├── arduino_uno.ino        # Source code
+│   ├── compiled/              # ← Ready-to-flash firmware
+│   │   ├── arduino_uno.ino.hex
+│   │   └── arduino_uno.ino.elf
+│   └── README.md
+├── attiny85/
+│   ├── attiny85.ino           # Source code
+│   ├── compiled/              # ← Ready-to-flash firmware
+│   │   ├── attiny85.ino.hex
+│   │   └── attiny85.ino.elf
+│   └── README.md
+├── assets/
+├── README.md
+└── ...
+```
 
 ## Platform Comparison
 
