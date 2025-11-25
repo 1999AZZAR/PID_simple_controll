@@ -43,44 +43,35 @@
 #include <util/delay.h>
 #include <avr/wdt.h>
 
-// Global variables - Production Mode Only
+// Global variables - Production Mode Only (Integer optimized for ATTiny85)
 volatile unsigned long pulseCount = 0;
 volatile unsigned long timer_ms = 0;
 volatile unsigned long timer_us = 0;  // Microsecond counter for debounce
 volatile unsigned long lastPulseMicros = 0;
 unsigned long lastRPMCalcTime = 0;
-float currentRPM = 0.0;
+int currentRPM = 0;  // RPM * 10 (fixed point, e.g., 14400 = 1440.0 RPM)
 const int pulsesPerRev = PULSES_PER_REV; // Runtime variable for consistency
 
-// PID variables - Pre-tuned values from Arduino
-const float targetRPM = PRODUCTION_TARGET_RPM;
-const float kp = PRODUCTION_KP;
-const float ki = PRODUCTION_KI;
-const float kd = PRODUCTION_KD;
-float previousError = 0.0;
-float integral = 0.0;
-float pidOutput = 0.0;
+// PID variables - Pre-tuned values from Arduino (scaled for integer math)
+const int targetRPM_scaled = (int)(PRODUCTION_TARGET_RPM * 10);  // Target RPM * 10
+const int kp_scaled = (int)(PRODUCTION_KP * 100);                // Kp * 100
+const int ki_scaled = (int)(PRODUCTION_KI * 100);                // Ki * 100
+const int kd_scaled = (int)(PRODUCTION_KD * 100);                // Kd * 100
+int previousError_scaled = 0;  // Previous error * 10
+long integral_scaled = 0;      // Integral * 1000 (higher precision)
+int pidOutput = 0;             // Final output (-255 to 255)
 
 // Safety features
-volatile bool emergencyStop = false;
-volatile bool motorRunning = false;
-volatile unsigned long lastPulseMillis = 0;
 
 // Soft-start ramping to avoid current surges (ATtiny85 version)
-volatile bool softStarting = true;
-volatile unsigned long softStartStartTime = 0;
 
 // Function prototypes
 void setupPins();
 void setupTimer();
-void setupWatchdog();
 void rpmSensorISR();
-void watchdogISR();
-float calculateRPM();
-float computePID(float error);
+int calculateRPM();
+int computePID(int error_scaled);
 void outputToESC(uint8_t pwmValue);
-void checkSafetyConditions();
-void emergencyShutdown();
 int constrain_value(int value, int min, int max);
 long map(long x, long in_min, long in_max, long out_min, long out_max);
 
@@ -89,16 +80,7 @@ ISR(TIM1_COMPA_vect) {
     timer_ms++;
     timer_us += 1000;  // Increment microseconds by 1000 (1ms)
 
-    // Feed watchdog timer periodically
-    if (WATCHDOG_ENABLED) {
-        wdt_reset();
-    }
-}
-
-// Watchdog timer interrupt (called before reset)
-ISR(WDT_vect) {
-    // Emergency shutdown on watchdog timeout
-    emergencyShutdown();
+    // No watchdog - minimal operation
 }
 
 // RPM sensor interrupt with debounce filtering
@@ -107,18 +89,12 @@ ISR(INT0_vect) {
     if (t - lastPulseMicros > MIN_PULSE_WIDTH_US) {
         pulseCount++;
         lastPulseMicros = t;
-        lastPulseMillis = timer_ms;  // Track last pulse time for safety
-        motorRunning = true;         // Motor is actively producing pulses
     }
 }
 
 void setup() {
     // Setup watchdog timer first (before disabling it)
-    if (WATCHDOG_ENABLED) {
-        setupWatchdog();
-    } else {
-        wdt_disable();
-    }
+    wdt_disable();  // Ensure watchdog is disabled for minimal operation
 
     setupPins();
     setupTimer();
@@ -135,28 +111,10 @@ void setup() {
 
 void loop() {
     static unsigned long lastLoopTime = 0;
-    static unsigned long lastSafetyCheck = 0;
-
-    // Feed watchdog at start of main loop
-    if (WATCHDOG_ENABLED) {
-        wdt_reset();
-    }
 
     // Control loop timing - Production mode only
     if (timer_ms - lastLoopTime >= CONTROL_PERIOD_MS) {
         lastLoopTime = timer_ms;
-
-        // Safety checks (run less frequently than main control loop)
-        if (EMERGENCY_STOP_ENABLED && timer_ms - lastSafetyCheck >= 250) { // Every 250ms
-            checkSafetyConditions();
-            lastSafetyCheck = timer_ms;
-        }
-
-        // Skip PID control if emergency stop is active
-        if (emergencyStop) {
-            outputToESC(0);  // Emergency stop: zero PWM
-            return;  // Exit loop early for emergency stop
-        }
 
         // Calculate RPM at regular intervals
         if (timer_ms - lastRPMCalcTime >= RPM_CALC_INTERVAL) {
@@ -164,9 +122,9 @@ void loop() {
             lastRPMCalcTime = timer_ms;
         }
 
-        // Compute PID output using pre-tuned gains
-        float error = targetRPM - currentRPM;
-        pidOutput = computePID(error);
+        // Compute PID output using pre-tuned gains (integer math)
+        int error_scaled = targetRPM_scaled - currentRPM;
+        pidOutput = computePID(error_scaled);
 
         // Convert PID output to PWM value and output to ESC
         int pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
@@ -205,52 +163,9 @@ void setupTimer() {
     TCCR0B = (1 << CS01); // Prescaler 8, ~1kHz PWM frequency
 }
 
-void setupWatchdog() {
-    // Configure watchdog timer with interrupt mode (not reset)
-    wdt_reset();
-    WDTCR |= (1 << WDCE) | (1 << WDE);  // Enable configuration change
-    WDTCR = (1 << WDIE) | WATCHDOG_TIMEOUT;  // Interrupt mode, set timeout
-}
 
-void checkSafetyConditions() {
-    if (!EMERGENCY_STOP_ENABLED) return;
 
-    // Emergency stop condition 1: No pulses received for timeout period
-    if (motorRunning && (timer_ms - lastPulseMillis > EMERGENCY_STOP_TIMEOUT_MS)) {
-        emergencyStop = true;
-        return;
-    }
-
-    // Emergency stop condition 2: Motor running too fast (potential runaway)
-    if (currentRPM > targetRPM * 2.0) {  // More than 2x target RPM
-        emergencyStop = true;
-        return;
-    }
-
-    // Emergency stop condition 3: Motor not spinning when it should be
-    if (pidOutput > 50 && currentRPM < 10.0) {  // High PWM but no RPM
-        emergencyStop = true;
-        return;
-    }
-
-    // Reset emergency stop if conditions are normal
-    emergencyStop = false;
-}
-
-void emergencyShutdown() {
-    // Force PWM to zero in emergency
-    OCR0A = 0;
-
-    // Disable interrupts to prevent further operation
-    cli();
-
-    // Infinite loop - requires external reset
-    while (1) {
-        _delay_ms(100);
-    }
-}
-
-float calculateRPM() {
+int calculateRPM() {
     static unsigned long lastPulseCount = 0;
     static unsigned long lastCalcTime = 0;
 
@@ -264,71 +179,57 @@ float calculateRPM() {
 
         unsigned long pulseDiff = pulsesNow - lastPulseCount;
 
-        // Calculate RPM: (pulses / time) * (60 seconds / pulses_per_rev)
-        float rpm = (pulseDiff * 60000.0) / (timeDiff * pulsesPerRev);
+        // Calculate RPM using integer math: (pulses * 600000) / (timeDiff * pulsesPerRev)
+        // This gives RPM * 10 (e.g., 14400 = 1440.0 RPM)
+        unsigned long rpm_scaled = (pulseDiff * 600000UL) / (timeDiff * pulsesPerRev);
 
         lastPulseCount = pulsesNow;
         lastCalcTime = timer_ms;
 
-        return rpm;
+        return (int)rpm_scaled;
     }
 
     return currentRPM; // Return previous value if not enough time has passed
 }
 
-float computePID(float error) {
-    // Proportional term
-    float proportional = kp * error;
+int computePID(int error_scaled) {
+    // Proportional term: kp_scaled * error_scaled / 1000
+    // (kp_scaled is Kp*100, error_scaled is error*10, so divide by 1000 for Kp*error)
+    long proportional = (long)kp_scaled * error_scaled / 1000;
 
-    // Integral term with anti-windup
-    integral += ki * error;
+    // Integral term with anti-windup: integral_scaled += ki_scaled * error_scaled / 100
+    // (ki_scaled is Ki*100, error_scaled is error*10, so divide by 100 for Ki*error)
+    integral_scaled += (long)ki_scaled * error_scaled / 100;
 
-    // Clamp integral to prevent windup
-    if (integral > INTEGRAL_WINDUP_MAX) integral = INTEGRAL_WINDUP_MAX;
-    if (integral < INTEGRAL_WINDUP_MIN) integral = INTEGRAL_WINDUP_MIN;
+    // Clamp integral to prevent windup (scaled by 1000)
+    long integral_max_scaled = INTEGRAL_WINDUP_MAX * 1000;
+    long integral_min_scaled = INTEGRAL_WINDUP_MIN * 1000;
+    if (integral_scaled > integral_max_scaled) integral_scaled = integral_max_scaled;
+    if (integral_scaled < integral_min_scaled) integral_scaled = integral_min_scaled;
 
-    // Derivative term
-    float derivative = kd * (error - previousError);
-    previousError = error;
+    // Derivative term: kd_scaled * (error_scaled - previousError_scaled) / 1000
+    long derivative = (long)kd_scaled * (error_scaled - previousError_scaled) / 1000;
+    previousError_scaled = error_scaled;
 
-    // Calculate total PID output
-    float output = proportional + integral + derivative;
+    // Calculate total PID output: proportional + (integral_scaled/1000) + derivative
+    long output = proportional + (integral_scaled / 1000) + derivative;
 
     // Clamp output to safe range
     if (output > PID_OUTPUT_MAX) output = PID_OUTPUT_MAX;
     if (output < PID_OUTPUT_MIN) output = PID_OUTPUT_MIN;
 
-    return output;
+    return (int)output;
 }
 
-// Apply soft-start ramping to avoid current surges (ATtiny85 version)
-uint8_t applySoftStart(uint8_t targetPWM) {
-    if (!softStarting) {
-        return targetPWM;  // Normal operation
-    }
-
-    unsigned long currentTime = timer_ms;
-
-    if (softStartStartTime == 0) {
-        softStartStartTime = currentTime;
-    }
-
-    unsigned long elapsed = currentTime - softStartStartTime;
-
-    if (elapsed >= SOFT_START_DURATION_MS) {
-        // Soft-start complete
-        softStarting = false;
-        return targetPWM;
-    }
-
-    // Simple linear ramp for ATtiny85 (avoid floating point)
-    unsigned long rampProgress = (elapsed * 255) / SOFT_START_DURATION_MS;
-    return (uint8_t)((targetPWM * rampProgress) / 255);
-}
+// Soft-start removed for size optimization
 
 void outputToESC(uint8_t pwmValue) {
-    uint8_t safePWM = applySoftStart(pwmValue);
-    OCR0A = safePWM; // Set PWM duty cycle with soft-start protection
+    // Clamp PWM value to safe range
+    if (pwmValue > 255) pwmValue = 255;
+    if (pwmValue < 0) pwmValue = 0;
+
+    // Set PWM duty cycle directly (no soft-start for size optimization)
+    OCR0A = pwmValue;
 }
 
 // Simple constrain function for ATtiny85

@@ -33,11 +33,12 @@ This is the production-ready version of the BLDC PID controller running on ATtin
 - **No External Components**: No potentiometers, switches, or LEDs needed
 - **Direct Operation**: Powers on and maintains 1440 RPM automatically
 
-### Advanced Safety Systems
-- **Watchdog Timer**: Hardware-level hang protection with 8-second timeout
-- **Emergency Stop**: Automatic shutdown if motor stalls or runs away
-- **Soft-Start Protection**: Gradual power ramp-up to prevent current surges
-- **Multiple Safety Conditions**: RPM monitoring, pulse detection, and runaway prevention
+### Minimal Production Design
+- **Core PID Control Only**: Essential motor control with integer math optimization (77% flash usage)
+- **No Safety Features**: Watchdog, emergency stop, and soft-start completely removed
+- **Direct PWM Output**: Immediate motor control without ramping
+- **2-Pin Operation**: Hall sensor + PWM output (ultra-minimal)
+- **Production Ready**: Fits in ATTiny85's 2KB flash limit
 
 ### Robust Control
 - **Anti-windup Protection**: Prevents integrator runaway

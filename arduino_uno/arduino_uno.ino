@@ -28,7 +28,7 @@
  * - Mode switch (jumper/digital input for tuning mode)
  *
  * Optional Hardware (for potentiometer tuning):
- * - 4 potentiometers for real-time tuning
+ * - 5 potentiometers for real-time tuning
  *
  * Configuration:
  * - All configuration parameters are defined in config.h
@@ -58,7 +58,7 @@ volatile unsigned long lastPulseMillis = 0;  // For emergency stop timeout
 unsigned long lastRPMCalcTime = 0;
 float currentRPM = 0.0;
 float targetRPM = PRODUCTION_TARGET_RPM;
-int pulsesPerRev = DEFAULT_PULSES_PER_REV; // Configurable pulses per revolution
+int pulsesPerRev = PULSES_PER_REV; // Configurable pulses per revolution
 
 // PID variables
 float kp = PRODUCTION_KP;
@@ -237,10 +237,16 @@ float calculateRPM() {
     return currentRPM; // Return previous value if not enough time has passed
 }
 
-// Read potentiometer and map to specified range
+// Read potentiometer and map to specified range (float)
 float readPotentiometer(int pin, float minVal, float maxVal) {
     int rawValue = analogRead(pin);
     return map(rawValue, 0, 1023, minVal * 100, maxVal * 100) / 100.0;
+}
+
+// Read potentiometer and map to specified integer range
+int readPotentiometerInt(int pin, int minVal, int maxVal) {
+    int rawValue = analogRead(pin);
+    return map(rawValue, 0, 1023, minVal, maxVal);
 }
 
 // Update PID gains from potentiometers (tuning mode only)
@@ -249,6 +255,7 @@ void updatePIDGains() {
     kp = readPotentiometer(POT_KP, 0, 2.0);                 // 0-2.0 Kp range
     ki = readPotentiometer(POT_KI, 0, 1.0);                 // 0-1.0 Ki range
     kd = readPotentiometer(POT_KD, 0, 0.1);                 // 0-0.1 Kd range
+    pulsesPerRev = readPotentiometerInt(POT_PULSES_PER_REV, 1, 100); // 1-100 pulses per revolution
 }
 
 // Compute PID output with anti-windup

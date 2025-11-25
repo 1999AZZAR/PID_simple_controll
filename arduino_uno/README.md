@@ -23,7 +23,7 @@ The Arduino Uno version provides a complete development platform for tuning and 
 
 ### Key Features
 
-- **Potentiometer Tuning**: 4 potentiometers for real-time PID parameter adjustment
+- **Potentiometer Tuning**: 5 potentiometers for real-time PID parameter adjustment
 - **Serial Command Interface**: Complete command set for parameter tuning and monitoring
 - **Serial Plotter Integration**: Real-time visualization of control performance
 - **EEPROM Parameter Storage**: Persistent settings across power cycles
@@ -58,7 +58,7 @@ arduino_uno/
 - SPDT switch or jumper (mode selection)
 
 ### Optional Components (for potentiometer tuning)
-- 4x 10kΩ potentiometers
+- 5x 10kΩ potentiometers
 - Breadboard and jumper wires
 
 ### Pin Connections
@@ -72,6 +72,7 @@ arduino_uno/
 | Kp Pot | Analog A1 | Proportional gain (0-2.0) |
 | Ki Pot | Analog A2 | Integral gain (0-1.0) |
 | Kd Pot | Analog A3 | Derivative gain (0-0.1) |
+| Pulses/Rev Pot | Analog A4 | Pulses per revolution (1-100) |
 
 ### Hall Sensor Signal Options
 
@@ -118,7 +119,7 @@ All Arduino Uno settings are centralized in `config.h`:
 #define PRODUCTION_KP         0.5     // Default proportional gain
 #define PRODUCTION_KI         0.1     // Default integral gain
 #define PRODUCTION_KD         0.01    // Default derivative gain
-#define DEFAULT_PULSES_PER_REV  6     // Hall sensor pulses per revolution
+#define PULSES_PER_REV          6     // Hall sensor pulses per revolution
 ```
 
 ### Debug and Safety Settings
@@ -145,7 +146,7 @@ The Arduino Uno version supports three operating modes selected by the mode swit
 
 ### Potentiometer Tuning Mode
 - **Mode Switch**: LOW (connected to GND)
-- **Behavior**: Real-time parameter adjustment via 4 potentiometers
+- **Behavior**: Real-time parameter adjustment via 5 potentiometers
 - **Monitoring**: Serial Plotter shows live control response
 - **Use Case**: Initial PID tuning and testing
 
@@ -205,6 +206,7 @@ Target,Current,Error,PID_Output
    - **Pot A1 (Kp)**: Start low (0.1), increase until oscillations start
    - **Pot A2 (Ki)**: Add small amount to eliminate steady-state error
    - **Pot A3 (Kd)**: Add minimal damping for stability
+   - **Pot A4 (Pulses/Rev)**: Set pulses per revolution for your motor (usually 6 for 3-Hall BLDC)
 4. Record optimal potentiometer positions
 5. Transfer values to production constants in `config.h`
 
@@ -243,7 +245,7 @@ Parameters are validated on load and revert to defaults if corrupted.
 ### No RPM Reading
 - Confirm Hall sensor wire connected to Digital Pin 2
 - Check sensor power (5V) and ground connections
-- Verify `DEFAULT_PULSES_PER_REV` matches your motor (usually 6 for 3-Hall)
+- Verify `PULSES_PER_REV` matches your motor (usually 6 for 3-Hall)
 - Test with oscilloscope on sensor pin for pulse signals
 
 ### Unstable Control

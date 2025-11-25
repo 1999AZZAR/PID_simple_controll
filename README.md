@@ -62,7 +62,7 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 - **Anti-Windup Protection**: Prevents integral windup during stall or high-load conditions
 - **Three Mode Operation**: Production mode for stable operation, potentiometer tuning for hardware adjustment, and serial tuning for software-based parameter optimization
 - **Real-time Feedback**: Hall sensor RPM measurement for accurate closed-loop control
-- **Flexible Tuning**: Four potentiometers for hardware tuning or serial commands for software tuning
+- **Flexible Tuning**: Five potentiometers for hardware tuning or serial commands for software tuning
 - **Parameter Persistence**: EEPROM storage for saving and loading tuned PID parameters
 - **Multi-Platform Support**: Arduino Uno for development and ATTiny85 for production deployment
 
@@ -99,21 +99,43 @@ These diagrams provide visual reference for:
 - Optional potentiometer tuning
 - Watchdog timer protection and emergency stop
 - Soft-start protection for current surge prevention
-- Resource usage: 42% flash, 23% RAM
+- Resource usage: 42% flash (13,726 bytes), 23% RAM (482 bytes)
 - More memory for debugging features
 
 ### ATTiny85 Version (`attiny85/`)
 
 **Best for**: Production deployment
 
-- Minimal resource usage (40% flash, 14% RAM)
-- **Advanced safety systems**: Watchdog timer, emergency stop, soft-start
-- **Modular configuration**: `config.h` for easy parameter adjustment
+- Minimal resource usage (77% flash, 38% RAM)
+- **Core PID Control Only**: Essential motor control with integer math optimization
+- **2-Pin Operation**: Hall sensor input + PWM output (ultra-minimal)
 - No external dependencies
-- Optimized for power efficiency
-- Pre-tuned PID parameters for stable operation
-- Smaller footprint, lower cost
-- Production-ready with comprehensive protection
+- Fits in ATTiny85's 2KB flash limit
+- Pre-tuned PID parameters hardcoded for reliability
+- Smaller footprint, lower cost (~$2 vs $20)
+- Production-ready for cost-sensitive applications
+
+## Platform Comparison
+
+| Feature | Arduino Uno (Development) | ATTiny85 (Production) |
+|---------|---------------------------|----------------------|
+| **Purpose** | Development, tuning, testing | Production deployment |
+| **Flash Usage** | 13,726 bytes (42%) | 1,586 bytes (77%) |
+| **RAM Usage** | 482 bytes (23%) | 49 bytes (38%) |
+| **Efficiency Ratio** | 1x (baseline) | **8.6x smaller flash, 9.8x less RAM** |
+| **Total Flash** | 32,256 bytes | 2,048 bytes |
+| **Total RAM** | 2,048 bytes | 128 bytes |
+| **Pin Count** | 7 pins used | **2 pins only** |
+| **Cost** | ~$20 | ~$2 |
+| **Tuning Interface** | 5 potentiometers + serial commands | None (pre-tuned) |
+| **Safety Features** | Watchdog, emergency stop, soft-start | None (minimal) |
+| **EEPROM** | Parameter storage | None |
+| **Serial Output** | Monitoring & commands | None |
+| **Development Time** | Easy tuning & debugging | Deploy & forget |
+| **Power Efficiency** | Standard | Optimized |
+| **Reliability Focus** | Feature-rich | Cost-effective |
+
+**Key Takeaway**: Arduino Uno = Development platform with full features. ATTiny85 = Minimal production controller focused on cost and size.
 
 ## Quick Start
 
@@ -144,7 +166,7 @@ These diagrams provide visual reference for:
 
 ### Optional Components (for Hardware Tuning)
 
-- 4x 10kΩ potentiometers (for potentiometer-based tuning mode)
+- 5x 10kΩ potentiometers (for potentiometer-based tuning mode)
 
 ### Pin Connections
 
@@ -419,7 +441,7 @@ output = proportional + integral + derivative
 
 ```cpp
 #define CONTROL_LOOP_HZ     100     // Control loop frequency
-#define DEFAULT_PULSES_PER_REV  6   // Default sensor pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223 - see assets/42BLF.pdf)
+#define PULSES_PER_REV          6   // Default sensor pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223 - see assets/42BLF.pdf)
 // Note: Arduino Uno version uses runtime variable pulsesPerRev (configurable via serial/EEPROM)
 #define RPM_CALC_INTERVAL   100     // RPM update interval (ms)
 #define SERIAL_BUFFER_SIZE  64      // Serial command buffer size

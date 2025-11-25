@@ -13,7 +13,7 @@
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
 // RPM calculation parameters
-#define PULSES_PER_REV      6   // Number of pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223)
+#define PULSES_PER_REV      18   // Number of pulses per revolution
 #define RPM_CALC_INTERVAL   100 // RPM calculation interval in ms
 #define MIN_PULSE_WIDTH_US  100 // Minimum pulse width to reject EMI spikes (100-500us)
 
@@ -30,10 +30,7 @@
 #define PRODUCTION_KD         0.01
 
 // Safety parameters
-#define WATCHDOG_ENABLED        true   // Enable watchdog timer for hang protection
-#define WATCHDOG_TIMEOUT        ((1 << WDP3) | (1 << WDP0))  // ~8 second timeout (WDP3=1, WDP0=1)
-#define EMERGENCY_STOP_ENABLED  true   // Enable emergency stop feature
-#define EMERGENCY_STOP_TIMEOUT_MS  5000  // Stop PWM if no pulses received for 5 seconds
+// Safety features removed for minimal size optimization
 
 // Soft-start ramping parameters
 #define SOFT_START_DURATION_MS  2000  // 2 seconds ramp up time

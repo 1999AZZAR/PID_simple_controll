@@ -24,6 +24,7 @@
 |  [Kp Pot] → A1      |
 |  [Ki Pot] → A2      |
 |  [Kd Pot] → A3      |
+|  [Pulses/Rev Pot] → A4 |
 +---------------------+
 ```
 
@@ -42,7 +43,7 @@
 - Arduino Pin 9 → ESC signal input
 - ESC power and motor connections as per ESC manual
 
-### Potentiometers (4x 10kΩ linear)
+### Potentiometers (5x 10kΩ linear)
 - **Target RPM**: Wiper → A0, ends → GND and 5V
 - **Kp**: Wiper → A1, ends → GND and 5V
 - **Ki**: Wiper → A2, ends → GND and 5V

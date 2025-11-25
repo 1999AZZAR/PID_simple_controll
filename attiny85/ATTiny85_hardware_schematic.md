@@ -56,46 +56,45 @@ When uploading code:
 
 ## Limitations & Workarounds
 
-### 1. Reduced Potentiometers
-- Only 3 potentiometers instead of 4
-- Ki and Kd share one potentiometer (time-multiplexed)
+### 1. Ultra-Minimal Design
+- **Zero Controls**: No potentiometers, switches, or user adjustments
+- **No Safety Features**: Watchdog, emergency stop, soft-start completely removed
+- **2 Pins Only**: Hall sensor input + PWM output (pure production)
+- **Pre-tuned Values**: All PID parameters hardcoded from Arduino development
 
 ### 2. PWM Limitations
 - Only one PWM output pin available
 - Timer0 shared between PWM and system timing
 - ~1kHz PWM frequency (may need adjustment for ESC)
 
-### 3. ADC Constraints
-- ADC2 (PB4) used for Kp potentiometer
-- ADC3 (PB2) shared between mode switch and Ki/Kd pot
-- ADC1 (PB1) used for target RPM pot
+### 3. No ADC Usage
+- No analog inputs needed (production version)
+- All values hardcoded for reliability
+- No potentiometer calibration required
 
 ### 4. Memory Constraints
 - 512 bytes SRAM (careful with variables)
 - No Serial output for debugging
 
-## Tuning Procedure (ATtiny85)
+## Deployment Procedure
 
-1. Upload code with Arduino as ISP
-2. Connect potentiometers as shown (if using Arduino version for tuning)
-3. Connect BLDC Hall sensor to physical pin 2
-4. Set mode switch to tuning position (GND)
-5. Power on system
-6. Adjust potentiometers:
-   - Target RPM: Set to 1440
-   - Kp: Start low (0.1), increase until oscillation
-   - Ki/Kd: Wait for parameter to appear, adjust accordingly
-7. Note optimal values
-8. Update `PRODUCTION_*` constants in code
-9. Re-upload production version with tuned values
-10. Connect only Hall sensor and PWM output for final deployment
+**ATTiny85 has NO controls or safety features - it's ultra-minimal production hardware!**
 
-## Alternative Tuning Method
+1. **Tune on Arduino First**: Use Arduino Uno with potentiometers to find optimal PID values
+2. **Update Constants**: Copy tuned values to `PRODUCTION_*` constants in `attiny85/config.h`
+3. **Program ATTiny85**: Upload code with Arduino as ISP programmer
+4. **Minimal Connections**: Connect only Hall sensor and PWM output (2 pins total)
+5. **Power On**: System runs autonomously at pre-tuned 1440 RPM
 
-Since Serial is not available, consider:
-- Using LED blink patterns to indicate current values
-- EEPROM storage of tuned parameters
-- Fixed tuning values based on Arduino testing
+## Why Ultra-Minimal?
+
+- **Cost Optimization**: $2 microcontroller vs $20 Arduino
+- **Size Efficiency**: 77% of 2KB flash (1,586 bytes used)
+- **Pin Minimization**: Only 2 pins required for operation
+- **Zero Maintenance**: No calibration or adjustment needed
+- **Production Ready**: Deploy and forget design
+
+**Result**: Ultra-cheap, ultra-simple 2-wire motor control! 💰🔧
 
 ## Compilation Notes
 

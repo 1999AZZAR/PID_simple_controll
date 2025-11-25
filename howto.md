@@ -439,7 +439,7 @@ Some ESCs require calibration:
 ### Arduino Uno Potentiometer Tuning
 
 1. Set mode switch to tuning position (closed to GND)
-2. Connect all four potentiometers
+2. Connect all five potentiometers
 3. Power on system
 4. Open Serial Plotter (Tools → Serial Plotter)
 5. Adjust potentiometers:
