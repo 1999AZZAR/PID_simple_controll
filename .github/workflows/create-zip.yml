@@ -1,0 +1,87 @@
+name: Create Repository ZIP
+
+# This workflow creates a ZIP file of the repository with the format: ddmmyyyy_reponame.zip
+# Example: 25112025_PID_simple_controll.zip
+#
+# Dependencies: Waits for compilation workflow to succeed first
+# Includes: Source code + compiled firmware files
+#
+# Triggers:
+# - Manual (workflow_dispatch)
+# - Release publication
+# - Push to main/master branches
+
+on:
+  workflow_dispatch:  # Manual trigger
+  release:
+    types: [published]  # Trigger on release
+  push:
+    branches: [main, master]  # Trigger on push to main branches
+  workflow_call:  # Called by compilation workflow
+
+jobs:
+  create-zip:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download compiled firmware artifacts
+      if: github.event_name != 'workflow_dispatch'
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow: compile.yml
+        name: compiled-firmware
+        path: compiled-artifacts/
+        if_no_artifact_found: warn
+
+    - name: Organize compiled files
+      if: github.event_name == 'workflow_run' || github.event_name == 'release' || github.event_name == 'push'
+      run: |
+        # Move compiled files to their proper locations
+        if [ -d "compiled-artifacts/arduino_uno" ]; then
+          mkdir -p arduino_uno/compiled
+          cp -r compiled-artifacts/arduino_uno/* arduino_uno/compiled/ 2>/dev/null || true
+        fi
+
+        if [ -d "compiled-artifacts/attiny85" ]; then
+          mkdir -p attiny85/compiled
+          cp -r compiled-artifacts/attiny85/* attiny85/compiled/ 2>/dev/null || true
+        fi
+
+        # Clean up temporary directory
+        rm -rf compiled-artifacts
+
+    - name: Get current date
+      id: date
+      run: echo "date=$(date +'%d%m%Y')" >> $GITHUB_OUTPUT
+
+    - name: Get repository name
+      id: repo
+      run: echo "name=${GITHUB_REPOSITORY#*/}" >> $GITHUB_OUTPUT
+
+    - name: Create ZIP file with compiled firmware
+      run: |
+        # Create ZIP including source code and compiled firmware
+        zip -r ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip . \
+        -x "*.git*" \
+        -x ".github/*" \
+        --quiet
+
+        echo "ZIP created: ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip"
+        ls -lh ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip
+
+    - name: Upload ZIP as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}
+        path: ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip
+
+    - name: Upload ZIP to release (if triggered by release)
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

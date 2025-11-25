@@ -9,6 +9,7 @@ A robust PID control system for maintaining a BLDC motor at exactly 1440 RPM, wi
 - [Implementations](#implementations)
   - [Arduino Uno Version](#arduino-uno-version-arduino_uno)
   - [ATTiny85 Version](#attiny85-version-attiny85)
+- [Automated ZIP Creation](#automated-zip-creation)
 - [Quick Start](#quick-start)
 - [Hardware Requirements](#hardware-requirements)
 - [Software Architecture](#software-architecture)
@@ -114,6 +115,39 @@ These diagrams provide visual reference for:
 - Pre-tuned PID parameters hardcoded for reliability
 - Smaller footprint, lower cost (~$2 vs $20)
 - Production-ready for cost-sensitive applications
+
+## Automated Build & ZIP Creation
+
+This repository includes GitHub Actions workflows for automated compilation and packaging:
+
+### Compilation Workflow (`compile.yml`)
+- **Compiles** both Arduino Uno and ATTiny85 firmware
+- **Generates** `.hex` and `.elf` files in `compiled/` folders
+- **Uploads** compiled firmware as workflow artifacts
+- **Displays** memory usage statistics
+
+### ZIP Creation Workflow (`create-zip.yml`)
+- **Creates** ZIP archives with format: `ddmmyyyy_reponame.zip`
+- **Includes** source code + compiled firmware
+- **Dependencies** on compilation workflow
+
+### Example Output
+- `25112025_PID_simple_controll.zip` (November 25, 2025)
+
+### ZIP Contents
+- ✅ **Source Code**: All Arduino sketches and documentation
+- ✅ **Compiled Firmware**: Ready-to-flash `.hex` files for both platforms
+- ✅ **Documentation**: Complete setup and usage guides
+
+### Workflow Triggers
+- **Manual**: Actions → "Create Repository ZIP" → Run workflow
+- **Release**: Automatic compilation + ZIP creation on releases
+- **Push**: Full build pipeline on main/master branch pushes
+
+### Output Locations
+- **Compiled Firmware**: Actions → Compile Arduino Sketches → Artifacts
+- **ZIP Archives**: Actions → Create Repository ZIP → Artifacts
+- **Release Assets**: Automatically attached to GitHub releases
 
 ## Platform Comparison
 

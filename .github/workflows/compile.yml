@@ -28,19 +28,36 @@ jobs:
     - name: Compile Arduino Uno sketch
       run: |
         cd arduino_uno
-        arduino-cli compile --fqbn arduino:avr:uno arduino_uno.ino
+        arduino-cli compile --fqbn arduino:avr:uno arduino_uno.ino --output-dir compiled/
 
     - name: Compile ATtiny85 sketch
       run: |
         cd attiny85
-        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal8 attiny85.ino
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal8 attiny85.ino --output-dir compiled/
+
+    - name: List compiled files
+      run: |
+        echo "Arduino Uno compiled files:"
+        ls -la arduino_uno/compiled/
+        echo -e "\nATtiny85 compiled files:"
+        ls -la attiny85/compiled/
+
+    - name: Upload compiled firmware as artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: compiled-firmware
+        path: |
+          arduino_uno/compiled/
+          attiny85/compiled/
 
     - name: Check memory usage
       run: |
         echo "Arduino Uno compilation results:"
         cd arduino_uno
-        arduino-cli compile --fqbn arduino:avr:uno arduino_uno.ino | grep -E "(bytes|Maximum|Global variables)"
+        arduino-cli compile --fqbn arduino:avr:uno arduino_uno.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
 
         echo -e "\nATtiny85 compilation results:"
         cd ../attiny85
-        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal8 attiny85.ino | grep -E "(bytes|Maximum|Global variables)"
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal8 attiny85.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
+
+    # ZIP creation will be triggered separately and download these artifacts
