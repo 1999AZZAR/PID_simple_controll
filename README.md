@@ -127,10 +127,10 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 - **Attaches** ZIP to GitHub releases automatically
 
 ### What You Get
-- ✅ **Source Code**: All Arduino sketches and configurations
-- ✅ **Compiled Firmware**: Flash-ready `.hex` files for both platforms
-- ✅ **Documentation**: Complete setup guides and troubleshooting
-- ✅ **Memory Reports**: Flash/RAM usage statistics
+- **Source Code**: All Arduino sketches and configurations
+- **Compiled Firmware**: Flash-ready `.hex` files for both platforms
+- **Documentation**: Complete setup guides and troubleshooting
+- **Memory Reports**: Flash/RAM usage statistics
 
 ### Example Output
 - `25112025_PID_simple_controll.zip` (November 25, 2025)
@@ -602,7 +602,7 @@ Note: Serial Plotter output is available in all operating modes.
 
 ## Troubleshooting
 
-**📋 For comprehensive troubleshooting guide with detailed mitigation strategies, see [`mitigation.md`](mitigation.md)**
+**For comprehensive troubleshooting guide with detailed mitigation strategies, see [`mitigation.md`](mitigation.md)**
 
 This document covers advanced issues including RPM measurement discrepancies, power supply conflicts, ATTiny85 programming problems, and PID tuning challenges.
 

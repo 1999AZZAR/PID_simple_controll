@@ -103,28 +103,28 @@ jobs:
           echo "Release ${{ steps.date.outputs.date }} already exists, updating..."
           # Update existing release with new files
           gh release upload ${{ steps.date.outputs.date }} ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip --clobber
-          echo "✅ Release updated successfully!"
+          echo "Release updated successfully."
         else
           echo "Creating new release ${{ steps.date.outputs.date }}..."
-          # Create new release with proper formatting
-          RELEASE_NOTES="## 🚀 Automated Release ${{ steps.date.outputs.date }}
+          # Create new release with professional formatting
+          RELEASE_NOTES="## Automated Release ${{ steps.date.outputs.date }}
 
           This release was automatically created by the CI/CD pipeline.
 
-          ### 📦 Package Contents
-          - ✅ **Source Code**: All Arduino sketches and configurations
-          - ✅ **Compiled Firmware**: Ready-to-flash \`.hex\` files for Arduino Uno and ATTiny85
-          - ✅ **Documentation**: Complete setup guides and troubleshooting
-          - ✅ **Memory Usage**: Arduino Uno (42% flash), ATTiny85 (77% flash)
+          ## Package Contents
+          - **Source Code**: All Arduino sketches and configurations
+          - **Compiled Firmware**: Ready-to-flash \`.hex\` files for Arduino Uno and ATTiny85
+          - **Documentation**: Complete setup guides and troubleshooting
+          - **Memory Usage**: Arduino Uno (42% flash), ATTiny85 (77% flash)
 
-          ### 🛠️ Platforms Supported
+          ## Platforms Supported
           - **Arduino Uno**: Full-featured development platform (13,726 bytes)
           - **ATTiny85**: Production-optimized microcontroller (1,586 bytes)
 
-          ### 📥 Download
+          ## Download
           Download the complete package: \`${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip\`
 
-          ### 🔧 Usage
+          ## Usage Instructions
           1. Download the ZIP file
           2. Extract to your Arduino projects folder
           3. Upload the appropriate \`.ino\` file to your microcontroller
@@ -139,7 +139,7 @@ jobs:
             --notes-file - \
             ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip
 
-          echo "✅ New release created successfully!"
+          echo "New release created successfully."
         fi
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

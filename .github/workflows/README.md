@@ -18,9 +18,9 @@
 - **Release Title**: `Release 25112025`
 
 ### Complete Package Contents
-- ✅ **Source Code**: All Arduino sketches, configs, and documentation
-- ✅ **Compiled Firmware**: Ready-to-flash `.hex` files for both platforms
-- ✅ **Documentation**: Complete setup guides and troubleshooting
+- **Source Code**: All Arduino sketches, configs, and documentation
+- **Compiled Firmware**: Ready-to-flash `.hex` files for both platforms
+- **Documentation**: Complete setup guides and troubleshooting
 - ❌ **Excluded**: `.git` directories, workflow files
 
 ### Triggers
@@ -68,7 +68,7 @@
 - **Complete Automation**: Compilation → Packaging → Release all in one
 - **Easier Maintenance**: Single workflow to manage and debug
 
-**This workflow does everything automatically! Push to main → Get a complete release!** 🚀
+**This workflow does everything automatically! Push to main → Get a complete release!**
 
 ---
 
