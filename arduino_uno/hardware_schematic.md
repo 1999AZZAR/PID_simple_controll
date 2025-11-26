@@ -16,7 +16,7 @@
 |                     |
 |  [RPM Sensor] → 2   |  // Interrupt pin
 |                     |
-|  [Mode Switch] → 3  |  // LOW = Tuning, HIGH = Production
+|  [Mode Switch] → 3  |  // LOW = Potentiometer Tuning, HIGH = Production
 |                     |
 |  [PWM to ESC] ← 9   |  // PWM output
 |                     |
@@ -83,8 +83,9 @@
 5. ESC should beep to confirm calibration
 
 ### RPM Sensor Calibration
-- `PULSES_PER_REV` is set to 6 for 3-Hall BLDC motors
-- If using a different sensor type, adjust this constant:
+- Default `PULSES_PER_REV` is set to 18
+- For 3-Hall BLDC motors, typically use 6 pulses per electrical revolution
+- If using a different sensor type, adjust this constant in `config.h`:
   - Single Hall sensor: Usually 2 pulses per revolution
   - Optical encoder: Check datasheet for pulses per revolution
   - Tachometer: Usually 1 pulse per revolution

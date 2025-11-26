@@ -3,8 +3,7 @@
 
 // Include necessary libraries
 #include <Arduino.h>
-#include <EEPROM.h>
-#include <avr/wdt.h>
+// EEPROM removed
 
 // Pin definitions
 #define RPM_SENSOR_PIN      2   // Interrupt pin for BLDC Hall sensor (any Hall wire from motor)
@@ -37,28 +36,20 @@
 #define PRODUCTION_KI         0.1
 #define PRODUCTION_KD         0.01
 
-// Serial command buffer
-#define SERIAL_BUFFER_SIZE    64
+// Serial commands removed
 
 // Debug mode settings
 #define DEBUG_MODE_ENABLED     false  // Set to true for debug output
 #define DEBUG_INTERVAL_MS      1000   // Debug print interval
 
-// EEPROM addresses for storing parameters
-#define EEPROM_TARGET_RPM_ADDR     0
-#define EEPROM_KP_ADDR             4
-#define EEPROM_KI_ADDR             8
-#define EEPROM_KD_ADDR             12
-#define EEPROM_PULSES_PER_REV_ADDR 16
+// EEPROM removed
 
 // Soft-start ramping parameters
 #define SOFT_START_DURATION_MS  2000  // 2 seconds ramp up time
 #define SOFT_START_STEPS       20     // Number of ramp steps
 
 // Safety parameters
-#define WATCHDOG_ENABLED           true   // Enable watchdog timer for hang protection
-#define WATCHDOG_TIMEOUT           WDTO_4S  // 4-second watchdog timeout
-#define EMERGENCY_STOP_ENABLED     true   // Enable emergency stop feature (now enabled after memory optimization)
+#define EMERGENCY_STOP_ENABLED     true   // Enable emergency stop feature
 #define EMERGENCY_STOP_TIMEOUT_MS  5000  // Stop PWM if no pulses received for 5 seconds
 
 #endif // CONFIG_H

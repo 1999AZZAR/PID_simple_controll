@@ -1,6 +1,6 @@
 # BLDC PID Controller - ATtiny85 Production Version
 
-This is the production-ready version of the BLDC PID controller running on ATtiny85 microcontroller. All tuning is done on Arduino first, then optimal values are hardcoded for reliable production operation.
+This is the production-ready version of the BLDC PID controller running on ATtiny85 microcontroller. PID tuning is done using potentiometers on the Arduino Uno version, then optimal values are hardcoded for reliable production operation.
 
 ## Table of Contents
 

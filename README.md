@@ -16,7 +16,6 @@ A robust PID control system for maintaining a BLDC motor at exactly 1440 RPM, wi
 - [Operating Modes](#operating-modes)
 - [Tuning Procedure](#tuning-procedure)
 - [Configuration Parameters](#configuration-parameters)
-- [Serial Commands](#serial-commands)
 - [Serial Plotter Output](#serial-plotter-output)
 - [Safety Features](#safety-features)
 - [Usage Instructions](#usage-instructions)
@@ -92,16 +91,15 @@ These diagrams provide visual reference for:
 
 ### Arduino Uno Version (`arduino_uno/`)
 
-**Best for**: Development, testing, and tuning
+**Best for**: Simplified development and testing
 
-- Full serial command interface for real-time PID parameter adjustment
-- EEPROM storage for parameter persistence
-- Serial Plotter support for monitoring
-- Optional potentiometer tuning
-- Watchdog timer protection and emergency stop
-- Soft-start protection for current surge prevention
-- Resource usage: 42% flash (13,726 bytes), 23% RAM (482 bytes)
-- More memory for debugging features
+- Streamlined design with minimal features for maximum reliability
+- Serial Plotter monitoring with 7 parameters (Target, Current, Error, PID_Output, Kp, Ki, Kd, PPR)
+- Two operating modes: Production (fixed parameters) and Potentiometer tuning
+- No serial commands or interactive tuning
+- No EEPROM storage or watchdog timer
+- Optimized memory usage: 21% flash, 18% RAM (highly stable)
+- Clean, maintainable codebase
 
 ### ATTiny85 Version (`attiny85/`)
 
@@ -174,23 +172,23 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 
 ## Platform Comparison
 
-| Feature | Arduino Uno (Development) | ATTiny85 (Production) |
+| Feature | Arduino Uno (Simplified) | ATTiny85 (Production) |
 |---------|---------------------------|----------------------|
-| **Purpose** | Development, tuning, testing | Production deployment |
-| **Flash Usage** | 13,726 bytes (42%) | 1,586 bytes (77%) |
-| **RAM Usage** | 482 bytes (23%) | 49 bytes (38%) |
-| **Efficiency Ratio** | 1x (baseline) | **8.6x smaller flash, 9.8x less RAM** |
+| **Purpose** | Clean development and testing | Production deployment |
+| **Flash Usage** | 7,084 bytes (21%) | 1,586 bytes (77%) |
+| **RAM Usage** | 376 bytes (18%) | 49 bytes (38%) |
+| **Efficiency Ratio** | **4.2x smaller than full-featured** | **11.7x smaller flash, 7.6x less RAM** |
 | **Total Flash** | 32,256 bytes | 2,048 bytes |
 | **Total RAM** | 2,048 bytes | 128 bytes |
 | **Pin Count** | 7 pins used | **2 pins only** |
 | **Cost** | ~$20 | ~$2 |
-| **Tuning Interface** | 5 potentiometers + serial commands | None (pre-tuned) |
-| **Safety Features** | Watchdog, emergency stop, soft-start | None (minimal) |
-| **EEPROM** | Parameter storage | None |
-| **Serial Output** | Monitoring & commands | None |
-| **Development Time** | Easy tuning & debugging | Deploy & forget |
+| **Tuning Interface** | 5 potentiometers only | None (pre-tuned) |
+| **Safety Features** | None (maximally stable) | None (minimal) |
+| **EEPROM** | None | None |
+| **Serial Output** | 7-parameter monitoring only | None |
+| **Development Time** | Quick setup, stable operation | Deploy & forget |
 | **Power Efficiency** | Standard | Optimized |
-| **Reliability Focus** | Feature-rich | Cost-effective |
+| **Reliability Focus** | Maximum stability | Cost-effective |
 
 **Key Takeaway**: Arduino Uno = Development platform with full features. ATTiny85 = Minimal production controller focused on cost and size.
 
@@ -443,25 +441,18 @@ output = proportional + integral + derivative
 
 ### Production Mode (Default)
 
-- Uses hardcoded optimal PID parameters
+- Uses fixed optimal PID parameters
 - Target RPM: 1440 RPM
 - Kp: 0.5, Ki: 0.1, Kd: 0.01
-- Ignores potentiometer inputs and serial commands
-- Stable, predictable operation
+- Ignores potentiometer inputs
+- Stable, predictable operation for production use
 
 ### Potentiometer Tuning Mode
 
-- Activated when mode switch is LOW
-- Real-time parameter adjustment via potentiometers
-- Serial Plotter visualization
-- Live system response monitoring
-
-### Serial Tuning Mode
-
-- Activated by sending "MODE SERIAL" command via serial
-- Real-time parameter adjustment via serial commands
-- Interactive command interface with immediate feedback
-- Parameter persistence through EEPROM storage
+- Activated when mode switch pin 3 is connected to GND
+- Real-time parameter adjustment via 5 potentiometers (A0-A4)
+- Serial Plotter visualization with 7 parameters
+- Live system response monitoring for tuning
 
 ## Tuning Procedure
 
@@ -478,19 +469,7 @@ output = proportional + integral + derivative
 5. **Record Optimal Values**: Note the potentiometer settings that give best response
 6. **Update Production Constants**: Replace default values in code
 
-### Serial Tuning
-
-1. **Open Serial Monitor**: Tools → Serial Monitor in Arduino IDE (115200 baud)
-2. **Enter Serial Mode**: Type `MODE SERIAL` and press Enter
-3. **View Available Commands**: Type `HELP` and press Enter
-4. **Set Parameters**: Use commands like:
-   - `SET TARGET 1440`
-   - `SET KP 0.5`
-   - `SET KI 0.1`
-   - `SET KD 0.01`
-5. **Monitor Response**: Use `GET PARAMS` to view current values
-6. **Save Parameters**: Type `SAVE` to store parameters in EEPROM
-7. **Test Performance**: Monitor motor response and adjust as needed
+<!-- Serial tuning removed from Arduino Uno version -->
 
 ## Configuration Parameters
 
@@ -504,14 +483,7 @@ output = proportional + integral + derivative
 #define SERIAL_BUFFER_SIZE  64      // Serial command buffer size
 ```
 
-### EEPROM Storage Addresses
-
-```cpp
-#define EEPROM_TARGET_RPM_ADDR 0    // Target RPM storage address
-#define EEPROM_KP_ADDR         4    // Kp gain storage address
-#define EEPROM_KI_ADDR         8    // Ki gain storage address
-#define EEPROM_KD_ADDR         12   // Kd gain storage address
-```
+<!-- EEPROM storage removed from Arduino Uno version -->
 
 ### PID Limits
 
@@ -531,74 +503,45 @@ output = proportional + integral + derivative
 #define PRODUCTION_KD         0.01
 ```
 
-## Serial Commands
-
-The system supports interactive serial commands for parameter tuning and monitoring:
-
-![Serial Command Sequence](assets/Serial%20command%20sequence.png)
-
-*Figure 3: Serial command interaction flow showing command parsing, execution, and response generation*
-
-### Parameter Setting
-
-- `SET TARGET <rpm>` - Set target RPM (0-5000)
-- `SET KP <value>` - Set proportional gain (0-10.0)
-- `SET KI <value>` - Set integral gain (0-5.0)
-- `SET KD <value>` - Set derivative gain (0-1.0)
-
-### Mode Control
-
-- `MODE PRODUCTION` - Switch to production mode
-- `MODE SERIAL` - Switch to serial tuning mode
-
-### Monitoring and Storage
-
-- `GET PARAMS` - Display current parameters and status
-- `SAVE` - Save current parameters to EEPROM
-- `LOAD` - Load parameters from EEPROM
-- `RESET INTEGRAL` - Reset integral term to zero
-
-### Information
-
-- `HELP` - Display available commands
+<!-- Serial Commands removed from Arduino Uno version -->
 
 ## Serial Plotter Output
 
-The system outputs four comma-separated values for visualization:
+The Arduino Uno version outputs seven comma-separated values for comprehensive monitoring:
 
-- `Target`: Desired RPM
-- `Current`: Measured RPM
+- `Target`: Desired RPM setpoint
+- `Current`: Measured motor RPM
 - `Error`: Difference between target and current
 - `PID_Output`: Computed PID control value
+- `Kp`: Current proportional gain
+- `Ki`: Current integral gain
+- `Kd`: Current derivative gain
+- `PPR`: Pulses per revolution setting
 
-Note: Serial Plotter output is available in all operating modes.
+Note: Serial Plotter monitoring is available in both operating modes for real-time system observation.
 
 ## Safety Features
 
-### Hardware-Level Protection
-- **Watchdog Timer**: Hardware-level hang protection (4s Arduino Uno, 8s ATtiny85)
-- **Emergency Stop**: Automatic shutdown on motor faults or pulse loss
-- **Soft-Start Protection**: Gradual power ramp-up to prevent current surges
-
-### Software-Level Protection
-- **Output Clamping**: PID output constrained to safe PWM range (0-255)
+### Arduino Uno Version (Simplified)
+- **Stable Design**: No watchdog timer or emergency stop for maximum reliability
+- **Software Protection**: PID output constrained to safe PWM range (0-255)
 - **Integral Windup Protection**: Prevents integrator runaway during stall conditions
-- **RPM Validation**: Multiple safety conditions monitor motor operation
-- **EEPROM Validation**: Parameters loaded from EEPROM are validated for reasonable ranges
-- **Command Validation**: Serial commands are parsed and validated before execution
-- **Startup Delay**: 1-second initialization period
-- **Pull-up Resistors**: RPM sensor pin configured with internal pull-up
+- **Clean Architecture**: Minimal code for reduced complexity and memory usage
+
+### ATTiny85 Version (Production)
+- **Hardware-Level Protection**: 8-second watchdog timer for hang protection
+- **Emergency Stop**: Automatic shutdown on motor faults or pulse loss
+- **Minimal Footprint**: Core PID control with essential safety features
+- **Production Ready**: Reliable operation in resource-constrained environments
 
 ## Usage Instructions
 
-1. **Hardware Setup**: Connect all components according to pin assignments
-2. **Upload Code**: Load `arduino_uno.ino` to Arduino
-3. **Initial Testing**: Run in production mode first
-4. **Tuning Options**:
-   - **Potentiometer Tuning**: Set mode switch LOW and adjust potentiometers
-   - **Serial Tuning**: Open Serial Monitor (115200 baud) and use commands
-5. **Save Parameters**: Use `SAVE` command or update constants in code
-6. **Production**: Switch back to production mode for stable operation
+1. **Hardware Setup**: Connect components according to Arduino Uno pin assignments
+2. **Upload Code**: Load `arduino_uno/arduino_uno.ino` to Arduino Uno
+3. **Initial Testing**: System runs in production mode by default
+4. **Tuning (Optional)**: Connect mode pin (3) to GND for potentiometer tuning mode
+5. **Monitoring**: Open Serial Plotter (115200 baud) to view 7 parameters in real-time
+6. **Production Use**: Keep mode pin (3) floating or HIGH for stable operation
 
 ## Troubleshooting
 
@@ -631,13 +574,6 @@ This document covers advanced issues including RPM measurement discrepancies, po
 - Ensure baud rate matches (115200)
 - Check Arduino serial connection
 - Verify no other serial devices are conflicting
-
-**Serial Command Issues**
-
-- Commands must end with newline character
-- Check Serial Monitor line ending settings
-- Ensure commands are in uppercase
-- Use HELP command to verify available commands
 
 ## Performance Optimization
 
@@ -680,7 +616,6 @@ The README includes embedded diagrams that provide visual context for the system
 
 - **Figure 1**: System Architecture - High-level component diagram
 - **Figure 2**: Control Flow - PID algorithm flowchart
-- **Figure 3**: Serial Interface - Command sequence diagram
 
 For additional technical details, refer to the `assets/` folder containing the original high-resolution diagram files.
 
