@@ -139,10 +139,9 @@ void loop() {
 }
 
 void setupPins() {
-    // Configure pins - Minimal production setup
-    DDRB |= (1 << PWM_OUTPUT_PIN);     // PWM pin as output
-    DDRB &= ~(1 << RPM_SENSOR_PIN);    // RPM sensor as input
-    PORTB |= (1 << RPM_SENSOR_PIN);    // Enable pull-up on RPM sensor
+    // Configure pins - Minimal production setup (Arduino-style)
+    pinMode(PWM_OUTPUT_PIN, OUTPUT);   // PWM pin as output
+    pinMode(RPM_SENSOR_PIN, INPUT_PULLUP);  // RPM sensor as input with pull-up
 
     // Configure external interrupt for RPM sensor
     MCUCR |= (1 << ISC01);  // Falling edge trigger

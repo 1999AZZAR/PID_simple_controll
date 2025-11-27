@@ -4,9 +4,9 @@
 // ATtiny85 configuration
 #define F_CPU 8000000UL  // 8MHz internal oscillator
 
-// Pin definitions (ATtiny85 physical pins)
-#define RPM_SENSOR_PIN     PB3  // Physical pin 2, BLDC Hall sensor input (interrupt capable)
-#define PWM_OUTPUT_PIN     PB0  // Physical pin 5, PWM capable
+// Pin definitions (ATtiny85 Arduino-style pin numbering)
+#define RPM_SENSOR_PIN     3    // Arduino pin 3 (PB3), BLDC Hall sensor input (interrupt capable)
+#define PWM_OUTPUT_PIN     0    // Arduino pin 0 (PB0), PWM capable
 
 // Control parameters
 #define CONTROL_LOOP_HZ     100 // Control loop frequency (100 Hz)
