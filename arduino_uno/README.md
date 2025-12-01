@@ -21,7 +21,8 @@ The Arduino Uno version provides a streamlined PID controller for BLDC motors wi
 
 ### Key Features
 
-- **Potentiometer Tuning**: 5 potentiometers for real-time PID parameter adjustment
+- **Fixed Target Speed**: 1440 RPM constant speed control
+- **Potentiometer Tuning**: 4 potentiometers for real-time parameter adjustment
 - **Serial Plotter Integration**: Real-time visualization of control performance
 - **Modular Configuration**: All settings centralized in `config.h`
 - **Two Operating Modes**: Production (fixed parameters) and Potentiometer Tuning
@@ -54,7 +55,7 @@ arduino_uno/
 - SPDT switch or jumper (mode selection)
 
 ### Optional Components (for potentiometer tuning)
-- 5x 10kΩ potentiometers
+- 4x 10kΩ potentiometers
 - Breadboard and jumper wires
 
 ### Pin Connections
@@ -64,11 +65,11 @@ arduino_uno/
 | BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from motor (interrupt pin) - provides 2 pulses per electrical revolution |
 | PWM Output | Digital Pin 9 | PWM signal to ESC |
 | Mode Switch | Digital Pin 3 | LOW = Potentiometer mode, HIGH = Production/Serial mode |
-| Target RPM Pot | Analog A0 | Sets target RPM (0-3000 RPM) |
+| PPR Pot | Analog A0 | Pulses per revolution (1-100) |
 | Kp Pot | Analog A1 | Proportional gain (0-2.0) |
 | Ki Pot | Analog A2 | Integral gain (0-1.0) |
 | Kd Pot | Analog A3 | Derivative gain (0-0.1) |
-| Pulses/Rev Pot | Analog A4 | Pulses per revolution (1-100) |
+| A4 | Analog A4 | Available for future use (I2C, etc.) |
 
 ### Hall Sensor Signal Options
 
@@ -103,10 +104,11 @@ All Arduino Uno settings are centralized in `config.h`:
 #define RPM_SENSOR_PIN      2   // Hall sensor input (interrupt)
 #define PWM_OUTPUT_PIN      9   // PWM output to ESC
 #define MODE_SWITCH_PIN     3   // Mode selection switch
-#define POT_TARGET_RPM      A0  // Target RPM potentiometer
+#define POT_PULSES_PER_REV  A0  // Pulses per revolution potentiometer
 #define POT_KP              A1  // Proportional gain pot
 #define POT_KI              A2  // Integral gain pot
 #define POT_KD              A3  // Derivative gain pot
+// A4 available for future use (I2C, etc.)
 ```
 
 ### Control Parameters
@@ -136,13 +138,13 @@ The Arduino Uno version supports two operating modes selected by the mode switch
 
 ### Production Mode (Default)
 - **Mode Switch**: HIGH or floating
-- **Behavior**: Uses fixed PID parameters (Kp=0.5, Ki=0.1, Kd=0.01, Target=1440 RPM)
+- **Behavior**: Uses fixed target RPM (1440 RPM) with potentiometer-adjustable PID parameters
 - **Features**: Stable, predictable operation
 - **Use Case**: Final production deployment
 
 ### Potentiometer Tuning Mode
 - **Mode Switch**: LOW (connected to GND)
-- **Behavior**: Real-time parameter adjustment via 5 potentiometers
+- **Behavior**: Real-time parameter adjustment via 4 potentiometers
 - **Monitoring**: Serial Plotter shows live control response
 - **Use Case**: Initial PID tuning and testing
 
@@ -173,11 +175,10 @@ Target,Current,Error,PID_Output,Kp,Ki,Kd,PPR
 1. Set mode switch to LOW (potentiometer mode)
 2. Open Serial Plotter (115200 baud)
 3. Adjust potentiometers while monitoring response:
-   - **Pot A0 (Target RPM)**: Set desired speed (0-3000 RPM range)
+   - **Pot A0 (PPR)**: Pulses per revolution (1-100 range)
    - **Pot A1 (Kp)**: Proportional gain (0-2.0 range)
    - **Pot A2 (Ki)**: Integral gain (0-1.0 range)
    - **Pot A3 (Kd)**: Derivative gain (0-0.1 range)
-   - **Pot A4 (Pulses/Rev)**: Pulses per revolution (1-100 range)
 4. Record optimal potentiometer positions
 5. Transfer values to production constants in `config.h`
 
@@ -192,7 +193,7 @@ Target,Current,Error,PID_Output,Kp,Ki,Kd,PPR
 ### No RPM Reading
 - Confirm Hall sensor wire connected to Digital Pin 2
 - Check sensor power (5V) and ground connections
-- Verify `PULSES_PER_REV` matches your motor (usually 6 for 3-Hall)
+- Verify `PULSES_PER_REV` matches your motor specifications (fixed at compile-time)
 - Test with oscilloscope on sensor pin for pulse signals
 
 ### Unstable Control

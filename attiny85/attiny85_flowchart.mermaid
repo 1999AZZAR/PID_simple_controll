@@ -1,0 +1,196 @@
+---
+config:
+  layout: elk
+---
+flowchart TB
+ subgraph setup["Setup Phase - Minimal Configuration"]
+        C["Disable Watchdog Timer"]
+        B{"Setup Phase"}
+        C1["wdt_disable()"]
+        D["Configure Pins - AVR Style"]
+        D1["pinMode(PWM_OUTPUT_PIN, OUTPUT)"]
+        D2["pinMode(RPM_SENSOR_PIN, INPUT_PULLUP)"]
+        D3["Configure External Interrupt INT0"]
+        D4["MCUCR |= ISC01 - Falling Edge Trigger"]
+        D5["GIMSK |= INT0 - Enable INT0 Interrupt"]
+        E["Setup Timer1 for Millisecond Timing"]
+        E1["TCCR1 = 0 - Stop Timer"]
+        E2["TCNT1 = 0 - Reset Counter"]
+        E3["OCR1A = 125 - 1ms @ 8MHz/64"]
+        E4["TCCR1 |= CTC1 - Clear on Compare"]
+        E5["TCCR1 |= CS12|CS11|CS10 - Prescaler 64"]
+        E6["TIMSK |= OCIE1A - Enable Compare Interrupt"]
+        F["Setup Timer0 for PWM"]
+        F1["TCCR0A = Fast PWM, Non-inverting"]
+        F2["TCCR0B = Prescaler 8, ~1kHz PWM"]
+        G["Enable Global Interrupts"]
+        G1["sei()"]
+        H["Startup Delay 1000ms"]
+        H1["_delay_ms(1000)"]
+        I["Initialize PWM to 0"]
+        I1["outputToESC(0)"]
+  end
+ subgraph main_loop["Main Control Loop - Production Only"]
+        K{"Check Control Loop Timing"}
+        J{"Main Control Loop - Integer Optimized"}
+        K1["timer_ms - lastLoopTime >= CONTROL_PERIOD_MS?"]
+        L["Skip Control Loop"]
+        M["Update lastLoopTime"]
+        N{"Check RPM Calculation Interval"}
+        N1["timer_ms - lastRPMCalcTime >= RPM_CALC_INTERVAL?"]
+        O["Use Previous RPM Value"]
+        P["Calculate Current RPM"]
+        P1["calculateRPM() Function"]
+        P2["Atomic Read of pulseCount"]
+        P3["Calculate RPM from Pulse Difference"]
+        P4["Integer Math: (pulseDiff * 600000UL) / (timeDiff * pulsesPerRev)"]
+        P5["Update lastPulseCount & lastRPMCalcTime"]
+        Q["Calculate Scaled Error"]
+        Q1["error_scaled = targetRPM_scaled - currentRPM"]
+        R["Compute PID Output - Integer Math"]
+        R1["pidOutput = computePID(error_scaled)"]
+        R2["Calculate Proportional Term"]
+        R3["P = (kp_scaled * error_scaled) / 1000"]
+        R4["Calculate Integral Term"]
+        R5["I_accumulate = (ki_scaled * error_scaled) / 100"]
+        R6["Anti-windup Protection"]
+        R7{"Clamp integral_scaled to limits"}
+        R8["I = integral_scaled / 1000"]
+        R9["Calculate Derivative Term"]
+        RA["D = (kd_scaled * (error_scaled - previousError_scaled)) / 1000"]
+        RB["Update previousError_scaled"]
+        RC["Total PID Output"]
+        RC1["pidOutput = P + I + D"]
+        S["Convert PID to PWM Value"]
+        S1["pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255)"]
+        S2["pwmValue = constrain_value(pwmValue, 0, 255)"]
+        T["Output to ESC - Direct Register"]
+        T1["OCR0A = pwmValue"]
+        U["Small Delay to Prevent Tight Polling"]
+        U1["_delay_ms(1)"]
+  end
+ subgraph interrupts["ISR - Hardware Optimized"]
+        V1["TIM1_COMPA_vect ISR"]
+        V["Timer1 Compare Interrupt"]
+        V2["Increment timer_ms"]
+        V3["Increment timer_us by 1000"]
+        V4["Return from Interrupt"]
+        W1["INT0_vect ISR"]
+        W["RPM Sensor Interrupt"]
+        W2["Read Current timer_us"]
+        W3{"Check Debounce Filter"}
+        W4["timer_us - lastPulseMicros > MIN_PULSE_WIDTH_US?"]
+        W5["Increment pulseCount"]
+        W6["Ignore Bounce - EMI Filter"]
+        W7["Update lastPulseMicros"]
+        W8["Return from Interrupt"]
+  end
+    A["ATtiny85 PID Controller Start"] --> B
+    B --> C
+    C --> C1
+    C1 --> D
+    D --> D1
+    D1 --> D2
+    D2 --> D3
+    D3 --> D4
+    D4 --> D5
+    D5 --> E
+    E --> E1
+    E1 --> E2
+    E2 --> E3
+    E3 --> E4
+    E4 --> E5
+    E5 --> E6
+    E6 --> F
+    F --> F1
+    F1 --> F2
+    F2 --> G
+    G --> G1
+    G1 --> H
+    H --> H1
+    H1 --> I
+    I --> I1
+    I1 --> J
+    J --> K
+    K --> K1
+    K1 -- No --> L
+    K1 -- Yes --> M
+    M --> N
+    N --> N1
+    N1 -- No --> O
+    N1 -- Yes --> P
+    P --> P1
+    P1 --> P2
+    P2 --> P3
+    P3 --> P4
+    P4 --> P5
+    P5 --> O
+    O --> Q
+    Q --> Q1
+    Q1 --> R
+    R --> R1
+    R1 --> R2
+    R2 --> R3
+    R3 --> R4
+    R4 --> R5
+    R5 --> R6
+    R6 --> R7
+    R7 --> R8
+    R8 --> R9
+    R9 --> RA
+    RA --> RB
+    RB --> RC
+    RC --> RC1
+    RC1 --> S
+    S --> S1
+    S1 --> S2
+    S2 --> T
+    T --> T1
+    T1 --> U
+    U --> U1
+    U1 --> J
+    L --> J
+    V --> V1
+    V1 --> V2
+    V2 --> V3
+    V3 --> V4
+    W --> W1
+    W1 --> W2
+    W2 --> W3
+    W3 --> W4
+    W4 -- Yes --> W5
+    W4 -- No --> W6
+    W5 --> W7
+    W7 --> W8
+    W6 --> W8
+    V -. Hardware Timer Interrupt .-> J
+    W -. Hardware External Interrupt .-> J
+
+     C:::process_class
+     D:::process_class
+     E:::process_class
+     F:::process_class
+     G:::process_class
+     H:::process_class
+     I:::process_class
+     K1:::decision_class
+     N1:::decision_class
+     P1:::process_class
+     P4:::math_class
+     R1:::process_class
+     R2:::math_class
+     R3:::math_class
+     R5:::math_class
+     R8:::math_class
+     RA:::math_class
+     S1:::process_class
+     T1:::process_class
+     V1:::process_class
+     W1:::process_class
+     W4:::decision_class
+    classDef setup_class fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef main_class fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef interrupt_class fill:#ffebee,stroke:#b71c1c,stroke-width:2px
+    classDef decision_class fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef process_class fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    classDef math_class fill:#f9fbe7,stroke:#827717,stroke-width:2px

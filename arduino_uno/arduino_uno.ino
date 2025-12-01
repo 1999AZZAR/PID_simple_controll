@@ -55,8 +55,8 @@ volatile unsigned long lastPulseMillis = 0;  // For emergency stop timeout
 #endif
 unsigned long lastRPMCalcTime = 0;
 float currentRPM = 0.0;
-float targetRPM = PRODUCTION_TARGET_RPM;
-int pulsesPerRev = PULSES_PER_REV; // Configurable pulses per revolution
+const float targetRPM = 1440.0; // Fixed target RPM for constant speed control
+int pulsesPerRev = PULSES_PER_REV; // Configurable pulses per revolution via potentiometer
 
 // PID variables
 float kp = PRODUCTION_KP;
@@ -156,7 +156,7 @@ void loop() {
         Serial.println("Mode: Potentiometer Tuning");
     } else {
         // Production mode - use hardcoded values
-        targetRPM = PRODUCTION_TARGET_RPM;
+        // targetRPM is now fixed at 1440.0 (const)
         kp = PRODUCTION_KP;
         ki = PRODUCTION_KI;
         kd = PRODUCTION_KD;
@@ -237,11 +237,10 @@ int readPotentiometerInt(int pin, int minVal, int maxVal) {
 
 // Update PID gains from potentiometers (tuning mode only)
 void updatePIDGains() {
-    targetRPM = readPotentiometer(POT_TARGET_RPM, 0, 3000); // 0-3000 RPM range
-    kp = readPotentiometer(POT_KP, 0, 2.0);                 // 0-2.0 Kp range
-    ki = readPotentiometer(POT_KI, 0, 1.0);                 // 0-1.0 Ki range
-    kd = readPotentiometer(POT_KD, 0, 0.1);                 // 0-0.1 Kd range
     pulsesPerRev = readPotentiometerInt(POT_PULSES_PER_REV, 1, 100); // 1-100 pulses per revolution
+    kp = readPotentiometer(POT_KP, 0, 2.0);                         // 0-2.0 Kp range
+    ki = readPotentiometer(POT_KI, 0, 1.0);                         // 0-1.0 Ki range
+    kd = readPotentiometer(POT_KD, 0, 0.1);                         // 0-0.1 Kd range
 }
 
 // Compute PID output with anti-windup

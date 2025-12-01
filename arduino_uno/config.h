@@ -9,11 +9,11 @@
 #define RPM_SENSOR_PIN      2   // Interrupt pin for BLDC Hall sensor (any Hall wire from motor)
 #define PWM_OUTPUT_PIN      9   // PWM output to ESC
 #define MODE_SWITCH_PIN     3   // Digital input for mode selection
-#define POT_TARGET_RPM      A0  // Potentiometer for target RPM
+#define POT_PULSES_PER_REV  A0  // Potentiometer for pulses per revolution
 #define POT_KP              A1  // Potentiometer for Kp gain
 #define POT_KI              A2  // Potentiometer for Ki gain
 #define POT_KD              A3  // Potentiometer for Kd gain
-#define POT_PULSES_PER_REV  A4  // Potentiometer for pulses per revolution
+// A4 available for future use (I2C, etc.)
 
 // Control parameters
 #define CONTROL_LOOP_HZ     100 // Control loop frequency (100 Hz)
