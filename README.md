@@ -60,9 +60,9 @@ This Arduino-based controller implements a PID (Proportional-Integral-Derivative
 - **Hall Sensor Integration**: Direct connection to motor Hall sensors (6 pulses per electrical revolution)
 - **PID Control**: Proportional, Integral, and Derivative terms for optimal speed regulation
 - **Anti-Windup Protection**: Prevents integral windup during stall or high-load conditions
-- **Three Mode Operation**: Production mode for stable operation, potentiometer tuning for hardware adjustment, and serial tuning for software-based parameter optimization
+- **Two Mode Operation**: Production mode (fixed 1440 RPM) and potentiometer tuning for hardware adjustment
 - **Real-time Feedback**: Hall sensor RPM measurement for accurate closed-loop control
-- **Flexible Tuning**: Five potentiometers for hardware tuning or serial commands for software tuning
+- **Flexible Tuning**: Four potentiometers for hardware tuning (PPR, Kp, Ki, Kd)
 - **Parameter Persistence**: EEPROM storage for saving and loading tuned PID parameters
 - **Multi-Platform Support**: Arduino Uno for development and ATTiny85 for production deployment
 
@@ -93,10 +93,11 @@ These diagrams provide visual reference for:
 
 **Best for**: Simplified development and testing
 
-- Streamlined design with minimal features for maximum reliability
+- Streamlined design with fixed 1440 RPM target for maximum reliability
 - Serial Plotter monitoring with 7 parameters (Target, Current, Error, PID_Output, Kp, Ki, Kd, PPR)
 - Two operating modes: Production (fixed parameters) and Potentiometer tuning
 - No serial commands or interactive tuning
+- 4 potentiometers: PPR (A0), Kp (A1), Ki (A2), Kd (A3)
 - No EEPROM storage or watchdog timer
 - Optimized memory usage: 21% flash, 18% RAM (highly stable)
 - Clean, maintainable codebase
@@ -175,17 +176,18 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 | Feature | Arduino Uno (Simplified) | ATTiny85 (Production) |
 |---------|---------------------------|----------------------|
 | **Purpose** | Clean development and testing | Production deployment |
-| **Flash Usage** | 7,084 bytes (21%) | 1,586 bytes (77%) |
-| **RAM Usage** | 376 bytes (18%) | 49 bytes (38%) |
-| **Efficiency Ratio** | **4.2x smaller than full-featured** | **11.7x smaller flash, 7.6x less RAM** |
+| **Target RPM** | Fixed at 1440 RPM | Fixed at 1440 RPM |
+| **Flash Usage** | 6,968 bytes (21%) | 1,586 bytes (77%) |
+| **RAM Usage** | 372 bytes (18%) | 49 bytes (38%) |
+| **Efficiency Ratio** | **4.4x smaller than full-featured** | **11.7x smaller flash, 7.6x less RAM** |
 | **Total Flash** | 32,256 bytes | 2,048 bytes |
 | **Total RAM** | 2,048 bytes | 128 bytes |
 | **Pin Count** | 7 pins used | **2 pins only** |
 | **Cost** | ~$20 | ~$2 |
-| **Tuning Interface** | 5 potentiometers only | None (pre-tuned) |
-| **Safety Features** | None (maximally stable) | None (minimal) |
+| **Tuning Interface** | 4 potentiometers (PPR, Kp, Ki, Kd) | None (pre-tuned) |
+| **Safety Features** | Emergency stop, anti-windup | Watchdog timer |
 | **EEPROM** | None | None |
-| **Serial Output** | 7-parameter monitoring only | None |
+| **Serial Output** | 7-parameter monitoring | None |
 | **Development Time** | Quick setup, stable operation | Deploy & forget |
 | **Power Efficiency** | Standard | Optimized |
 | **Reliability Focus** | Maximum stability | Cost-effective |
@@ -231,8 +233,8 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 | ---------------- | ------------- | -------------------------------------------------------------- |
 | BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from BLDC motor (interrupt-capable pin)          |
 | PWM Output       | Digital Pin 9 | PWM signal to ESC                                              |
-| Mode Switch      | Digital Pin 3 | LOW = Potentiometer tuning mode, HIGH = Production/Serial mode |
-| Target RPM Pot   | Analog A0     | Sets target RPM (0-3000 RPM) - Optional                        |
+| Mode Switch      | Digital Pin 3 | LOW = Potentiometer tuning mode, HIGH = Production mode        |
+| PPR Pot          | Analog A0     | Pulses per revolution (1-100) - Optional                       |
 | Kp Pot           | Analog A1     | Proportional gain (0-2.0) - Optional                           |
 | Ki Pot           | Analog A2     | Integral gain (0-1.0) - Optional                               |
 | Kd Pot           | Analog A3     | Derivative gain (0-0.1) - Optional                             |

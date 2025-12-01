@@ -192,20 +192,20 @@ arduino-cli core install attiny:avr
 #### Potentiometers (4x 10kΩ)
 Connect each potentiometer as follows:
 
-1. **Target RPM Potentiometer**:
+1. **PPR Potentiometer** (Pulses per Revolution):
    - Wiper (middle terminal) → Arduino analog pin A0
    - One outer terminal → Arduino GND
    - Other outer terminal → Arduino 5V
 
-2. **Kp Potentiometer**:
+2. **Kp Potentiometer** (Proportional Gain):
    - Wiper → Arduino analog pin A1
    - Outer terminals → GND and 5V
 
-3. **Ki Potentiometer**:
+3. **Ki Potentiometer** (Integral Gain):
    - Wiper → Arduino analog pin A2
    - Outer terminals → GND and 5V
 
-4. **Kd Potentiometer**:
+4. **Kd Potentiometer** (Derivative Gain):
    - Wiper → Arduino analog pin A3
    - Outer terminals → GND and 5V
 
@@ -439,11 +439,11 @@ Some ESCs require calibration:
 ### Arduino Uno Potentiometer Tuning
 
 1. Set mode switch to tuning position (closed to GND)
-2. Connect all five potentiometers
+2. Connect all four potentiometers (A0-A3)
 3. Power on system
 4. Open Serial Plotter (Tools → Serial Plotter)
 5. Adjust potentiometers:
-   - **Target RPM**: Set to desired speed (1440)
+   - **PPR (A0)**: Pulses per revolution (typically 6 for 3-Hall motors)
    - **Kp**: Start low, increase until oscillation begins, then reduce slightly
    - **Ki**: Start at 0, increase slowly to eliminate steady-state error
    - **Kd**: Start at 0, increase to reduce overshoot
@@ -481,12 +481,13 @@ Some ESCs require calibration:
 
 ### Arduino Uno Production Setup
 
-1. Tune PID parameters using potentiometer or serial tuning
-2. Send `SAVE` command to store parameters
-3. Set mode switch to production position
-4. Remove potentiometers (optional for production)
-5. Secure all wiring connections
-6. Install in final enclosure
+1. Tune PID parameters using potentiometer tuning mode
+2. Note the optimal potentiometer positions for PPR, Kp, Ki, Kd
+3. Set mode switch to production position (open/floating)
+4. Update `PRODUCTION_KP`, `PRODUCTION_KI`, `PRODUCTION_KD` constants in `config.h` if needed
+5. Re-upload code with tuned parameters
+6. Secure all wiring connections
+7. Install in final enclosure
 
 ### ATtiny85 Production Setup
 
