@@ -12,7 +12,7 @@ The Arduino Uno PID controller implements closed-loop speed control for BLDC mot
 ### Key Features
 - **Dual Operating Modes**: Production mode (fixed parameters) and potentiometer tuning mode (real-time adjustment)
 - **PID Control Algorithm**: Proportional-Integral-Derivative control with anti-windup protection
-- **Safety Systems**: Emergency stop functionality and debounce filtering
+- **Safety Systems**: Anti-windup protection and debounce filtering
 - **Real-time Monitoring**: Serial Plotter integration for live system visualization
 - **Hardware Optimization**: Interrupt-driven RPM sensing with atomic operations
 
@@ -42,7 +42,7 @@ Main Control Loop (100Hz timing)
 ├── Read System Time (millis)
 ├── Check Mode Switch State
 ├── Calculate RPM (every 100ms)
-├── Emergency Stop Check (optional)
+├── Safety Checks (anti-windup protection)
 ├── Update PID Parameters (mode-dependent)
 ├── Compute PID Output
 ├── Convert to PWM Signal
@@ -58,7 +58,7 @@ RPM Sensor Interrupt (ISR)
 ├── Microsecond Timestamp Capture
 ├── Debounce Filtering (100μs minimum)
 ├── Pulse Count Increment
-└── Emergency Stop Timer Update
+└── Pulse Counting (debounce filtered)
 ```
 
 ## Operational Modes
@@ -94,7 +94,7 @@ PWM_Value = map(PID_Output, -1000, 1000, 0, 255)
 ### Safety Features
 - **Anti-windup Protection**: Integral term clamping (-100 to 100)
 - **Output Limiting**: PWM constrained to 0-255 range
-- **Emergency Stop**: Automatic shutdown if no pulses detected (>5 seconds)
+- **Simplified Safety**: Anti-windup protection only
 
 ## Hardware Integration
 
@@ -143,13 +143,13 @@ PWM Output: 0-255 duty cycle to ESC
 ## Error Handling & Recovery
 
 ### Critical Error Conditions
-- **Pulse Loss**: Emergency stop activation
+- **Pulse Loss**: System maintains operation with last valid RPM
 - **Mode Switch Bounce**: Software debouncing
 - **PWM Saturation**: Automatic output clamping
 - **Serial Buffer Overflow**: Non-blocking output design
 
 ### Recovery Mechanisms
-- **Automatic Reset**: Emergency stop clears PID integral
+- **Graceful Operation**: System maintains continuous control
 - **Graceful Degradation**: System continues with last valid values
 - **User Notification**: Serial messages for all error conditions
 
@@ -205,7 +205,7 @@ PWM Output: 0-255 duty cycle to ESC
 
 ### Version Evolution
 - **Initial Implementation**: Basic PID with potentiometer tuning
-- **Safety Enhancements**: Emergency stop and debounce filtering
+- **Safety Enhancements**: Anti-windup protection and debounce filtering
 - **Performance Optimization**: Interrupt-driven sensing and atomic operations
 - **Monitoring Integration**: Serial Plotter real-time visualization
 
@@ -260,7 +260,7 @@ Global Variables (372 bytes):
 ├── Volatile counters: pulseCount, lastPulseMicros
 ├── PID state: kp, ki, kd, integral, previousError
 ├── Timing: lastRPMCalcTime, lastLoopTime
-├── Mode control: tuningMode, emergencyStop
+├── Mode control: tuningMode
 └── Serial buffers: implicit in Serial library
 ```
 

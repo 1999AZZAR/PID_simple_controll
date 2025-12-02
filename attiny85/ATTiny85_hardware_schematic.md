@@ -58,7 +58,7 @@ When uploading code:
 
 ### 1. Ultra-Minimal Design
 - **Zero Controls**: No potentiometers, switches, or user adjustments
-- **No Safety Features**: Watchdog, emergency stop, soft-start completely removed
+- **Minimal Safety**: Watchdog timer only
 - **2 Pins Only**: Hall sensor input + PWM output (pure production)
 - **Pre-tuned Values**: All PID parameters hardcoded from Arduino development
 

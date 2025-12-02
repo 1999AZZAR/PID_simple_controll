@@ -185,7 +185,7 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 | **Pin Count** | 7 pins used | **2 pins only** |
 | **Cost** | ~$20 | ~$2 |
 | **Tuning Interface** | 4 potentiometers (PPR, Kp, Ki, Kd) | None (pre-tuned) |
-| **Safety Features** | Emergency stop, anti-windup | Watchdog timer |
+| **Safety Features** | Anti-windup protection | Watchdog timer |
 | **EEPROM** | None | None |
 | **Serial Output** | 7-parameter monitoring | None |
 | **Development Time** | Quick setup, stable operation | Deploy & forget |
@@ -525,14 +525,14 @@ Note: Serial Plotter monitoring is available in both operating modes for real-ti
 ## Safety Features
 
 ### Arduino Uno Version (Simplified)
-- **Stable Design**: No watchdog timer or emergency stop for maximum reliability
+- **Stable Design**: No watchdog timer for maximum reliability
 - **Software Protection**: PID output constrained to safe PWM range (0-255)
 - **Integral Windup Protection**: Prevents integrator runaway during stall conditions
 - **Clean Architecture**: Minimal code for reduced complexity and memory usage
 
 ### ATTiny85 Version (Production)
 - **Hardware-Level Protection**: 8-second watchdog timer for hang protection
-- **Emergency Stop**: Automatic shutdown on motor faults or pulse loss
+- **Anti-Windup Protection**: Prevents integrator runaway during stall conditions
 - **Minimal Footprint**: Core PID control with essential safety features
 - **Production Ready**: Reliable operation in resource-constrained environments
 

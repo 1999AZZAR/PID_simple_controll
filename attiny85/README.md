@@ -35,7 +35,7 @@ This is the production-ready version of the BLDC PID controller running on ATtin
 
 ### Minimal Production Design
 - **Core PID Control Only**: Essential motor control with integer math optimization (77% flash usage)
-- **No Safety Features**: Watchdog, emergency stop, and soft-start completely removed
+- **Minimal Safety**: Watchdog timer only
 - **Direct PWM Output**: Immediate motor control without ramping
 - **2-Pin Operation**: Hall sensor + PWM output (ultra-minimal)
 - **Production Ready**: Fits in ATTiny85's 2KB flash limit
@@ -127,8 +127,7 @@ The ATtiny85 version now uses a modular `config.h` file (similar to Arduino Uno)
 
 // Safety parameters
 #define WATCHDOG_ENABLED        true   // Hardware watchdog protection
-#define EMERGENCY_STOP_ENABLED  true   // Emergency stop functionality
-#define EMERGENCY_STOP_TIMEOUT_MS  5000  // 5-second timeout
+// Safety features removed for minimal operation
 
 // Control parameters
 #define PRODUCTION_TARGET_RPM 1440.0   // Target RPM
@@ -139,8 +138,7 @@ The ATtiny85 version now uses a modular `config.h` file (similar to Arduino Uno)
 
 ### Safety Feature Configuration
 - **Watchdog Timer**: Set `WATCHDOG_ENABLED` to `false` to disable (not recommended)
-- **Emergency Stop**: Set `EMERGENCY_STOP_ENABLED` to `false` to disable safety features
-- **Timeout Settings**: Adjust `EMERGENCY_STOP_TIMEOUT_MS` based on application requirements
+// Minimal configuration for production use
 
 ## Deployment Process
 

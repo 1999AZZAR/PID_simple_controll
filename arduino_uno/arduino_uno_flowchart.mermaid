@@ -33,13 +33,7 @@ flowchart TB
         P2["Atomic Read of pulseCount"]
         P3["Calculate RPM from Pulse Difference"]
         P4["Update lastPulseCount & lastCalcTime"]
-        R{"Emergency Stop Enabled?"}
-        S{"Check for Pulse Timeout"}
-        T["Skip Emergency Stop"]
-        S1["currentTime - lastPulseMillis > EMERGENCY_STOP_TIMEOUT_MS?"]
-        S2["Set emergencyStop = true"]
-        S3["Set emergencyStop = false"]
-        S4["Force pidOutput = 0.0"]
+        R["PID Computation"]
         U{"Which Mode?"}
         V["updatePIDGains() Function"]
         W["Set Production PID Values"]
@@ -81,8 +75,6 @@ flowchart TB
         EE5["Increment pulseCount"]
         EE6["Ignore Bounce"]
         EE7["Update lastPulseMicros"]
-        EE8["EMERGENCY_STOP_ENABLED?"]
-        EE9["Update lastPulseMillis"]
         EEA["Return from Interrupt"]
   end
     A["Arduino Uno PID Controller Start"] --> B
@@ -163,10 +155,7 @@ flowchart TB
     EE4 -- Yes --> EE5
     EE4 -- No --> EE6
     EE5 --> EE7
-    EE7 --> EE8
-    EE8 -- Yes --> EE9
-    EE8 -- No --> EEA
-    EE9 --> EEA
+    EE7 --> EEA
     EE6 --> EEA
     EE -. Hardware Interrupt .-> I
 

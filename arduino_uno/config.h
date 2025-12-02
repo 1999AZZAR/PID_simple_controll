@@ -49,7 +49,6 @@
 #define SOFT_START_STEPS       20     // Number of ramp steps
 
 // Safety parameters
-#define EMERGENCY_STOP_ENABLED     true   // Enable emergency stop feature
-#define EMERGENCY_STOP_TIMEOUT_MS  15000  // Stop PWM if no pulses received for 15 seconds
+// Emergency stop feature completely removed
 
 #endif // CONFIG_H

@@ -334,7 +334,7 @@ Final Drive ──► What you actually want to control
 **Symptoms**:
 - Inconsistent RPM readings
 - Motor speed varies without load changes
-- False emergency stops
+- Signal integrity issues
 
 **Mitigation**:
 ```cpp
@@ -647,24 +647,25 @@ integral = constrain(integral, INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX);
 
 ### Safety System Issues
 
-#### Cause 1: Emergency Stop False Triggers
-**Description**: Safety system activates inappropriately.
+#### Signal Integrity Issues
+**Description**: Electrical noise or poor connections cause unstable operation.
 
 **Symptoms**:
-- Motor stops unexpectedly
-- Controller enters emergency mode
-- PWM output drops to zero
+- Motor speed varies unexpectedly
+- Controller shows inconsistent RPM readings
+- System behavior unpredictable
 
 **Mitigation**:
 ```cpp
-// Adjust safety thresholds based on motor characteristics
-#define EMERGENCY_STOP_TIMEOUT_MS 5000  // Increase if motor slow to start
-#define RPM_CALC_INTERVAL 100           // Decrease for faster RPM updates
+// Improve signal integrity
+#define MIN_PULSE_WIDTH_US 100  // Increase debounce for noisy environments
+#define RPM_CALC_INTERVAL 100   // More frequent RPM updates
 
-// Emergency stop conditions:
-// 1. No pulses received for timeout period
-// 2. Motor running too fast (>2x target RPM)
-// 3. High PWM but no RPM (stalled motor)
+// Hardware improvements:
+// 1. Use shielded cables for Hall sensors
+// 2. Add RC filtering (10kΩ + 0.1uF) to sensor inputs
+// 3. Separate power supplies for logic and motor
+// 4. Improve grounding connections
 ```
 
 ## Troubleshooting Flowchart
@@ -745,14 +746,12 @@ Issue Resolved?
 - [ ] Validate PID tuning across operating range
 - [ ] Document all working configurations
 
-## Emergency Recovery
+## System Recovery
 
 ### Soft Reset (Software)
 ```cpp
-// Arduino Uno serial command:
-MODE PRODUCTION    // Reset to known state
-RESET INTEGRAL     // Clear PID integral term
-SET TARGET 1440    // Set known target RPM
+// Arduino Uno - no serial commands available
+// System runs continuously with current configuration
 ```
 
 ### Hard Reset (Hardware)
@@ -796,8 +795,8 @@ SET TARGET 1440    // Set known target RPM
 ### Q: PID gains don't work well?
 **A:** Start with conservative values: KP=0.5, KI=0.1, KD=0.01. Tune one parameter at a time.
 
-### Q: Getting emergency stop errors?
-**A:** Increase timeout or check Hall sensor wiring. Emergency stop triggers if no pulses received.
+### Q: Motor speed is unstable?
+**A:** Check Hall sensor connections and consider adding signal filtering for noisy environments.
 
 ## Basic Wiring Guide (For Beginners)
 
@@ -882,7 +881,7 @@ Motor Connections:
 - [ ] Pulse count verified (LED flash test)
 - [ ] No electrical noise (capacitors added)
 - [ ] PID tuned for your motor
-- [ ] Emergency stop timeout appropriate
+- [ ] PID gains tuned for stable operation
 
 ## Tools You'll Need
 

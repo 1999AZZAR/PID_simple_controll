@@ -26,7 +26,7 @@
  * - No mode switch (always production mode)
  * - Minimal pin usage for maximum reliability
  * - Optimized for size and power efficiency
- * - Enhanced safety: Watchdog timer, emergency stop, soft-start
+ * - Minimal safety: Watchdog timer only
  *
  * Tuned on Arduino, deployed on ATtiny85 for production use
  *

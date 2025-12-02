@@ -128,8 +128,7 @@ All Arduino Uno settings are centralized in `config.h`:
 
 // Safety features (recommended to keep enabled)
 #define WATCHDOG_ENABLED           true   // Hardware watchdog protection (4s timeout)
-#define EMERGENCY_STOP_ENABLED     true   // Emergency stop on motor faults
-#define EMERGENCY_STOP_TIMEOUT_MS  5000  // Emergency stop timeout (5 seconds)
+// Emergency stop feature removed for simplified operation
 ```
 
 ## Operating Modes

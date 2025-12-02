@@ -406,7 +406,7 @@ When using composite signals, update the pulse configuration:
 ### Safety Precautions
 1. Remove propeller or load from motor
 2. Ensure adequate ventilation
-3. Have emergency power disconnect available
+3. Have power disconnect available
 4. Test at low power levels first
 
 ### Arduino Uno Basic Test
@@ -574,14 +574,14 @@ Some ESCs require calibration:
    - Check ATtiny85 fuse settings
    - Confirm 10µF capacitor on RESET pin during programming
 
-### Emergency Stop Issues
+### Power Supply Issues
 
-**Symptoms**: Motor does not stop when expected
+**Symptoms**: Motor behavior erratic or unstable
 
 **Solutions**:
-1. **Arduino Uno**: Check emergency stop conditions in serial output
-2. **ATtiny85**: Monitor for watchdog resets (system restarts)
-3. **Hardware**: Verify power supply stability
+1. **Arduino Uno**: Ensure stable 5V supply
+2. **ATtiny85**: Verify clean power input
+3. **Hardware**: Check power supply filtering
 
 ## Safety Considerations
 
@@ -606,11 +606,11 @@ Some ESCs require calibration:
 ### Watchdog Timer
 - **Purpose**: Automatic recovery from software hangs
 - **Timeout**: 4 seconds (Arduino Uno), 8 seconds (ATtiny85)
-- **Recovery**: System restart with emergency stop activation
+- **Recovery**: Graceful system operation
 
-### Emergency Stop Features
-- **Pulse Loss Detection**: Stops motor if Hall sensor signal lost
-- **Runaway Prevention**: Monitors for excessive speed conditions
-- **Watchdog Integration**: Hardware-level failure recovery
+### Safety Features
+- **Anti-windup Protection**: Prevents integrator runaway
+- **Output Limiting**: Constrains PWM to safe range
+- **Debounce Filtering**: Rejects electrical noise
 
 Follow all local electrical and safety codes. If unsure about any aspect of the installation, consult a qualified electrical engineer.

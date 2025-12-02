@@ -208,7 +208,7 @@ BLDC_PID_Controller/
 - [ ] Motor spins at low RPM without load
 - [ ] PID maintains target RPM under varying load
 - [ ] Serial plotting shows stable control
-- [ ] Emergency stop works (disconnect power)
+- [ ] PID control stable (no oscillations)
 
 #### Parameter Tuning
 - [ ] Potentiometer mode changes parameters

@@ -50,9 +50,7 @@ unsigned long lastDebugTime = 0;
 // Global variables
 volatile unsigned long pulseCount = 0;
 volatile unsigned long lastPulseMicros = 0;
-#if EMERGENCY_STOP_ENABLED
-volatile unsigned long lastPulseMillis = 0;  // For emergency stop timeout
-#endif
+// Safety features removed for simplified operation
 unsigned long lastRPMCalcTime = 0;
 float currentRPM = 0.0;
 const float targetRPM = PRODUCTION_TARGET_RPM; // Fixed target RPM for constant speed control
@@ -71,9 +69,6 @@ bool tuningMode = false;
 // Serial tuning removed
 
 // Safety features
-#if EMERGENCY_STOP_ENABLED
-bool emergencyStop = false;
-#endif
 
 // Soft-start ramping to avoid current surges
 unsigned long softStartStartTime = 0;
@@ -139,15 +134,7 @@ void loop() {
         lastRPMCalcTime = currentTime;
     }
 
-#if EMERGENCY_STOP_ENABLED
-    // Emergency stop: check if motor has stopped (no pulses received recently)
-    emergencyStop = (currentTime - lastPulseMillis > EMERGENCY_STOP_TIMEOUT_MS);
-    if (emergencyStop && currentRPM > 10.0) {  // Only trigger if we were running
-        Serial.println(F("EMERGENCY STOP: No pulses"));
-        pidOutput = 0.0;  // Force zero output
-        integral = 0.0;   // Reset integral term
-    }
-#endif
+// Safety features removed for simplified operation
 
     // Update PID gains based on mode
     if (tuningMode) {
@@ -189,9 +176,7 @@ void rpmSensorISR() {
     if (t - lastPulseMicros > MIN_PULSE_WIDTH_US) {
         pulseCount++;
         lastPulseMicros = t;
-#if EMERGENCY_STOP_ENABLED
-        lastPulseMillis = millis();  // Track last pulse time for emergency stop
-#endif
+        // Safety features removed for simplified operation
     }
 }
 
@@ -356,10 +341,7 @@ void printDebugInfo() {
 #if WATCHDOG_ENABLED
         Serial.println(F("Watchdog: ENABLED"));
 #endif
-#if EMERGENCY_STOP_ENABLED
-        Serial.print(F("Emergency Stop: "));
-        Serial.println(emergencyStop ? F("ACTIVE") : F("Inactive"));
-#endif
+// Debug output
         Serial.print(F("Mode: "));
         if (tuningMode) Serial.println(F("Potentiometer Tuning"));
         else Serial.println(F("Production"));
