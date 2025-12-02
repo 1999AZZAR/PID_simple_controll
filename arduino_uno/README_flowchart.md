@@ -88,7 +88,7 @@ P_term = Kp × Error
 I_term = Ki × ∫Error dt (with anti-windup clamping)
 D_term = Kd × dError/dt
 PID_Output = P_term + I_term + D_term
-PWM_Value = map(PID_Output, -255, 255, 0, 255)
+PWM_Value = map(PID_Output, -1000, 1000, 0, 255)
 ```
 
 ### Safety Features
@@ -224,8 +224,8 @@ PWM Output: 0-255 duty cycle to ESC
 #define CONTROL_LOOP_HZ     100     // 100Hz control loop
 #define RPM_CALC_INTERVAL   100     // RPM calculation every 100ms
 #define MIN_PULSE_WIDTH_US  100     // Debounce filter threshold
-#define PID_OUTPUT_MIN      -255    // Minimum PID output
-#define PID_OUTPUT_MAX      255     // Maximum PID output
+#define PID_OUTPUT_MIN      -1000   // Minimum PID output (expanded range)
+#define PID_OUTPUT_MAX      1000    // Maximum PID output (expanded range)
 ```
 
 ### Function Call Hierarchy

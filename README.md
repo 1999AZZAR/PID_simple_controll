@@ -430,7 +430,7 @@ error = target_RPM - current_RPM              // target_RPM = 1440
 proportional = Kp × error                     // Kp = 0.3 (gentle response)
 integral += Ki × error (with anti-windup clamping)  // Ki = 0.02 (conservative)
 derivative = Kd × (error - previous_error)         // Kd = 0.005 (noise damped)
-output = proportional + integral + derivative
+output = proportional + integral + derivative     // Range: -1000 to +1000 (4x resolution)
 ```
 
 ### Anti-Windup Protection
@@ -490,10 +490,10 @@ output = proportional + integral + derivative
 ### PID Limits
 
 ```cpp
-#define PID_OUTPUT_MIN      -255    // Minimum PID output
-#define PID_OUTPUT_MAX      255     // Maximum PID output
-#define INTEGRAL_WINDUP_MIN -200    // Anti-windup integral minimum (conservative for gentle control)
-#define INTEGRAL_WINDUP_MAX 200     // Anti-windup integral maximum (conservative for gentle control)
+#define PID_OUTPUT_MIN      -1000   // Minimum PID output (expanded range)
+#define PID_OUTPUT_MAX      1000    // Maximum PID output (expanded range)
+#define INTEGRAL_WINDUP_MIN -800    // Anti-windup integral minimum (scaled for wider range)
+#define INTEGRAL_WINDUP_MAX 800     // Anti-windup integral maximum (scaled for wider range)
 ```
 
 ### Production Mode Defaults

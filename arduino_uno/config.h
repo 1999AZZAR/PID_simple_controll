@@ -24,11 +24,11 @@
 #define RPM_CALC_INTERVAL   100 // RPM calculation interval in ms
 #define MIN_PULSE_WIDTH_US  100 // Minimum pulse width to reject EMI spikes (100-500us)
 
-// PID limits
-#define PID_OUTPUT_MIN      -255 // Minimum PID output
-#define PID_OUTPUT_MAX      255  // Maximum PID output
-#define INTEGRAL_WINDUP_MIN -200 // Anti-windup integral minimum (conservative for gentle control)
-#define INTEGRAL_WINDUP_MAX 200  // Anti-windup integral maximum (conservative for gentle control)
+// PID limits - Expanded range for higher resolution control
+#define PID_OUTPUT_MIN      -1000 // Minimum PID output (4x wider range)
+#define PID_OUTPUT_MAX      1000  // Maximum PID output (4x wider range)
+#define INTEGRAL_WINDUP_MIN -800  // Anti-windup integral minimum (scaled for wider PID range)
+#define INTEGRAL_WINDUP_MAX 800   // Anti-windup integral maximum (scaled for wider PID range)
 
 // Production mode default values (tune these during testing)
 #define PRODUCTION_TARGET_RPM 1440.0  // Original target RPM with gentler PID gains
@@ -49,7 +49,7 @@
 #define SOFT_START_STEPS       20     // Number of ramp steps
 
 // Safety parameters
-#define EMERGENCY_STOP_ENABLED     false   // Enable emergency stop feature
-#define EMERGENCY_STOP_TIMEOUT_MS  5000  // Stop PWM if no pulses received for 5 seconds
+#define EMERGENCY_STOP_ENABLED     true   // Enable emergency stop feature
+#define EMERGENCY_STOP_TIMEOUT_MS  15000  // Stop PWM if no pulses received for 15 seconds
 
 #endif // CONFIG_H
