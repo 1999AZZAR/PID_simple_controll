@@ -492,8 +492,8 @@ output = proportional + integral + derivative     // Range: -1000 to +1000 (4x r
 ```cpp
 #define PID_OUTPUT_MIN      -1000   // Minimum PID output (expanded range)
 #define PID_OUTPUT_MAX      1000    // Maximum PID output (expanded range)
-#define INTEGRAL_WINDUP_MIN -800    // Anti-windup integral minimum (scaled for wider range)
-#define INTEGRAL_WINDUP_MAX 800     // Anti-windup integral maximum (scaled for wider range)
+#define INTEGRAL_WINDUP_MIN -100    // Anti-windup integral minimum (optimized through testing)
+#define INTEGRAL_WINDUP_MAX 100     // Anti-windup integral maximum (optimized through testing)
 ```
 
 ### Production Mode Defaults

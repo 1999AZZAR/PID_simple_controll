@@ -92,7 +92,7 @@ PWM_Value = map(PID_Output, -1000, 1000, 0, 255)
 ```
 
 ### Safety Features
-- **Anti-windup Protection**: Integral term clamping (-200 to 200)
+- **Anti-windup Protection**: Integral term clamping (-100 to 100)
 - **Output Limiting**: PWM constrained to 0-255 range
 - **Emergency Stop**: Automatic shutdown if no pulses detected (>5 seconds)
 
@@ -226,6 +226,8 @@ PWM Output: 0-255 duty cycle to ESC
 #define MIN_PULSE_WIDTH_US  100     // Debounce filter threshold
 #define PID_OUTPUT_MIN      -1000   // Minimum PID output (expanded range)
 #define PID_OUTPUT_MAX      1000    // Maximum PID output (expanded range)
+#define INTEGRAL_WINDUP_MIN -100    // Anti-windup integral minimum (optimized)
+#define INTEGRAL_WINDUP_MAX 100     // Anti-windup integral maximum (optimized)
 ```
 
 ### Function Call Hierarchy

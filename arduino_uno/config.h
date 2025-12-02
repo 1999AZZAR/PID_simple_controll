@@ -27,8 +27,8 @@
 // PID limits - Expanded range for higher resolution control
 #define PID_OUTPUT_MIN      -1000 // Minimum PID output (4x wider range)
 #define PID_OUTPUT_MAX      1000  // Maximum PID output (4x wider range)
-#define INTEGRAL_WINDUP_MIN -800  // Anti-windup integral minimum (scaled for wider PID range)
-#define INTEGRAL_WINDUP_MAX 800   // Anti-windup integral maximum (scaled for wider PID range)
+#define INTEGRAL_WINDUP_MIN -100  // Anti-windup integral minimum
+#define INTEGRAL_WINDUP_MAX 100   // Anti-windup integral maximum
 
 // Production mode default values (tune these during testing)
 #define PRODUCTION_TARGET_RPM 1440.0  // Original target RPM with gentler PID gains
