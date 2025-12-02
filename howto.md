@@ -556,7 +556,7 @@ Some ESCs require calibration:
    - Consider feed-forward control for known loads
 
 3. **Timing Issues**:
-   - Verify control loop runs at 100Hz
+   - Verify control loop runs at 50Hz
    - Check for timing interference from other operations
 
 ### Programming Issues

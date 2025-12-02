@@ -659,7 +659,7 @@ integral = constrain(integral, INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX);
 ```cpp
 // Improve signal integrity
 #define MIN_PULSE_WIDTH_US 100  // Increase debounce for noisy environments
-#define RPM_CALC_INTERVAL 100   // More frequent RPM updates
+#define RPM_CALC_INTERVAL 50    // RPM update interval (ms)
 
 // Hardware improvements:
 // 1. Use shielded cables for Hall sensors

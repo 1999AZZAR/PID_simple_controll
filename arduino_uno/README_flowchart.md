@@ -38,7 +38,7 @@ Arduino Uno PID Controller Start
 #### 2. Main Control Loop (`loop()` function)
 **Primary Processing Pipeline:**
 ```
-Main Control Loop (100Hz timing)
+Main Control Loop (50Hz timing)
 ├── Read System Time (millis)
 ├── Check Mode Switch State
 ├── Calculate RPM (every 100ms)
@@ -47,8 +47,7 @@ Main Control Loop (100Hz timing)
 ├── Compute PID Output
 ├── Convert to PWM Signal
 ├── Output to ESC
-├── Serial Plotter Data
-└── Debug Information Output
+└── Serial Plotter Data
 ```
 
 #### 3. Interrupt Service Routines
@@ -105,7 +104,7 @@ Arduino Uno Pin Mapping:
 ├── Digital Pin 3: Mode Switch Input (Digital Read)
 ├── Digital Pin 9: PWM Output (Timer1/OC1A)
 ├── Analog Pins A0-A3: Potentiometer Inputs (Tuning Mode)
-└── Serial Pins 0/1: Debug Output (115200 baud)
+└── Serial Pins 0/1: Serial Plotter Output (115200 baud)
 ```
 
 ### Interrupt Architecture
@@ -122,15 +121,14 @@ Hardware Inputs → Interrupt Processing → Pulse Counting → RPM Calculation 
 
 ### Output Streams
 ```
-Serial Plotter: Target_RPM,Current_RPM,Error,PID_Output
-Debug Console: System status, mode changes, parameter values
+Serial Plotter: Target_RPM,Current_RPM,Error,PID_Output,PPR,Kp,Ki,Kd
 PWM Output: 0-255 duty cycle to ESC
 ```
 
 ## Performance Characteristics
 
 ### Timing Specifications
-- **Control Loop**: 100Hz (10ms intervals)
+- **Control Loop**: 50Hz (20ms intervals)
 - **RPM Calculation**: 10Hz (100ms intervals)
 - **Serial Output**: Continuous (non-blocking)
 - **Interrupt Response**: <10μs
@@ -186,7 +184,7 @@ PWM Output: 0-255 duty cycle to ESC
 - **Arduino Core**: Standard digital/analog functions
 - **Interrupt System**: Hardware interrupt 0 utilization
 - **Timer System**: Timer1 for PWM generation
-- **Serial Communication**: UART for debugging
+- **Serial Communication**: UART for real-time monitoring
 
 ## Maintenance & Troubleshooting
 
@@ -221,11 +219,11 @@ PWM Output: 0-255 duty cycle to ESC
 
 ### Configuration Constants
 ```cpp
-#define CONTROL_LOOP_HZ     100     // 100Hz control loop
-#define RPM_CALC_INTERVAL   100     // RPM calculation every 100ms
+#define CONTROL_LOOP_HZ     50      // 50Hz control loop
+#define RPM_CALC_INTERVAL   50      // RPM calculation every 50ms
 #define MIN_PULSE_WIDTH_US  100     // Debounce filter threshold
-#define PID_OUTPUT_MIN      -1000   // Minimum PID output (expanded range)
-#define PID_OUTPUT_MAX      1000    // Maximum PID output (expanded range)
+#define PID_OUTPUT_MIN      -500    // Minimum PID output
+#define PID_OUTPUT_MAX      500     // Maximum PID output
 #define INTEGRAL_WINDUP_MIN -100    // Anti-windup integral minimum (optimized)
 #define INTEGRAL_WINDUP_MAX 100     // Anti-windup integral maximum (optimized)
 ```
@@ -245,8 +243,7 @@ loop()
 ├── calculateRPM()
 ├── computePID()
 ├── analogWrite(PWM)
-├── Serial Plotter output
-└── Debug information
+└── Serial Plotter output
 
 rpmSensorISR()
 ├── micros() timestamp

@@ -44,9 +44,6 @@
 
 // Serial removed - no interactive commands
 
-// Debug timing
-unsigned long lastDebugTime = 0;
-
 // Global variables
 volatile unsigned long pulseCount = 0;
 volatile unsigned long lastPulseMicros = 0;
@@ -120,7 +117,7 @@ void loop() {
     // Check mode switch (serial tuning removed)
     tuningMode = digitalRead(MODE_SWITCH_PIN) == LOW;
 
-    // Debug mode switching
+    // Mode switching
     static bool lastTuningMode = !tuningMode; // Force initial print
     if (tuningMode != lastTuningMode) {
         Serial.print(F("Mode switch changed to: "));
@@ -161,10 +158,6 @@ void loop() {
 
     // Output to Serial Plotter for monitoring
     printToSerialPlotter();
-
-    // Debug output for bench testing
-    printDebugInfo();
-
 
     // Control loop timing
     delay(CONTROL_PERIOD_MS);
@@ -308,43 +301,4 @@ void printToSerialPlotter() {
     Serial.print(",");
     Serial.print("PPR:");
     Serial.println(pulsesPerRev);
-}
-
-// Debug output for bench testing
-void printDebugInfo() {
-    if (!DEBUG_MODE_ENABLED) return;
-
-    unsigned long currentTime = millis();
-    if (currentTime - lastDebugTime >= DEBUG_INTERVAL_MS) {
-        lastDebugTime = currentTime;
-
-        // Atomic read of pulse count for debug
-        noInterrupts();
-        unsigned long debugPulseCount = pulseCount;
-        interrupts();
-
-        Serial.println(F("=== DEBUG INFO ==="));
-        Serial.print(F("Pulse Count: "));
-        Serial.println(debugPulseCount);
-        Serial.print(F("Current RPM: "));
-        Serial.println(currentRPM, 1);
-        Serial.print(F("Target RPM: "));
-        Serial.println(targetRPM, 1);
-        Serial.print(F("Pulses per Rev: "));
-        Serial.println(pulsesPerRev);
-        Serial.print(F("PID Output: "));
-        Serial.println(pidOutput, 2);
-        Serial.print(F("Integral: "));
-        Serial.println(integral, 2);
-        Serial.print(F("Soft Starting: "));
-        Serial.println(softStarting ? F("YES") : F("NO"));
-#if WATCHDOG_ENABLED
-        Serial.println(F("Watchdog: ENABLED"));
-#endif
-// Debug output
-        Serial.print(F("Mode: "));
-        if (tuningMode) Serial.println(F("Potentiometer Tuning"));
-        else Serial.println(F("Production"));
-        Serial.println();
-    }
 }

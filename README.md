@@ -413,7 +413,7 @@ void outputToESC(int pwmValue) {
 
 ### Control Loop
 
-- **Frequency**: 100 Hz (10ms cycle time)
+- **Frequency**: 50 Hz (20ms cycle time)
 - **RPM Calculation**: Updated every 100ms for stability
 - **PID Computation**: Calculated each control cycle
 - **PWM Output**: Updated immediately after PID computation
@@ -478,10 +478,10 @@ output = proportional + integral + derivative     // Range: -1000 to +1000 (4x r
 ### Control Parameters
 
 ```cpp
-#define CONTROL_LOOP_HZ     100     // Control loop frequency
+#define CONTROL_LOOP_HZ     50      // Control loop frequency
 #define PULSES_PER_REV          6   // Default sensor pulses per revolution (6 for 3-Hall BLDC motors like 42BLF20-22.0223 - see assets/42BLF.pdf)
 // Note: Arduino Uno version uses runtime variable pulsesPerRev (configurable via serial/EEPROM)
-#define RPM_CALC_INTERVAL   100     // RPM update interval (ms)
+#define RPM_CALC_INTERVAL   50      // RPM update interval (ms)
 #define SERIAL_BUFFER_SIZE  64      // Serial command buffer size
 ```
 
@@ -490,8 +490,8 @@ output = proportional + integral + derivative     // Range: -1000 to +1000 (4x r
 ### PID Limits
 
 ```cpp
-#define PID_OUTPUT_MIN      -1000   // Minimum PID output (expanded range)
-#define PID_OUTPUT_MAX      1000    // Maximum PID output (expanded range)
+#define PID_OUTPUT_MIN      -500    // Minimum PID output
+#define PID_OUTPUT_MAX      500     // Maximum PID output
 #define INTEGRAL_WINDUP_MIN -100    // Anti-windup integral minimum (optimized through testing)
 #define INTEGRAL_WINDUP_MAX 100     // Anti-windup integral maximum (optimized through testing)
 ```

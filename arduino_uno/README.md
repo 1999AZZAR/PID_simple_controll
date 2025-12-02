@@ -120,9 +120,8 @@ All Arduino Uno settings are centralized in `config.h`:
 #define PULSES_PER_REV          6     // Hall sensor pulses per revolution
 ```
 
-### Debug and Safety Settings
+### Safety Settings
 ```cpp
-#define DEBUG_MODE_ENABLED     false  // Enable detailed logging
 #define SOFT_START_DURATION_MS  2000  // Soft-start ramp time
 #define MIN_PULSE_WIDTH_US      100   // Debounce filter threshold
 
@@ -204,7 +203,7 @@ Target,Current,Error,PID_Output,Kp,Ki,Kd,PPR
 ## Performance Notes
 
 - **Memory Usage**: ~18% RAM usage (optimized for reliability)
-- **Control Frequency**: 100Hz main loop, 10Hz RPM calculation
+- **Control Frequency**: 50Hz main loop, 20Hz RPM calculation
 - **PWM Frequency**: ~490Hz (Timer0 with prescaler 8)
 - **Interrupt Response**: Hall sensor debounce filter prevents false triggers
 - **Simplified Design**: No EEPROM wear or serial command overhead
