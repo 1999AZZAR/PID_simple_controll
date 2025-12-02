@@ -287,13 +287,13 @@ void processSerialCommand(String command) {
         saveParametersToEEPROM();
 
     } else if (command.startsWith("SET_TARGET_RPM ")) {
-        targetRPM = command.substring(14).toFloat();
+        targetRPM = command.substring(15).toFloat();
         Serial.print(F("Target RPM set to: "));
         Serial.println(targetRPM);
         saveParametersToEEPROM();
 
     } else if (command.startsWith("SET_PULSES_PER_REV ")) {
-        pulsesPerRev = command.substring(18).toInt();
+        pulsesPerRev = command.substring(19).toInt();
         Serial.print(F("Pulses per revolution set to: "));
         Serial.println(pulsesPerRev);
         saveParametersToEEPROM();

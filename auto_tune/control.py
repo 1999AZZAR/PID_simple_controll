@@ -944,7 +944,7 @@ class PIDControllerGUI(QMainWindow):
             self.current_params['ki'] = optimal_gains[1]
             self.current_params['kd'] = optimal_gains[2]
 
-            self.tune_status_label.setText(".3f")
+            self.tune_status_label.setText(f"Complete! Ku={ku:.3f}, Tu={tu:.3f}s")
             self.tune_status_label.setStyleSheet("font-weight: bold; color: green;")
 
         except Exception as e:
@@ -973,7 +973,7 @@ class PIDControllerGUI(QMainWindow):
 
         while kp_test < max_gain and self.auto_tune_running:
             self.send_command(f"SET_KP {kp_test}")
-            self.tune_status_label.setText(".3f")
+            self.tune_status_label.setText(f"Testing Kp: {kp_test:.3f}")
             QApplication.processEvents()
 
             # Wait for system response (longer for stability)
@@ -1246,7 +1246,7 @@ class PIDControllerGUI(QMainWindow):
                 with open(filename, 'w') as f:
                     f.write("Time(ms),Target_RPM,Current_RPM,Error,PID_Output,Kp,Ki,Kd\n")
                     for i in range(len(self.plot_canvas.time_data)):
-                        f.write(".2f")
+                        f.write(f"{self.plot_canvas.time_data[i]:.2f},{self.plot_canvas.target_rpm_data[i]:.2f},{self.plot_canvas.current_rpm_data[i]:.2f},{self.plot_canvas.error_data[i]:.2f},{self.plot_canvas.pid_output_data[i]:.2f},{self.plot_canvas.kp_data[i]:.4f},{self.plot_canvas.ki_data[i]:.4f},{self.plot_canvas.kd_data[i]:.4f}\n")
                 QMessageBox.information(self, "Success", "Data exported successfully")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to export data: {str(e)}")
