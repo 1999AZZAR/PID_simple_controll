@@ -426,10 +426,10 @@ void outputToESC(int pwmValue) {
 *Figure 2: PID control algorithm flowchart showing error calculation, PID computation, and PWM output generation*
 
 ```
-error = target_RPM - current_RPM
-proportional = Kp × error
-integral += Ki × error (with anti-windup clamping)
-derivative = Kd × (error - previous_error)
+error = target_RPM - current_RPM              // target_RPM = 1440
+proportional = Kp × error                     // Kp = 0.3 (gentle response)
+integral += Ki × error (with anti-windup clamping)  // Ki = 0.02 (conservative)
+derivative = Kd × (error - previous_error)         // Kd = 0.005 (noise damped)
 output = proportional + integral + derivative
 ```
 
@@ -492,17 +492,17 @@ output = proportional + integral + derivative
 ```cpp
 #define PID_OUTPUT_MIN      -255    // Minimum PID output
 #define PID_OUTPUT_MAX      255     // Maximum PID output
-#define INTEGRAL_WINDUP_MIN -100    // Anti-windup integral minimum
-#define INTEGRAL_WINDUP_MAX 100     // Anti-windup integral maximum
+#define INTEGRAL_WINDUP_MIN -200    // Anti-windup integral minimum (conservative for gentle control)
+#define INTEGRAL_WINDUP_MAX 200     // Anti-windup integral maximum (conservative for gentle control)
 ```
 
 ### Production Mode Defaults
 
 ```cpp
-#define PRODUCTION_TARGET_RPM 1440.0
-#define PRODUCTION_KP         0.5
-#define PRODUCTION_KI         0.1
-#define PRODUCTION_KD         0.01
+#define PRODUCTION_TARGET_RPM 1440.0   // Original target RPM
+#define PRODUCTION_KP         0.3      // Gentler proportional response
+#define PRODUCTION_KI         0.02     // Conservative integral action
+#define PRODUCTION_KD         0.005    // Noise-damped derivative
 ```
 
 <!-- Serial Commands removed from Arduino Uno version -->

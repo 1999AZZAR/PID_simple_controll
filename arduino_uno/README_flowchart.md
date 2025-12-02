@@ -92,7 +92,7 @@ PWM_Value = map(PID_Output, -255, 255, 0, 255)
 ```
 
 ### Safety Features
-- **Anti-windup Protection**: Integral term clamping (-100 to 100)
+- **Anti-windup Protection**: Integral term clamping (-200 to 200)
 - **Output Limiting**: PWM constrained to 0-255 range
 - **Emergency Stop**: Automatic shutdown if no pulses detected (>5 seconds)
 

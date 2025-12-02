@@ -55,7 +55,7 @@ volatile unsigned long lastPulseMillis = 0;  // For emergency stop timeout
 #endif
 unsigned long lastRPMCalcTime = 0;
 float currentRPM = 0.0;
-const float targetRPM = 1440.0; // Fixed target RPM for constant speed control
+const float targetRPM = PRODUCTION_TARGET_RPM; // Fixed target RPM for constant speed control
 int pulsesPerRev = PULSES_PER_REV; // Configurable pulses per revolution via potentiometer
 
 // PID variables
