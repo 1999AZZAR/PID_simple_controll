@@ -40,6 +40,13 @@ BLDC_PID_Controller/
 │   ├── config.h                 # ATTiny85 configuration
 │   ├── README.md               # ATTiny85 documentation
 │   └── ATTiny85_hardware_schematic.md # ATTiny85 hardware setup
+├── auto_tune/                   # Advanced PID tuning GUI
+│   ├── code/                    # Arduino sketch folder (IDE compatible)
+│   │   ├── code.ino             # Arduino code with serial communication
+│   │   └── config.h             # Configuration header
+│   ├── control.py               # Modern PyQt6 GUI application
+│   ├── requirements.txt         # Python dependencies
+│   └── README.md               # GUI documentation
 ├── assets/                      # Documentation assets
 │   ├── 42BLF.pdf               # 42BLF motor datasheet
 │   ├── High-level component diagram.png  # System architecture
@@ -76,6 +83,7 @@ The `assets/` folder contains visual documentation and reference materials:
 - **`Serial command sequence.png`**: Visual guide to serial command interactions and responses
 
 These diagrams provide visual reference for:
+
 - Hardware assembly and component identification
 - Understanding the control flow and algorithm logic
 - Serial communication protocol and command sequences
@@ -98,7 +106,7 @@ These diagrams provide visual reference for:
 - Two operating modes: Production (fixed parameters) and Potentiometer tuning
 - No serial commands or interactive tuning
 - 4 potentiometers: PPR (A0), Kp (A1), Ki (A2), Kd (A3)
-- No EEPROM storage or watchdog timer
+- ,No EEPROM storage or watchdog timer
 - Optimized memory usage: 21% flash, 18% RAM (highly stable)
 - Clean, maintainable codebase
 
@@ -107,6 +115,17 @@ These diagrams provide visual reference for:
 **Best for**: Production deployment
 
 - Minimal resource usage (77% flash, 38% RAM)
+
+### Auto-Tune GUI (`auto_tune/`)
+
+**Best for**: Advanced PID tuning and development
+
+- Modern PyQt6 graphical interface with real-time plotting
+- Automatic PID tuning using Ziegler-Nichols method with validation
+- Integrated serial communication testing and monitoring
+- Manual command interface for custom Arduino communication
+- Arduino code in proper IDE-compatible folder structure (`code/code.ino`)
+- Comprehensive parameter management and data export
 - **Core PID Control Only**: Essential motor control with integer math optimization
 - **2-Pin Operation**: Hall sensor input + PWM output (ultra-minimal)
 - No external dependencies
@@ -120,38 +139,45 @@ These diagrams provide visual reference for:
 This repository uses GitHub Actions for fully automated compilation and packaging:
 
 ### Primary Workflow: **Compile Arduino Sketches**
+
 - **One-Click Solution**: Compiles both platforms + creates complete ZIP
 - **Generates** ready-to-flash `.hex` files
 - **Creates** `ddmmyyyy_reponame.zip` with everything included
 - **Attaches** ZIP to GitHub releases automatically
 
 ### What You Get
+
 - **Source Code**: All Arduino sketches and configurations
 - **Compiled Firmware**: Flash-ready `.hex` files for both platforms
 - **Documentation**: Complete setup guides and troubleshooting
 - **Memory Reports**: Flash/RAM usage statistics
 
 ### Example Output
+
 - `25112025_PID_simple_controll.zip` (November 25, 2025)
 
 ### Workflow Triggers
+
 - **Push to main/master**: Auto-creates daily release with complete package
 - **Version Tags**: Creates versioned releases on tag pushes
 - **Manual**: Actions → "Compile Arduino Sketches" → Run workflow
 - **Pull Request**: Validates compilation without creating releases
 
 ### Output Locations
+
 - **ZIP Downloads**: Actions → Compile Arduino Sketches → `complete-package` artifact
 - **Daily Releases**: Automatic releases created on main branch pushes
 - **Release Assets**: Complete packages automatically attached
 
 ### Automatic Release System
+
 - **Daily Releases**: Every push creates a dated release (e.g., `25112025`)
 - **Complete Packages**: Source code + compiled firmware included
 - **No Manual Work**: Fully automated CI/CD pipeline
 - **Version Control**: Date-based versioning for easy tracking
 
 ### ZIP Contents
+
 ```
 25112025_PID_simple_controll.zip/
 ├── arduino_uno/
@@ -173,42 +199,56 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 
 ## Platform Comparison
 
-| Feature | Arduino Uno (Simplified) | ATTiny85 (Production) |
-|---------|---------------------------|----------------------|
-| **Purpose** | Clean development and testing | Production deployment |
-| **Target RPM** | Fixed at 1440 RPM | Fixed at 1440 RPM |
-| **Flash Usage** | 6,968 bytes (21%) | 1,586 bytes (77%) |
-| **RAM Usage** | 372 bytes (18%) | 49 bytes (38%) |
-| **Efficiency Ratio** | **4.4x smaller than full-featured** | **11.7x smaller flash, 7.6x less RAM** |
-| **Total Flash** | 32,256 bytes | 2,048 bytes |
-| **Total RAM** | 2,048 bytes | 128 bytes |
-| **Pin Count** | 7 pins used | **2 pins only** |
-| **Cost** | ~$20 | ~$2 |
-| **Tuning Interface** | 4 potentiometers (PPR, Kp, Ki, Kd) | None (pre-tuned) |
-| **Safety Features** | Anti-windup protection | Watchdog timer |
-| **EEPROM** | None | None |
-| **Serial Output** | 7-parameter monitoring | None |
-| **Development Time** | Quick setup, stable operation | Deploy & forget |
-| **Power Efficiency** | Standard | Optimized |
-| **Reliability Focus** | Maximum stability | Cost-effective |
+| Feature                     | Arduino Uno (Simplified)                  | ATTiny85 (Production)                        |
+| --------------------------- | ----------------------------------------- | -------------------------------------------- |
+| **Purpose**           | Clean development and testing             | Production deployment                        |
+| **Target RPM**        | Fixed at 1440 RPM                         | Fixed at 1440 RPM                            |
+| **Flash Usage**       | 6,968 bytes (21%)                         | 1,586 bytes (77%)                            |
+| **RAM Usage**         | 372 bytes (18%)                           | 49 bytes (38%)                               |
+| **Efficiency Ratio**  | **4.4x smaller than full-featured** | **11.7x smaller flash, 7.6x less RAM** |
+| **Total Flash**       | 32,256 bytes                              | 2,048 bytes                                  |
+| **Total RAM**         | 2,048 bytes                               | 128 bytes                                    |
+| **Pin Count**         | 7 pins used                               | **2 pins only**                        |
+| **Cost**              | ~$20 | ~$2                                |                                              |
+| **Tuning Interface**  | 4 potentiometers (PPR, Kp, Ki, Kd)        | None (pre-tuned)                             |
+| **Safety Features**   | Anti-windup protection                    | Watchdog timer                               |
+| **EEPROM**            | None                                      | None                                         |
+| **Serial Output**     | 7-parameter monitoring                    | None                                         |
+| **Development Time**  | Quick setup, stable operation             | Deploy & forget                              |
+| **Power Efficiency**  | Standard                                  | Optimized                                    |
+| **Reliability Focus** | Maximum stability                         | Cost-effective                               |
 
 **Key Takeaway**: Arduino Uno = Development platform with full features. ATTiny85 = Minimal production controller focused on cost and size.
 
 ## Quick Start
 
+### Option 1: Advanced GUI with Auto-Tuning (Recommended)
+```bash
+cd auto_tune
+pip install -r requirements.txt
+python control.py
+```
+- Modern PyQt6 interface with automatic PID tuning
+- Real-time monitoring and parameter adjustment
+- Integrated serial testing and validation
+
+### Option 2: Basic Arduino Development
 1. **Choose your platform:**
-
-   - Open `arduino_uno/arduino_uno.ino` for development
+   - Open `arduino_uno/arduino_uno.ino` for basic development
    - Open `attiny85/attiny85.ino` for production
-2. **Review documentation:**
-
-   - `howto.md` - Detailed step-by-step assembly guide
-   - `assets/` - Visual diagrams and motor datasheet
-3. **Follow the platform-specific README:**
-
+2. **Follow platform-specific README:**
    - `arduino_uno/README.md` for Arduino Uno setup
    - `attiny85/README.md` for ATTiny85 setup
-4. **Hardware setup:** Refer to the schematic files in each platform folder
+
+### Option 3: Arduino IDE Compatible Auto-Tune
+1. Open `auto_tune/code/code.ino` in Arduino IDE
+2. Upload to Arduino Uno
+3. Use the GUI: `python auto_tune/control.py`
+
+### General Setup
+- **Documentation:** `howto.md` - Detailed assembly guide
+- **Assets:** `assets/` - Visual diagrams and datasheets
+- **Hardware:** Refer to schematic files in each platform folder
 
 ## Hardware Requirements
 
@@ -229,15 +269,15 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 
 #### Arduino Uno Version
 
-| Component        | Arduino Pin   | Description                                                    |
-| ---------------- | ------------- | -------------------------------------------------------------- |
-| BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from BLDC motor (interrupt-capable pin)          |
-| PWM Output       | Digital Pin 9 | PWM signal to ESC                                              |
-| Mode Switch      | Digital Pin 3 | LOW = Potentiometer tuning mode, HIGH = Production mode        |
-| PPR Pot          | Analog A0     | Pulses per revolution (1-100) - Optional                       |
-| Kp Pot           | Analog A1     | Proportional gain (0-2.0) - Optional                           |
-| Ki Pot           | Analog A2     | Integral gain (0-1.0) - Optional                               |
-| Kd Pot           | Analog A3     | Derivative gain (0-0.1) - Optional                             |
+| Component        | Arduino Pin   | Description                                             |
+| ---------------- | ------------- | ------------------------------------------------------- |
+| BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from BLDC motor (interrupt-capable pin)   |
+| PWM Output       | Digital Pin 9 | PWM signal to ESC                                       |
+| Mode Switch      | Digital Pin 3 | LOW = Potentiometer tuning mode, HIGH = Production mode |
+| PPR Pot          | Analog A0     | Pulses per revolution (1-100) - Optional                |
+| Kp Pot           | Analog A1     | Proportional gain (0-2.0) - Optional                    |
+| Ki Pot           | Analog A2     | Integral gain (0-1.0) - Optional                        |
+| Kd Pot           | Analog A3     | Derivative gain (0-0.1) - Optional                      |
 
 #### ATtiny85 Version
 
@@ -253,6 +293,7 @@ This controller is designed for **3-Hall BLDC motors** such as the 42BLF20-22.02
 #### Wiring Diagram:
 
 **Text-based wiring reference:**
+
 ```
 BLDC Motor Hall Sensors → Controller/Microcontroller → ESC → Motor Power
      |                        |                        |
@@ -284,16 +325,19 @@ BLDC Motor Hall Sensors → Controller/Microcontroller → ESC → Motor Power
 For optimal performance, the controller can use a composite signal from all three Hall sensors instead of relying on a single Hall sensor wire. This provides more robust position feedback and better motor control.
 
 **Signal Composition Methods:**
+
 1. **Single Hall Wire**: Connect any one Hall sensor (A, B, or C) - provides 2 pulses per electrical revolution
 2. **Composite Signal**: Combine all three Hall sensors using OR logic - provides 6 pulses per electrical revolution
 3. **Sensor Selection**: Use the Hall sensor that provides the most stable signal for your specific motor
 
 **Composite Signal Benefits:**
+
 - **Higher Resolution**: 6 pulses vs 2 pulses per electrical revolution
 - **Better Reliability**: Redundant position information from three sensors
 - **Improved Control**: More frequent position updates for smoother motor control
 
 **Implementation:**
+
 ```cpp
 // Single Hall sensor (current implementation)
 attachInterrupt(digitalPinToInterrupt(HALL_PIN), hallISR, RISING);
@@ -310,10 +354,12 @@ BLDC motor Hall sensors can be either push-pull or open-collector outputs:
 - **Open-collector Hall sensors**: Require pull-up resistors and only actively pull LOW. Use FALLING edge detection to avoid false triggers from slow rising edges.
 
 **Current Configuration:**
+
 - Arduino Uno: Uses RISING edge detection with INPUT_PULLUP (assumes push-pull or properly pulled-up open-collector sensors)
 - ATtiny85: Uses FALLING edge detection with internal pull-up (configured for open-collector sensors)
 
 **Verification Steps:**
+
 1. Check motor datasheet for Hall sensor output type
 2. Monitor Hall sensor signal with oscilloscope during motor rotation
 3. Adjust edge detection (RISING vs FALLING) based on observed signal characteristics
@@ -342,6 +388,7 @@ This controller outputs standard Arduino PWM signals (0-255 duty cycle) to contr
 #### Testing PWM Output
 
 To verify PWM compatibility:
+
 1. Connect an oscilloscope or logic analyzer to the PWM output pin
 2. Monitor the signal frequency and duty cycle range
 3. Compare with your ESC's specifications
@@ -352,18 +399,22 @@ To verify PWM compatibility:
 **Critical**: Your ESC may expect either standard PWM signals or RC servo pulses. Using the wrong signal type will result in no motor response or erratic behavior.
 
 ##### Method 1: Oscilloscope Analysis (Recommended)
+
 1. **Connect oscilloscope** to PWM output pin (Arduino pin 9, ATtiny85 pin 5)
 2. **Observe signal characteristics**:
+
    - **Frequency**: Arduino Uno outputs ~490Hz, ATtiny85 outputs ~1kHz
    - **Duty cycle**: 0-100% (0-255 in code)
    - **Waveform**: Square wave with varying pulse width
-
 3. **Compare with ESC specifications**:
+
    - **PWM ESCs** expect: Variable duty cycle (0-100%) at high frequency (1-20kHz)
    - **RC Servo ESCs** expect: Fixed 50Hz frequency with 1-2ms pulse width
 
 ##### Method 2: Bench Testing Without Oscilloscope
+
 1. **Set fixed PWM values** and observe motor response:
+
    ```arduino
    // In setup(), temporarily replace PID output with fixed values:
    analogWrite(PWM_OUTPUT_PIN, 64);   // 25% duty cycle
@@ -373,18 +424,21 @@ To verify PWM compatibility:
    analogWrite(PWM_OUTPUT_PIN, 192);  // 75% duty cycle
    delay(2000);
    ```
-
 2. **Expected behavior**:
+
    - **PWM ESC**: Motor speed should change smoothly with each duty cycle change
    - **RC Servo ESC**: Motor may not respond or respond erratically
 
 ##### Method 3: ESC Documentation Check
+
 - **BLDC ESCs** (like those for quadcopters): Usually PWM input
 - **RC Car/Marine ESCs**: Usually servo pulse input (50Hz, 1-2ms)
 - **Industrial servo drives**: Check datasheet for "analog input" vs "pulse input"
 
 ##### Converting to Servo Pulses (if needed)
+
 If your ESC requires servo pulses, modify the `outputToESC()` function:
+
 ```arduino
 #include <Servo.h>
 Servo escServo;
@@ -404,6 +458,7 @@ void outputToESC(int pwmValue) {
 ```
 
 ##### Common Issues
+
 - **No motor response**: Wrong signal type (PWM vs servo)
 - **Erratic behavior**: Signal frequency too high/low for ESC
 - **Motor runs at full speed only**: ESC expecting servo pulses, getting PWM
@@ -525,12 +580,14 @@ Note: Serial Plotter monitoring is available in both operating modes for real-ti
 ## Safety Features
 
 ### Arduino Uno Version (Simplified)
+
 - **Stable Design**: No watchdog timer for maximum reliability
 - **Software Protection**: PID output constrained to safe PWM range (0-255)
 - **Integral Windup Protection**: Prevents integrator runaway during stall conditions
 - **Clean Architecture**: Minimal code for reduced complexity and memory usage
 
 ### ATTiny85 Version (Production)
+
 - **Hardware-Level Protection**: 8-second watchdog timer for hang protection
 - **Anti-Windup Protection**: Prevents integrator runaway during stall conditions
 - **Minimal Footprint**: Core PID control with essential safety features

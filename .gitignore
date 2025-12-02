@@ -1,0 +1,484 @@
+# ==============================================
+# BLDC Motor PID Controller - Comprehensive .gitignore
+# ==============================================
+
+# ==============================================
+# Python (PyQt6 GUI Application)
+# ==============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# celery beat schedule file
+celerybeat-schedule
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ==============================================
+# Arduino / PlatformIO / ESP-IDF
+# ==============================================
+.pio
+.pioenvs
+.piolibdeps
+.pio/build
+.pio/cache
+.pio/lib
+.pio/packages
+.pio/platformio.ini
+.pio/boards
+.pio/devices
+.pio/tools
+
+# Arduino IDE
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+
+# Arduino build files
+build/
+.cache/
+
+# ESP-IDF
+sdkconfig
+sdkconfig.old
+components/
+managed_components/
+build/
+esp-idf/
+
+# AVR/ATmega specific
+*.elf
+*.hex
+*.eep
+*.lss
+*.map
+*.sym
+*.lst
+
+# ==============================================
+# Operating Systems
+# ==============================================
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ==============================================
+# IDEs and Editors
+# ==============================================
+
+# VS Code
+.vscode/
+*.code-workspace
+.history/
+
+# Cursor
+.cursor/
+.cursorignore
+
+# JetBrains IDEs (IntelliJ, PyCharm, CLion, etc.)
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+.idea_modules/
+atlassian-ide-plugin.xml
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties
+
+# Eclipse
+.metadata
+bin/
+tmp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.settings/
+.loadpath
+.recommenders
+.project
+.externalToolBuilders/
+*.launch
+.pydevproject
+.cproject
+.autotools
+.factorypath
+.buildpath
+.target
+
+# Sublime Text
+*.tmlanguage.cache
+*.tmPreferences.cache
+*.stTheme.cache
+*.sublime-workspace
+*.sublime-project
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+Session.vim
+Sessionx.vim
+.netrwhist
+*~
+tags
+[._]*.un~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+.org-id-locations
+*_archive
+*.flymake.out
+eshell/history
+eshell/lastdir
+.elpa/
+
+# Atom
+.atom/
+*.swp
+*.swo
+*~
+
+# ==============================================
+# Build Systems and Tools
+# ==============================================
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+build/
+cmake-build-*/
+
+# Make
+Makefile
+makefile
+*.make
+
+# Ninja
+.ninja_deps
+.ninja_log
+build.ninja
+
+# Meson
+build/
+
+# Cargo (if Rust components added later)
+target/
+Cargo.lock
+
+# Go (if Go components added later)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# ==============================================
+# Version Control
+# ==============================================
+*.orig
+*.rej
+
+# Git
+*.patch
+*.diff
+
+# SVN
+.svn/
+
+# Mercurial
+.hg/
+.hgignore
+
+# ==============================================
+# Documentation and Temporary Files
+# ==============================================
+
+# LaTeX
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+
+# Markdown
+*.html
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+*.swp
+*.swo
+*~
+
+# ==============================================
+# Project Specific
+# ==============================================
+
+# Compiled Arduino binaries
+arduino_uno/compiled/
+attiny85/compiled/
+auto_tune/code/build/
+
+# Python virtual environments (if created locally)
+venv/
+.venv/
+env/
+.conda/
+
+# Test output (integrated into GUI)
+test_results/
+test_output/
+*.log
+
+# Screenshots and temporary images (if generated)
+temp_*.png
+temp_*.jpg
+capture_*.png
+debug_*.png
+
+# Export files
+exports/
+*.csv
+*.xlsx
+
+# ==============================================
+# Security and Sensitive Files
+# ==============================================
+*.key
+*.pem
+*.crt
+*.cer
+*.p12
+*.pfx
+secrets.json
+config.local.*
+.env.local
+.env.*.local
+
+# ==============================================
+# Package Management
+# ==============================================
+Pipfile.lock
+poetry.lock
+requirements-lock.txt
+
+# Node.js (if web components added later)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# ==============================================
+# CI/CD and Deployment
+# ==============================================
+.github/workflows/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+Jenkinsfile
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# ==============================================
+# Backup and Archive Files
+# ==============================================
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.zip
+*.rar
+*.7z
+*.gz
+*.bz2
+*.xz
+
+# ==============================================
+# Large Media Files (if generated)
+# ==============================================
+*.mov
+*.mp4
+*.avi
+*.mkv
+*.flv
+*.wmv
+*.mpg
+*.mpeg
+*.m4v
+*.webm
+*.ogv
+
+# ==============================================
+# Simulation and Modeling
+# ==============================================
+*.sim
+*.model
+*.mdl
+
+# ==============================================
+# End of .gitignore
+# ==============================================

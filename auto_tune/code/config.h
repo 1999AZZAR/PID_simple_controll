@@ -1,0 +1,39 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// Include necessary libraries
+#include <Arduino.h>
+
+// Pin definitions
+#define RPM_SENSOR_PIN      2   // Interrupt pin for BLDC Hall sensor (any Hall wire from motor)
+#define PWM_OUTPUT_PIN      9   // PWM output to ESC
+
+// Control parameters - Optimized for real-time performance
+#define CONTROL_LOOP_HZ     100 // Control loop frequency (100 Hz) - optimal for BLDC control
+#define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
+
+// RPM calculation parameters
+#define DEFAULT_PULSES_PER_REV 18   // Default number of pulses per revolution
+#define RPM_CALC_INTERVAL   25  // RPM calculation interval (25ms) - faster updates for smooth control
+#define MIN_PULSE_WIDTH_US  50  // Minimum pulse width (50μs) - reduced for better responsiveness
+
+// Serial communication parameters
+#define SERIAL_SEND_INTERVAL 50  // Send status data every 50ms (20Hz)
+
+// PID limits - Expanded range for higher resolution control
+#define PID_OUTPUT_MIN      -500 // Minimum PID output
+#define PID_OUTPUT_MAX      500  // Maximum PID output
+#define INTEGRAL_WINDUP_MIN -100  // Anti-windup integral minimum
+#define INTEGRAL_WINDUP_MAX 100   // Anti-windup integral maximum
+
+// Default PID parameters (can be adjusted via Python GUI)
+#define DEFAULT_TARGET_RPM 1440.0  // Default target RPM
+#define DEFAULT_KP         0.25    // Default proportional gain - balanced for 100Hz loop
+#define DEFAULT_KI         0.015   // Default integral gain - conservative for stability
+#define DEFAULT_KD         0.003   // Default derivative gain - minimal for noise rejection
+
+// Soft-start ramping parameters
+#define SOFT_START_DURATION_MS  2000  // 2 seconds ramp up time
+#define SOFT_START_STEPS       20     // Number of ramp steps
+
+#endif // CONFIG_H
