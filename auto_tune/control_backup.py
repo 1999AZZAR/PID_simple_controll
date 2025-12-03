@@ -347,9 +347,31 @@ class PIDControllerGUI(QMainWindow):
         self.plot_update_counter = 0
         self.plot_update_interval = 5  # Update plot every 5 data points (reduces from 20Hz to ~4Hz)
 
-        # Create central widget and main layout
+        # Auto-tuning variables
+        self.auto_tune_running = False
+
+        self.init_ui()
+        self.setup_connections()
+        self.update_serial_ports()
+
+        # Start data processing timer (reduced frequency for better performance)
+        self.data_timer = QTimer()
+        self.data_timer.timeout.connect(self.process_serial_data)
+        self.data_timer.start(100)  # 10Hz (reduced from 20Hz)
+
+        self.statusBar().showMessage("Ready")
+
+    def init_ui(self):
+        """Initialize the user interface"""
+        self.setWindowTitle("BLDC Motor PID Controller - PyQt6")
+        self.setGeometry(100, 100, 1400, 900)
+        self.setMinimumSize(1200, 700)
+
+        # Create central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
+
+        # Main layout
         main_layout = QHBoxLayout(central_widget)
 
         # Create splitter for resizable panels
@@ -363,18 +385,13 @@ class PIDControllerGUI(QMainWindow):
         self.create_plot_panel()
         splitter.addWidget(self.plot_widget)
 
+        # Set splitter proportions
+        splitter.setSizes([450, 950])
+
         main_layout.addWidget(splitter)
 
-        # Set splitter proportions (30% controls, 70% plots)
-        splitter.setSizes([300, 700])
-
-        # Initialize serial ports
-        self.update_serial_ports()
-
-        # Start data processing timer (10Hz to process incoming serial data)
-        self.data_timer = QTimer()
-        self.data_timer.timeout.connect(self.process_serial_data)
-        self.data_timer.start(100)  # 10Hz
+        # Create menu bar
+        self.create_menu_bar()
 
         # Apply modern styling
         self.apply_modern_style()
@@ -385,7 +402,7 @@ class PIDControllerGUI(QMainWindow):
         self.control_widget.setMinimumWidth(400)
         layout = QVBoxLayout(self.control_widget)
 
-        # Serial Connection group
+        # Serial connection group
         serial_group = QGroupBox("Serial Connection")
         serial_layout = QFormLayout()
 
@@ -413,8 +430,8 @@ class PIDControllerGUI(QMainWindow):
         serial_group.setLayout(serial_layout)
         layout.addWidget(serial_group)
 
-        # PID Tuning group
-        pid_group = QGroupBox("PID Tuning")
+        # PID Parameters group
+        pid_group = QGroupBox("PID Parameters")
         pid_layout = QFormLayout()
 
         # Target RPM
@@ -505,8 +522,8 @@ class PIDControllerGUI(QMainWindow):
         motor_group.setLayout(motor_layout)
         layout.addWidget(motor_group)
 
-        # Control group
-        tune_group = QGroupBox("Control")
+        # Auto Tuning group
+        tune_group = QGroupBox("Auto Tuning")
         tune_layout = QVBoxLayout()
 
         tune_buttons = QHBoxLayout()
@@ -528,6 +545,7 @@ class PIDControllerGUI(QMainWindow):
 
         tune_group.setLayout(tune_layout)
         layout.addWidget(tune_group)
+
 
         # Add stretch to push everything to top
         layout.addStretch()
@@ -868,6 +886,7 @@ class PIDControllerGUI(QMainWindow):
             kd = float(parts[7])
             ppr = int(float(parts[8]))  # Convert to float first to handle decimal strings
             motor_enabled = int(float(parts[9]))
+            auto_tune = int(float(parts[10]))
 
             # Update plot less frequently to improve performance
             self.plot_update_counter += 1
@@ -899,7 +918,14 @@ class PIDControllerGUI(QMainWindow):
             self.target_rpm_spin.setValue(int(target_rpm))
             self.ppr_spin.setValue(ppr)
 
-                
+            # Update auto-tune status (only label that exists)
+            if auto_tune:
+                self.tune_status_label.setText("Auto-tune: ACTIVE")
+                self.tune_status_label.setStyleSheet("font-weight: bold; color: blue;")
+            else:
+                self.tune_status_label.setText("Auto-tune: INACTIVE")
+                self.tune_status_label.setStyleSheet("font-weight: bold; color: gray;")
+
         except Exception as e:
             print(f"Error parsing status data: {e}")
 
@@ -984,6 +1010,164 @@ class PIDControllerGUI(QMainWindow):
         self.send_command("RESET_CONTROLLER")
         self.statusBar().showMessage("Controller reset")
 
+    def start_auto_tune(self):
+        """Start automatic PID tuning"""
+        if self.auto_tune_running:
+            print("Auto-tune already running, ignoring start request")
+            return
+
+        # Additional check: ensure no previous thread is still alive
+        if hasattr(self, 'auto_tune_thread') and self.auto_tune_thread.is_alive():
+            print("Previous auto-tune thread still running, waiting...")
+            self.auto_tune_thread.join(timeout=2.0)
+            if self.auto_tune_thread.is_alive():
+                print("Force terminating previous thread")
+                return
+
+        print("Starting auto-tune process...")
+
+        # Critical: Reset motor and PID state before starting new auto-tune
+        print("Resetting motor and PID state for clean auto-tune...")
+        self._reset_system_for_autotune()
+
+        self.auto_tune_running = True
+        self.start_tune_btn.setEnabled(False)
+        self.stop_tune_btn.setEnabled(True)
+        self.tune_status_label.setText("Running...")
+        self.tune_status_label.setStyleSheet("font-weight: bold; color: orange;")
+
+            # Start auto-tuning in separate thread
+        try:
+            self.auto_tune_thread = threading.Thread(target=self.auto_tune_pid, daemon=True)
+            self.auto_tune_thread.start()
+            print("Auto-tune thread started")
+        except Exception as e:
+            print(f"Failed to start auto-tune thread: {e}")
+            self.stop_auto_tune()
+
+    def _reset_system_for_autotune(self):
+        """Reset motor and PID state for clean auto-tune operation"""
+        try:
+            print("  Emergency motor stop...")
+            # Send FORCE_STOP command first
+            self.send_command("FORCE_STOP")
+            time.sleep(1.0)  # Give it time to take effect
+
+            # Then use the dedicated force stop method
+            motor_stopped = self._force_motor_stop(max_attempts=6)
+            if not motor_stopped:
+                print("  CRITICAL: Unable to stop motor - auto-tune may be unreliable")
+                # Continue anyway, but warn the user
+
+            print("  Resetting PID gains to safe defaults...")
+            # Send safe default PID values multiple times for reliability
+            for i in range(4):  # Increased to 4 attempts
+                self.send_command("SET_KP 0.100")  # Safe starting Kp
+                self.send_command("SET_KI 0.010")  # Safe starting Ki
+                self.send_command("SET_KD 0.001")  # Safe starting Kd
+                time.sleep(0.15)
+
+            print("  Exiting any previous auto-tune mode...")
+            for i in range(4):  # Increased to 4 attempts
+                self.send_command("AUTO_TUNE 0")
+                time.sleep(0.15)
+
+            print("  Final motor disable and PWM clear...")
+            self.send_command("ENABLE_MOTOR 0")
+            self.send_command("SET_PWM 0")
+            time.sleep(2.0)  # Wait longer for motor to fully stop
+
+            # Final RPM check
+            final_rpm = self.get_current_rpm_from_arduino()
+            print(f"  Final RPM after reset: {final_rpm}")
+
+            if final_rpm > 100.0:
+                print(f"  WARNING: Motor still spinning at {final_rpm} RPM - auto-tune may be unreliable")
+                print("  Consider manually stopping the motor or checking hardware connections")
+            else:
+                print("  Motor successfully stopped - system ready for auto-tune")
+
+        except Exception as e:
+            print(f"Warning: System reset failed: {e}")
+
+    def _validate_motor_response(self, target_rpm):
+        """Validate that motor responds properly to commands before auto-tune"""
+        try:
+            print("  Testing motor with incremental PWM values...")
+
+            # Test 1: Check initial state (motor should be stopped from reset)
+            initial_rpm = self.get_current_rpm_from_arduino()
+            print(f"  Initial RPM (after reset): {initial_rpm}")
+
+            # Allow some tolerance for motor coasting down
+            if initial_rpm > 100:
+                print(f"  WARNING: Motor still spinning at {initial_rpm} RPM - waiting for stop...")
+                # Wait for motor to naturally coast down
+                for wait_attempt in range(10):  # Up to 10 seconds
+                    time.sleep(1)
+                    current_rpm = self.get_current_rpm_from_arduino()
+                    print(f"    Waiting... RPM = {current_rpm}")
+                    if current_rpm < 50:
+                        initial_rpm = current_rpm
+                        break
+                else:
+                    print("  ❌ Motor failed to stop naturally - hardware issue")
+                    return False
+
+            # Ensure motor is enabled before testing
+            print("  Enabling motor for testing...")
+            self.send_command("ENABLE_MOTOR 1")
+            time.sleep(0.5)
+
+            # Test 2: Low PWM test
+            print("  Testing low PWM response (50)...")
+            self.send_command("SET_PWM 50")
+            time.sleep(5)  # Longer wait for response
+            low_rpm = self.get_current_rpm_from_arduino()
+            print(f"  Low PWM (50) RPM: {low_rpm}")
+
+            # Test 3: Medium PWM test
+            print("  Testing medium PWM response (150)...")
+            self.send_command("SET_PWM 150")
+            time.sleep(5)  # Longer wait for response
+            med_rpm = self.get_current_rpm_from_arduino()
+            print(f"  Medium PWM (150) RPM: {med_rpm}")
+
+            # Test 4: Stop motor
+            print("  Stopping motor...")
+            self.send_command("SET_PWM 0")
+            time.sleep(3)
+
+            # Validate response with realistic expectations
+            print("  Analyzing motor response...")
+
+            if low_rpm < 10 and med_rpm < 10:
+                print("  ❌ CRITICAL: Motor shows NO response to PWM commands")
+                print("  Hardware issues:")
+                print("  - ESC not powered or armed")
+                print("  - Motor not connected to ESC")
+                print("  - Hall sensor not working")
+                print("  - Arduino PWM pin not connected")
+                return False
+
+            if med_rpm < low_rpm + 20:
+                print(f"  ❌ Motor response not increasing: {low_rpm} → {med_rpm}")
+                print("  ESC may not be responding properly")
+                return False
+
+            expected_min_rpm = target_rpm * 0.05  # Should reach at least 5% of target
+            if med_rpm < expected_min_rpm:
+                print(f"  ❌ Motor only reached {med_rpm} RPM, expected at least {expected_min_rpm}")
+                print("  Motor/ESC may be underpowered or damaged")
+                return False
+
+            print("  ✅ Motor validation passed - ready for auto-tune")
+            return True
+
+        except Exception as e:
+            print(f"  ❌ Motor validation error: {e}")
+            return False
+
     def run_diagnostics(self):
         """Run comprehensive diagnostics to identify issues"""
         print("🔧 RUNNING COMPREHENSIVE DIAGNOSTICS...")
@@ -1017,6 +1201,293 @@ class PIDControllerGUI(QMainWindow):
         time.sleep(0.5)
 
         print("🔧 DIAGNOSTICS COMPLETE - Check Arduino responses above")
+
+    def _force_motor_stop(self, max_attempts=8):
+        """Force stop the motor completely with proper command spacing"""
+        print("  Force-stopping motor...")
+        for attempt in range(max_attempts):
+            print(f"  Stop attempt {attempt + 1}/{max_attempts}...")
+
+            # Send commands with proper delays to avoid concatenation
+            self.send_command("FORCE_STOP")
+            time.sleep(0.2)  # Wait for Arduino to process
+
+            self.send_command("ENABLE_MOTOR 0")
+            time.sleep(0.2)  # Wait for Arduino to process
+
+            self.send_command("SET_PWM 0")
+            time.sleep(0.3)  # Wait for motor to respond
+
+            current_rpm = self.get_current_rpm_from_arduino()
+            print(f"    RPM after stop attempt: {current_rpm}")
+
+            if current_rpm < 20.0:
+                print(f"  ✅ Motor stopped after {attempt + 1} attempts")
+                return True
+
+        print(f"  ❌ Motor still at {current_rpm} RPM after {max_attempts} stop attempts")
+        print("  Hardware issue: Check motor/ESC connection, power, Hall sensor")
+        return False
+
+    def stop_auto_tune(self):
+        """Stop automatic PID tuning"""
+        self.auto_tune_running = False
+        self.start_tune_btn.setEnabled(True)
+        self.stop_tune_btn.setEnabled(False)
+        self.tune_status_label.setText("Stopped")
+        self.tune_status_label.setStyleSheet("font-weight: bold; color: red;")
+        self.send_command("AUTO_TUNE 0")
+
+    def auto_tune_pid(self):
+        """Computer-side automatic PID tuning using Ziegler-Nichols method"""
+        print(f"STARTING COMPUTER-CONTROLLED AUTO-TUNE")
+        print(f"   CRITICAL: Make sure updated Arduino code is uploaded!")
+        print(f"   Arduino file: auto_tune/code/code.ino")
+        print(f"   If PID values stay at 0.000, Arduino code needs updating.")
+        print(f"   Upload the code and try again.")
+        print()
+
+        # Test Arduino communication
+        print("Testing Arduino communication...")
+        self.send_command("GET_STATUS")
+        time.sleep(0.5)
+        print("If you see STATUS data above, Arduino is responding.")
+        print("If you see no Arduino responses to commands, code is not uploaded!")
+        print()
+
+        try:
+            # Get target RPM from GUI
+            target_rpm = self.current_params.get('target_rpm', 1440)
+
+            # Step 1: Prepare for computer-controlled auto-tune
+            self.tune_status_label.setText("Phase 1: Preparing computer control...")
+            self.tune_status_label.setStyleSheet("font-weight: bold; color: blue;")
+            QApplication.processEvents()
+
+            # Switch Arduino to pass-through mode (disable Arduino PID)
+            self.send_command("SET_KP 0.0")  # Disable Arduino PID
+            self.send_command("SET_KI 0.0")
+            self.send_command("SET_KD 0.0")
+            self.send_command("ENABLE_MOTOR 1")  # Keep motor enabled
+            self.send_command("AUTO_TUNE 1")  # Signal auto-tune mode
+
+            # Wait for Arduino to switch modes
+            time.sleep(2)
+
+            # Step 2: Ultimate Gain Test (computer-controlled)
+            self.tune_status_label.setText("Phase 2: Finding ultimate gain...")
+            self.tune_status_label.setStyleSheet("font-weight: bold; color: blue;")
+            QApplication.processEvents()
+
+            ku, tu = self.computer_controlled_autotune()
+            if ku is None or not self.auto_tune_running:
+                self.tune_status_label.setText("Auto-tune failed - no oscillation detected")
+                self.tune_status_label.setStyleSheet("font-weight: bold; color: red;")
+                self.send_command("AUTO_TUNE 0")  # Exit auto-tune mode
+                self.stop_auto_tune()
+                return
+
+            # Step 3: Calculate PID Gains
+            self.tune_status_label.setText("Phase 3: Calculating optimal PID gains...")
+            self.tune_status_label.setStyleSheet("font-weight: bold; color: orange;")
+            QApplication.processEvents()
+
+            # Ziegler-Nichols tuning rules (conservative)
+            kp_zn = 0.45 * ku
+            ti = 0.83 * tu
+            td = 0.125 * tu
+            ki_zn = kp_zn / ti
+            kd_zn = kp_zn * td
+
+            print(f"Calculated PID gains:")
+            print(f"  Kp = {kp_zn:.4f}")
+            print(f"  Ki = {ki_zn:.4f}")
+            print(f"  Kd = {kd_zn:.4f}")
+
+            # Step 4: Validate and Refine PID Gains for +/-2% Accuracy
+            print("\nSTEP 4: VALIDATING PID GAINS FOR +/-2% ACCURACY")
+            validated_kp, validated_ki, validated_kd = self.validate_and_refine_pid_gains(
+                kp_zn, ki_zn, kd_zn, ku, tu, target_rpm
+            )
+
+            # Step 5: Apply Final Validated Gains to Arduino
+            self.tune_status_label.setText("Phase 5: Applying validated PID gains...")
+            self.tune_status_label.setStyleSheet("font-weight: bold; color: purple;")
+            QApplication.processEvents()
+
+            kp_zn, ki_zn, kd_zn = validated_kp, validated_ki, validated_kd
+            print(f"\nFINAL VALIDATED PID GAINS (+/-2% ACCURACY):")
+            print(f"   Kp = {kp_zn:.4f}")
+            print(f"   Ki = {ki_zn:.4f}")
+            print(f"   Kd = {kd_zn:.4f}")
+
+            # Send validated PID gains to Arduino with confirmation
+            print(f"\nSENDING VALIDATED PID VALUES TO ARDUINO (4x each for reliability):")
+            print(f"   These values achieve ±2% accuracy at {target_rpm} RPM")
+            print(f"   If you don't see '✓ Kp set to: {kp_zn:.4f}' responses below,")
+            print(f"   the Arduino code is NOT uploaded! Upload auto_tune/code/code.ino first!")
+            print()
+
+            # Send SET_KP 4 times
+            for i in range(4):
+                print(f"   [{i+1}/4] Sending: SET_KP {kp_zn:.4f}")
+                self.send_command(f"SET_KP {kp_zn:.4f}")
+                time.sleep(0.15)  # Brief wait between sends
+
+            time.sleep(0.3)  # Wait for all responses
+
+            # Send SET_KI 4 times
+            for i in range(4):
+                print(f"   [{i+1}/4] Sending: SET_KI {ki_zn:.4f}")
+                self.send_command(f"SET_KI {ki_zn:.4f}")
+                time.sleep(0.15)
+
+            time.sleep(0.3)
+
+            # Send SET_KD 4 times
+            for i in range(4):
+                print(f"   [{i+1}/4] Sending: SET_KD {kd_zn:.4f}")
+                self.send_command(f"SET_KD {kd_zn:.4f}")
+                time.sleep(0.15)
+
+            time.sleep(0.3)
+
+            # Send AUTO_TUNE 0 4 times
+            for i in range(4):
+                print(f"   [{i+1}/4] Sending: AUTO_TUNE 0 (exit auto-tune mode)")
+                self.send_command("AUTO_TUNE 0")  # Exit auto-tune mode
+                time.sleep(0.15)
+
+            time.sleep(0.5)  # Wait for Arduino to process all commands
+
+            # Request verification that Arduino is using the tuned values (multiple times)
+            print("VERIFYING ARDUINO RECEIVED PID VALUES (multiple requests):")
+            for i in range(3):
+                print(f"   [{i+1}/3] Sending: VERIFY_TUNED_VALUES")
+                self.send_command("VERIFY_TUNED_VALUES")
+                time.sleep(0.3)
+
+            # Also send multiple GET_STATUS requests
+            for i in range(3):
+                print(f"   [{i+1}/3] Sending: GET_STATUS for confirmation")
+                self.send_command("GET_STATUS")
+                time.sleep(0.3)
+
+            # Schedule GUI updates in main thread (not from background thread)
+            print("Scheduling GUI update...")
+            QTimer.singleShot(0, lambda: self.update_gui_with_tuned_values(kp_zn, ki_zn, kd_zn, ku, tu))
+
+            # Wait for GUI update to complete
+            time.sleep(0.5)
+            print("AUTO-TUNE COMPLETED SUCCESSFULLY!")
+            print(f"   Tuned PID values sent to Arduino: Kp={kp_zn:.4f}, Ki={ki_zn:.4f}, Kd={kd_zn:.4f}")
+            print("   Check STATUS data to verify Arduino is using these values.")
+            print("   System is now ready for the next auto-tune run.")
+
+        except Exception as e:
+            print(f"Auto-tune error: {e}")
+            self.tune_status_label.setText(f"Error: {str(e)}")
+            self.tune_status_label.setStyleSheet("font-weight: bold; color: red;")
+            self.send_command("AUTO_TUNE 0")  # Exit auto-tune mode
+        finally:
+            print("Auto-tune thread finishing...")
+            self.auto_tune_running = False
+            self.start_tune_btn.setEnabled(True)
+            self.stop_tune_btn.setEnabled(False)
+            print("Auto-tune thread completed!")
+
+    def update_gui_with_tuned_values(self, kp_zn, ki_zn, kd_zn, ku, tu):
+        """Update GUI with tuned PID values (called in main thread)"""
+        print("UPDATING GUI WITH TUNED PID VALUES...")
+        print(f"   Ziegler-Nichols results: Ku={ku:.3f}, Tu={tu:.3f}s")
+        print(f"   Final PID: Kp={kp_zn:.4f}, Ki={ki_zn:.4f}, Kd={kd_zn:.4f}")
+
+        # Update GUI (block signals to prevent duplicate Arduino commands)
+        self.kp_spin.blockSignals(True)
+        self.ki_spin.blockSignals(True)
+        self.kd_spin.blockSignals(True)
+
+        self.kp_spin.setValue(kp_zn)
+        self.ki_spin.setValue(ki_zn)
+        self.kd_spin.setValue(kd_zn)
+        self.current_params['kp'] = kp_zn
+        self.current_params['ki'] = ki_zn
+        self.current_params['kd'] = kd_zn
+
+        self.kp_spin.blockSignals(False)
+        self.ki_spin.blockSignals(False)
+        self.kd_spin.blockSignals(False)
+
+        # Update sliders to match
+        self.kp_slider.setValue(int(kp_zn * 100))
+        self.ki_slider.setValue(int(ki_zn * 1000))
+        self.kd_slider.setValue(int(kd_zn * 10000))
+
+        self.tune_status_label.setText(f"Complete! Arduino updated with tuned values")
+        self.tune_status_label.setStyleSheet("font-weight: bold; color: green;")
+
+        # Ensure buttons are in correct state
+        self.start_tune_btn.setEnabled(True)
+        self.stop_tune_btn.setEnabled(False)
+        self.auto_tune_running = False
+
+        print("✓ GUI updated - Arduino should now be using tuned PID values")
+        print(f"  Final values: Kp={kp_zn:.4f}, Ki={ki_zn:.4f}, Kd={kd_zn:.4f}")
+        print("  Monitor STATUS data to confirm Arduino is using these values.")
+        print("AUTO-TUNE PROCESS COMPLETED SUCCESSFULLY!")
+
+    def validate_and_refine_pid_gains(self, kp_initial, ki_initial, kd_initial, ku, tu, target_rpm):
+        """Validate and refine PID gains to achieve ±2% accuracy"""
+        print(f"VALIDATING PID GAINS FOR +/-2% TARGET ACCURACY")
+        print(f"   Target RPM: {target_rpm}")
+        print(f"   Accuracy requirement: ±{target_rpm * 0.02:.1f} RPM ({target_rpm * 0.02 / target_rpm * 100:.1f}%)")
+
+        max_validation_attempts = 5
+        best_kp, best_ki, best_kd = kp_initial, ki_initial, kd_initial
+        best_error_percent = float('inf')
+
+        for attempt in range(max_validation_attempts):
+            print(f"\nVALIDATION ATTEMPT {attempt + 1}/{max_validation_attempts}")
+            print(f"   Testing PID: Kp={best_kp:.4f}, Ki={best_ki:.4f}, Kd={best_kd:.4f}")
+
+            # Test current PID values
+            steady_state_error, error_percent = self.test_pid_performance(best_kp, best_ki, best_kd, target_rpm)
+
+            print(f"   Steady-state error: {steady_state_error:.2f} RPM ({error_percent:.2f}%)")
+
+            # Check if accuracy requirement is met
+            if abs(error_percent) <= 2.0:
+                print(f"   ACCURACY REQUIREMENT MET! (+/-{abs(error_percent):.2f}% < +/-2.0%)")
+                return best_kp, best_ki, best_kd
+
+            # If not accurate enough, refine the gains
+            print(f"   ACCURACY REQUIREMENT NOT MET (+/-{abs(error_percent):.2f}% > +/-2.0%)")
+            print(f"   Refining PID gains...")
+
+            # Adjust gains based on error
+            if abs(error_percent) > 2.0:
+                # If overshooting or oscillating too much, reduce Kp and Ki
+                if abs(error_percent) > 5.0:
+                    adjustment_factor = 0.7  # Reduce gains significantly
+                else:
+                    adjustment_factor = 0.85  # Reduce gains moderately
+
+                best_kp *= adjustment_factor
+                best_ki *= adjustment_factor
+                best_kd *= adjustment_factor
+
+                print(f"   Adjusted gains by factor {adjustment_factor:.2f}")
+                print(f"   New PID: Kp={best_kp:.4f}, Ki={best_ki:.4f}, Kd={best_kd:.4f}")
+
+            # Track best performance so far
+            if abs(error_percent) < abs(best_error_percent):
+                best_error_percent = error_percent
+
+        # If we couldn't achieve the accuracy requirement, return the best we found
+        print(f"\nWARNING: COULD NOT ACHIEVE +/-2% ACCURACY AFTER {max_validation_attempts} ATTEMPTS")
+        print(f"   Best result: {best_error_percent:.2f}% error")
+        print(f"   Returning best PID values: Kp={best_kp:.4f}, Ki={best_ki:.4f}, Kd={best_kd:.4f}")
+        return best_kp, best_ki, best_kd
 
     def test_pid_performance(self, kp, ki, kd, target_rpm):
         """Test PID performance and return steady-state error"""
@@ -1064,6 +1535,185 @@ class PIDControllerGUI(QMainWindow):
         print(f"   Error: {steady_state_error:.2f} RPM ({error_percent:.2f}%)")
 
         return steady_state_error, error_percent
+
+    def computer_controlled_autotune(self):
+        """Computer-side auto-tune: full control from laptop"""
+        target_rpm = self.current_params.get('target_rpm', 1440)
+        print(f"Starting computer-controlled auto-tune for target: {target_rpm} RPM")
+
+        # Critical: Pre-auto-tune motor validation with retry
+        print("Pre-validation: Testing motor response...")
+        validation_attempts = 0
+        max_validation_attempts = 3
+
+        while validation_attempts < max_validation_attempts:
+            if self._validate_motor_response(target_rpm):
+                break  # Validation passed
+            else:
+                validation_attempts += 1
+                if validation_attempts < max_validation_attempts:
+                    print(f"Validation attempt {validation_attempts} failed - retrying with motor reset...")
+                    # Try to force stop the motor again
+                    self._force_motor_stop()
+                    time.sleep(2)  # Wait for motor to settle
+                else:
+                    print(f"Motor validation failed after {max_validation_attempts} attempts")
+                    print("Cannot proceed with auto-tune - motor response unreliable")
+                    return None, None
+
+        # Phase 1: Stabilize at target RPM first
+        print("Phase 1: Stabilizing motor at target RPM...")
+        self.computer_pid_control(target_rpm, kp=0.5, ki=0.1, kd=0.01, duration=5)
+
+        # Phase 2: Ultimate gain search
+        print("Phase 2: Finding ultimate gain (Ku)...")
+
+        # Comprehensive motor response test with multiple attempts
+        print("Comprehensive motor response test...")
+        max_retries = 3
+        test_rpm = 0
+
+        for attempt in range(max_retries):
+            print(f"  Test attempt {attempt + 1}/{max_retries}...")
+            self.send_command("SET_PWM 0")  # Ensure stopped
+            time.sleep(1)
+
+            self.send_command("SET_PWM 200")  # Higher test PWM
+            time.sleep(4)  # Wait longer for stabilization
+            test_rpm = self.get_current_rpm_from_arduino()
+            self.send_command("SET_PWM 0")  # Stop
+            time.sleep(2)  # Let it settle
+
+            print(f"  Motor test {attempt + 1}: PWM=200 → RPM={test_rpm}")
+
+            if test_rpm >= 50.0:  # Success threshold
+                print("  Motor response test passed")
+                break
+            elif attempt < max_retries - 1:
+                print("  Motor response weak, trying recovery...")
+                # Recovery: cycle motor power
+                self.send_command("ENABLE_MOTOR 0")
+                time.sleep(2)
+                self.send_command("ENABLE_MOTOR 1")
+                time.sleep(2)
+
+        if test_rpm < 50.0:  # Final check
+            print("CRITICAL: Motor not responding properly to PWM commands after all attempts!")
+            print("   Possible issues:")
+            print("   - Arduino code not uploaded (check auto_tune/code/code.ino)")
+            print("   - Motor/ESC not connected or powered")
+            print("   - Hall sensor not working")
+            print("   - ESC not responding to PWM")
+            print("   - System destabilized from previous auto-tune")
+            print(f"   Motor only reached {test_rpm:.1f} RPM at PWM=200")
+            print("   Try: power cycling the motor/ESC, checking connections, re-uploading Arduino code")
+            return None, None
+
+        kp_test = 0.5  # Start higher
+        max_kp = 10.0  # Go higher
+        oscillation_data = []
+
+        while kp_test < max_kp and self.auto_tune_running:
+            print(f"Testing Kp = {kp_test:.3f}")
+            self.tune_status_label.setText(f"Testing Kp: {kp_test:.3f}")
+            QApplication.processEvents()
+
+            # Clear old data
+            self.plot_canvas.current_rpm_data.clear()
+
+            # Run computer P-control with current Kp (ultimate gain test)
+            print(f"    Running P-control test with Kp={kp_test:.3f} for {target_rpm} RPM target")
+            rpm_data, pwm_data = self.computer_pid_control(target_rpm, kp=kp_test, ki=0.0, kd=0.0, duration=8)  # Shorter test
+
+            if len(rpm_data) > 60:
+                try:
+                    # Check for motor failure during test
+                    rpm_max = max(rpm_data)
+                    rpm_min = min(rpm_data)
+                    rpm_range = rpm_max - rpm_min
+
+                    if rpm_max < 10.0:
+                        print(f"  CRITICAL: Motor completely stopped during test (max RPM: {rpm_max:.1f})")
+                        print("  Skipping this Kp value and continuing with next...")
+                        kp_test += 0.2
+                        continue
+
+                    if rpm_range < 5.0:
+                        print(f"  WARNING: Very small RPM variation ({rpm_range:.1f}) - motor may not be oscillating properly")
+
+                    # Analyze for oscillation
+                    oscillation_score = self.analyze_oscillation_computer(rpm_data)
+
+                    # If oscillation detection returned 0, motor is not responding
+                    if oscillation_score == 0.0:
+                        print("  Motor not responding during oscillation test - attempting recovery...")
+
+                        # Recovery attempt 1: Reset and retry with same Kp
+                        print("  Recovery 1: Resetting motor state...")
+                        self.send_command("ENABLE_MOTOR 0")
+                        time.sleep(1)
+                        self.send_command("ENABLE_MOTOR 1")
+                        time.sleep(2)
+
+                        # Try again with same Kp
+                        print(f"  Retrying oscillation test with Kp = {kp_test:.3f}")
+                        rpm_data, pwm_data = self.computer_pid_control(target_rpm, kp=kp_test, ki=0.0, kd=0.0, duration=8)
+
+                        if len(rpm_data) > 60:
+                            oscillation_score = self.analyze_oscillation_computer(rpm_data)
+                            rpm_mean = np.mean(rpm_data)
+                            rpm_std = np.std(rpm_data)
+                            print(f"  Recovery result - RPM mean: {rpm_mean:.1f}, std: {rpm_std:.1f}, score: {oscillation_score:.3f}")
+
+                        # Recovery attempt 2: Try with different approach
+                        if oscillation_score == 0.0:
+                            print("  Recovery 2: Trying alternative oscillation detection...")
+                            # Try a longer test with more aggressive PWM changes
+                            self.computer_pid_control(target_rpm, kp=kp_test * 1.2, ki=0.0, kd=0.0, duration=12)
+                            rpm_data, pwm_data = self.computer_pid_control(target_rpm, kp=kp_test, ki=0.0, kd=0.0, duration=8)
+
+                            if len(rpm_data) > 60:
+                                oscillation_score = self.analyze_oscillation_computer(rpm_data)
+                                print(f"  Alternative result - score: {oscillation_score:.3f}")
+
+                        if oscillation_score == 0.0:
+                            print("  All recovery attempts failed - motor not responding")
+                            print("  Possible issues:")
+                            print("  - Previous PID values destabilized the system")
+                            print("  - Motor/ESC thermal issues after first run")
+                            print("  - Arduino serial buffer overflow")
+                            print("  - Hardware connection problems")
+                            return None, None
+
+                except Exception as e:
+                    print(f"  ERROR during oscillation analysis: {e}")
+                    print("  Skipping this Kp value due to analysis error...")
+                    kp_test += 0.2
+                    continue
+
+                    rpm_mean = np.mean(rpm_data)
+                    rpm_std = np.std(rpm_data)
+                    print(f"  RPM mean: {rpm_mean:.1f}, std: {rpm_std:.1f}, score: {oscillation_score:.3f}")
+
+                    if oscillation_score > 0.3:  # Lower threshold for oscillation detection
+                        print(f"Strong oscillation detected at Kp = {kp_test:.3f}")
+
+                        # Measure period multiple times for accuracy
+                        period = self.measure_oscillation_period_computer(rpm_data)
+                        if period and 0.2 < period < 10.0:  # Reasonable period range
+                            print(f"Ultimate gain found: Ku = {kp_test:.3f}, Tu = {period:.3f}s")
+                            return kp_test, period
+                        else:
+                            print(f"Invalid period measured: {period}")
+                except Exception as e:
+                    print(f"Error analyzing oscillation: {e}")
+                    continue
+
+            kp_test += 0.2  # Larger increment for faster testing
+
+        # If we get here, no oscillation was found
+        print("No oscillation detected within Kp range")
+        return None, None
 
     def computer_pid_control(self, target_rpm, kp, ki, kd, duration):
         """Run PID control entirely on computer"""

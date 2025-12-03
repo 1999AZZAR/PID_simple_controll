@@ -61,7 +61,6 @@ unsigned long lastSerialSend = 0;
 
 // Control state
 bool motorEnabled = false; // Start disabled for safety
-bool autoTuneMode = false;
 
 // Soft-start ramping to avoid current surges
 unsigned long softStartStartTime = 0;
@@ -82,7 +81,8 @@ void setup() {
     inputString.reserve(200);
 
     // Configure pins
-    pinMode(RPM_SENSOR_PIN, INPUT_PULLUP);
+    pinMode(RPM_SENSOR_PIN, INPUT_PULLUPwindow.loadPackages not available quick-purchase:1:83
+    );
     pinMode(PWM_OUTPUT_PIN, OUTPUT);
 
     // Attach interrupt for BLDC Hall sensor
@@ -168,19 +168,10 @@ void loop() {
         static unsigned long lastDebug = 0;
         if (millis() - lastDebug > 500) {
             Serial.print(F("DEBUG: Mode="));
-            Serial.print(autoTuneMode ? F("AUTO") : F("NORMAL"));
             Serial.print(F(", Target="));
             Serial.print(targetRPM);
             Serial.print(F(", Current="));
             Serial.print(currentRPM);
-            if (!autoTuneMode) {
-                Serial.print(F(", Error="));
-                Serial.print(error);
-                Serial.print(F(", Kp="));
-                Serial.print(kp);
-                Serial.print(F(", PID="));
-                Serial.print(pidOutput);
-            }
             Serial.print(F(", PWM="));
             Serial.println(pwmValue);
             lastDebug = millis();
@@ -363,16 +354,11 @@ void processSerialCommand(String command) {
             integral = 0; // Reset integral when disabling
             previousError = 0; // Reset derivative term
             // Also reset any auto-tune specific variables
-            if (autoTuneMode) {
-                autoTuneMode = false;
-                Serial.println(F("Auto-tune mode disabled due to motor disable"));
             }
-        }
 
     } else if (command == "FORCE_STOP") {
         // Emergency stop - force motor to stop completely
         motorEnabled = false;
-        autoTuneMode = false;
         analogWrite(PWM_OUTPUT_PIN, 0);
         pidOutput = 0;
         integral = 0;
@@ -418,7 +404,6 @@ void processSerialCommand(String command) {
         Serial.print(F("Current Kd: "));
         Serial.println(kd, 4);
         Serial.print(F("Auto-tune mode: "));
-        Serial.println(autoTuneMode ? F("ENABLED") : F("DISABLED"));
         Serial.println(F("===================================="));
 
     } else if (command == "DIAGNOSTICS") {
@@ -426,7 +411,6 @@ void processSerialCommand(String command) {
         Serial.print(F("Motor Enabled: "));
         Serial.println(motorEnabled ? F("YES") : F("NO"));
         Serial.print(F("Auto-tune Mode: "));
-        Serial.println(autoTuneMode ? F("YES") : F("NO"));
         Serial.print(F("Current RPM: "));
         Serial.println(currentRPM, 1);
         Serial.print(F("Target RPM: "));
@@ -443,7 +427,6 @@ void processSerialCommand(String command) {
         sendStatusData();
 
     } else if (command == "FORCE_STATUS") {
-        // Send STATUS data without buffer check (for debugging)
         Serial.print(F("STATUS:"));
         Serial.print(millis());
         Serial.print(F(","));
@@ -463,9 +446,7 @@ void processSerialCommand(String command) {
         Serial.print(F(","));
         Serial.print(pulsesPerRev);
         Serial.print(F(","));
-        Serial.print(motorEnabled ? 1 : 0);
-        Serial.print(F(","));
-        Serial.println(autoTuneMode ? 1 : 0);
+        Serial.println(motorEnabled ? 1 : 0);
 
     } else if (command == "RESET_CONTROLLER") {
         // Reset all control variables
@@ -484,17 +465,16 @@ void processSerialCommand(String command) {
 
 // Send status data to Python GUI
 void sendStatusData() {
-    // Temporarily remove buffer check to ensure STATUS data is sent
     Serial.print(F("STATUS:"));
     Serial.print(millis());
     Serial.print(F(","));
-    Serial.print(targetRPM, 0);  // Integer precision for target RPM
+    Serial.print(targetRPM, 0);
     Serial.print(F(","));
-    Serial.print(currentRPM, 1);  // 1 decimal place for current RPM
+    Serial.print(currentRPM, 1);
     Serial.print(F(","));
-    Serial.print(targetRPM - currentRPM, 1);  // 1 decimal place for error
+    Serial.print(targetRPM - currentRPM, 1);
     Serial.print(F(","));
-    Serial.print(pidOutput, 1);  // 1 decimal place for PID output
+    Serial.print(pidOutput, 1);
     Serial.print(F(","));
     Serial.print(kp, 4);
     Serial.print(F(","));
@@ -504,8 +484,6 @@ void sendStatusData() {
     Serial.print(F(","));
     Serial.print(pulsesPerRev);
     Serial.print(F(","));
-    Serial.print(motorEnabled ? 1 : 0);
-    Serial.print(F(","));
-    Serial.println(autoTuneMode ? 1 : 0);
+    Serial.println(motorEnabled ? 1 : 0);
 }
 

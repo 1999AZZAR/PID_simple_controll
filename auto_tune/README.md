@@ -1,6 +1,6 @@
 # Arduino Uno BLDC PID Controller - Python Configurable Version
 
-**Advanced PID controller** for BLDC motors with Python GUI configuration, auto-tuning, and real-time monitoring.
+**Advanced PID controller** for BLDC motors with Python GUI configuration and real-time monitoring.
 
 ## Table of Contents
 
@@ -12,14 +12,13 @@
 - [Hardware Setup](#hardware-setup)
 - [Software Setup](#software-setup)
 - [Usage](#usage)
-- [Auto PID Tuning](#auto-pid-tuning)
 - [Serial Communication Protocol](#serial-communication-protocol)
 - [Troubleshooting](#troubleshooting)
 - [Performance Notes](#performance-notes)
 
 ## Overview
 
-This advanced version of the Arduino Uno BLDC PID controller replaces potentiometer-based tuning with a comprehensive Python GUI. The system provides real-time parameter adjustment, live performance monitoring, and automatic PID tuning using the Ziegler-Nichols method.
+This advanced version of the Arduino Uno BLDC PID controller replaces potentiometer-based tuning with a comprehensive Python GUI. The system provides real-time parameter adjustment and live performance monitoring.
 
 ![img](../assets/python_ui.png "python ui")
 
@@ -27,21 +26,19 @@ This advanced version of the Arduino Uno BLDC PID controller replaces potentiome
 
 - **No potentiometers required** - All configuration via Python GUI
 - **Real-time monitoring** - Live plotting of motor performance
-- **Auto PID tuning** - Automatic calculation of optimal PID gains
 - **Parameter persistence** - Save/load configurations to/from files
 - **Advanced visualization** - Multiple real-time graphs and data export
 
 ## Key Features
 
 - **Modern PyQt6 Interface**: Professional, responsive GUI with excellent layout management
-- **Dual Interface Options**: Choose between modern PyQt6 or legacy tkinter
 - **Real-time Parameter Adjustment**: Sliders and spinboxes for precise PID tuning
-- **Auto PID Tuning**: Ziegler-Nichols method for automatic gain calculation
 - **Live Monitoring**: Real-time plotting of motor performance with matplotlib
 - **Serial Communication**: Robust bidirectional communication with Arduino
 - **Parameter Management**: Save/load configurations to JSON files
 - **Data Export**: Export performance data to CSV for analysis
 - **Motor Control**: Enable/disable motor, reset controller functions
+- **Diagnostics**: Built-in motor and system diagnostics
 - **Professional Styling**: Modern UI with hover effects and visual feedback
 
 ## Quick Start
@@ -229,40 +226,6 @@ The GUI displays four real-time plots:
 3. **PID Output**: Controller output value
 4. **PID Gains**: Current gain values over time
 
-## Auto PID Tuning
-
-The automatic PID tuning uses the Ziegler-Nichols method:
-
-### How It Works
-
-1. **Ultimate Gain Test**: Gradually increases Kp while Ki=Kd=0
-2. **Oscillation Detection**: Monitors for sustained oscillations
-3. **Period Measurement**: Calculates oscillation period
-4. **Gain Calculation**: Applies Ziegler-Nichols tuning rules
-
-### Usage
-
-1. Ensure motor is connected and enabled
-2. Click "Start Auto Tune"
-3. Wait for the process to complete (typically 30-60 seconds)
-4. Review the calculated gains
-5. Fine-tune manually if needed
-
-### Tuning Results
-
-The algorithm provides:
-
-- **Ku**: Ultimate gain (point of instability)
-- **Tu**: Oscillation period
-- **PID Gains**: Calculated using standard Z-N rules
-
-### Safety Notes
-
-- Auto-tuning temporarily disables integral and derivative terms
-- Motor may oscillate during the ultimate gain test
-- Always supervise the tuning process
-- Verify results before deploying to production
-
 ## Serial Communication Protocol
 
 ### Commands (Python → Arduino)
@@ -274,18 +237,17 @@ SET_KD <value>              # Set derivative gain
 SET_TARGET_RPM <value>      # Set target RPM
 SET_PULSES_PER_REV <value>  # Set pulses per revolution
 ENABLE_MOTOR <0|1>          # Enable/disable motor
-AUTO_TUNE <0|1>             # Enable/disable auto-tune mode
-RESET_INTEGRAL              # Reset integral accumulator
-SAVE_PARAMETERS             # Save to EEPROM
-LOAD_PARAMETERS             # Load from EEPROM
-GET_STATUS                  # Request status update
 RESET_CONTROLLER            # Reset controller state
+GET_STATUS                  # Request status update
+FORCE_STATUS                # Force immediate status update
+DIAGNOSTICS                 # Run system diagnostics
+FORCE_STOP                  # Emergency motor stop
 ```
 
 ### Status Response (Arduino → Python)
 
 ```
-STATUS:<timestamp>,<target_rpm>,<current_rpm>,<error>,<pid_output>,<kp>,<ki>,<kd>,<ppr>,<motor_enabled>,<auto_tune>
+STATUS:<timestamp>,<target_rpm>,<current_rpm>,<error>,<pid_output>,<kp>,<ki>,<kd>,<ppr>,<motor_enabled>
 ```
 
 ### Data Format
