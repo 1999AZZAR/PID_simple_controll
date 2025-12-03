@@ -527,15 +527,6 @@ class PIDControllerGUI(QMainWindow):
         tune_layout = QVBoxLayout()
 
         tune_buttons = QHBoxLayout()
-        self.start_tune_btn = QPushButton("Start Auto Tune")
-        self.start_tune_btn.clicked.connect(self.start_auto_tune)
-        tune_buttons.addWidget(self.start_tune_btn)
-
-        self.stop_tune_btn = QPushButton("Stop Auto Tune")
-        self.stop_tune_btn.clicked.connect(self.stop_auto_tune)
-        self.stop_tune_btn.setEnabled(False)
-        tune_buttons.addWidget(self.stop_tune_btn)
-
         # Add diagnostics button
         self.diagnostics_btn = QPushButton("🔧 Diagnostics")
         self.diagnostics_btn.clicked.connect(self.run_diagnostics)
@@ -548,9 +539,9 @@ class PIDControllerGUI(QMainWindow):
 
         tune_layout.addLayout(tune_buttons)
 
-        self.tune_status_label = QLabel("Ready")
-        self.tune_status_label.setStyleSheet("font-weight: bold; color: green;")
-        tune_layout.addWidget(self.tune_status_label)
+        self.status_label = QLabel("Ready")
+        self.status_label.setStyleSheet("font-weight: bold; color: green;")
+        tune_layout.addWidget(self.status_label)
 
         tune_group.setLayout(tune_layout)
         layout.addWidget(tune_group)

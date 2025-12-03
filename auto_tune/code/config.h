@@ -13,9 +13,9 @@
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
 // RPM calculation parameters
-#define DEFAULT_PULSES_PER_REV 18   // Default number of pulses per revolution
+#define DEFAULT_PULSES_PER_REV 11   // Default number of pulses per revolution
 #define RPM_CALC_INTERVAL   25  // RPM calculation interval (25ms) - faster updates for smooth control
-#define MIN_PULSE_WIDTH_US  50  // Minimum pulse width (50μs) - reduced for better responsiveness
+#define MIN_PULSE_WIDTH_US  100  // Minimum pulse width (100μs) - reduced for better responsiveness
 
 // Serial communication parameters
 #define SERIAL_SEND_INTERVAL 100  // Send status data every 100ms (10Hz)
@@ -29,8 +29,8 @@
 // Default PID parameters (can be adjusted via Python GUI)
 #define DEFAULT_TARGET_RPM 1440.0  // Default target RPM
 #define DEFAULT_KP         0.25    // Default proportional gain - balanced for 100Hz loop
-#define DEFAULT_KI         0.015   // Default integral gain - conservative for stability
-#define DEFAULT_KD         0.003   // Default derivative gain - minimal for noise rejection
+#define DEFAULT_KI         0.020   // Default integral gain - conservative for stability
+#define DEFAULT_KD         0.001   // Default derivative gain - minimal for noise rejection
 
 // Soft-start ramping parameters
 #define SOFT_START_DURATION_MS  2000  // 2 seconds ramp up time
