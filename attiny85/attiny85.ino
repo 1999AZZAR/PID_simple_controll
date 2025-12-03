@@ -50,13 +50,13 @@ volatile unsigned long timer_us = 0;  // Microsecond counter for debounce
 volatile unsigned long lastPulseMicros = 0;
 unsigned long lastRPMCalcTime = 0;
 int currentRPM = 0;  // RPM * 10 (fixed point, e.g., 14400 = 1440.0 RPM)
-const int pulsesPerRev = PULSES_PER_REV; // Runtime variable for consistency
+const int pulsesPerRev = DEFAULT_PULSES_PER_REV; // Runtime variable for consistency
 
 // PID variables - Pre-tuned values from Arduino (scaled for integer math)
-const int targetRPM_scaled = (int)(PRODUCTION_TARGET_RPM * 10);  // Target RPM * 10
-const int kp_scaled = (int)(PRODUCTION_KP * 100);                // Kp * 100
-const int ki_scaled = (int)(PRODUCTION_KI * 100);                // Ki * 100
-const int kd_scaled = (int)(PRODUCTION_KD * 100);                // Kd * 100
+const int targetRPM_scaled = (int)(DEFAULT_TARGET_RPM * 10);  // Target RPM * 10
+const int kp_scaled = (int)(DEFAULT_KP * 100);                // Kp * 100
+const int ki_scaled = (int)(DEFAULT_KI * 100);                // Ki * 100
+const int kd_scaled = (int)(DEFAULT_KD * 100);                // Kd * 100
 int previousError_scaled = 0;  // Previous error * 10
 long integral_scaled = 0;      // Integral * 1000 (higher precision)
 int pidOutput = 0;             // Final output (-255 to 255)

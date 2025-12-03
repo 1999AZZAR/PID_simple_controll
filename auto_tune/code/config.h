@@ -28,8 +28,8 @@
 
 // Default PID parameters (can be adjusted via Python GUI)
 #define DEFAULT_TARGET_RPM 1440.0  // Default target RPM
-#define DEFAULT_KP         0.25    // Default proportional gain - balanced for 100Hz loop
-#define DEFAULT_KI         0.020   // Default integral gain - conservative for stability
+#define DEFAULT_KP         3.25    // Default proportional gain - balanced for 100Hz loop
+#define DEFAULT_KI         0.0320   // Default integral gain - conservative for stability
 #define DEFAULT_KD         0.001   // Default derivative gain - minimal for noise rejection
 
 // Soft-start ramping parameters

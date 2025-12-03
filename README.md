@@ -140,10 +140,10 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 
 ### Primary Workflow: **Compile Arduino Sketches**
 
-- **One-Click Solution**: Compiles both platforms + creates complete ZIP
-- **Generates** ready-to-flash `.hex` files
-- **Creates** `ddmmyyyy_reponame.zip` with everything included
-- **Attaches** ZIP to GitHub releases automatically
+- Compiles both platforms and creates complete ZIP package
+- Generates ready-to-flash `.hex` files
+- Creates `ddmmyyyy_reponame.zip` with all files included
+- Attaches ZIP to GitHub releases automatically
 
 ### What You Get
 
@@ -173,8 +173,8 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 
 - **Daily Releases**: Every push creates a dated release (e.g., `25112025`)
 - **Complete Packages**: Source code + compiled firmware included
-- **No Manual Work**: Fully automated CI/CD pipeline
-- **Version Control**: Date-based versioning for easy tracking
+- Automated CI/CD pipeline
+- Date-based versioning for tracking
 
 ### ZIP Contents
 

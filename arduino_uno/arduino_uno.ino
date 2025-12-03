@@ -50,13 +50,13 @@ volatile unsigned long lastPulseMicros = 0;
 // Safety features removed for simplified operation
 unsigned long lastRPMCalcTime = 0;
 float currentRPM = 0.0;
-const float targetRPM = PRODUCTION_TARGET_RPM; // Fixed target RPM for constant speed control
-int pulsesPerRev = PULSES_PER_REV; // Configurable pulses per revolution via potentiometer
+const float targetRPM = DEFAULT_TARGET_RPM; // Fixed target RPM for constant speed control
+int pulsesPerRev = DEFAULT_PULSES_PER_REV; // Configurable pulses per revolution via potentiometer
 
 // PID variables
-float kp = PRODUCTION_KP;
-float ki = PRODUCTION_KI;
-float kd = PRODUCTION_KD;
+float kp = DEFAULT_KP;
+float ki = DEFAULT_KI;
+float kd = DEFAULT_KD;
 float previousError = 0.0;
 float integral = 0.0;
 float pidOutput = 0.0;
@@ -107,7 +107,7 @@ void setup() {
     Serial.println(F("BLDC PID Controller Started"));
     Serial.println(F("Mode: Production (default)"));
     Serial.print(F("Target RPM: "));
-    Serial.println(PRODUCTION_TARGET_RPM);
+    Serial.println(DEFAULT_TARGET_RPM);
 }
 
 void loop() {
@@ -141,9 +141,9 @@ void loop() {
     } else {
         // Production mode - use hardcoded values
         // targetRPM is now fixed at 1440.0 (const)
-        kp = PRODUCTION_KP;
-        ki = PRODUCTION_KI;
-        kd = PRODUCTION_KD;
+        kp = DEFAULT_KP;
+        ki = DEFAULT_KI;
+        kd = DEFAULT_KD;
         Serial.println("Mode: Production");
     }
 

@@ -18,21 +18,24 @@
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
 // RPM calculation parameters
-#define PULSES_PER_REV      18   // Default number of pulses per revolution
+#define DEFAULT_PULSES_PER_REV 24   // Default number of pulses per revolution got from 4 cycles×6 steps=24 state changes per revolution.
 #define RPM_CALC_INTERVAL   25  // RPM calculation interval (25ms) - faster updates for smooth control
-#define MIN_PULSE_WIDTH_US  50  // Minimum pulse width (50μs) - reduced for better responsiveness
+#define MIN_PULSE_WIDTH_US  100  // Minimum pulse width (100μs) - reduced for better responsiveness
 
-// PID limits - Expanded range for higher resolution control
-#define PID_OUTPUT_MIN      -500 // Minimum PID output
-#define PID_OUTPUT_MAX      500  // Maximum PID output
-#define INTEGRAL_WINDUP_MIN -100  // Anti-windup integral minimum
-#define INTEGRAL_WINDUP_MAX 100   // Anti-windup integral maximum
+// Serial communication parameters
+#define SERIAL_SEND_INTERVAL 100  // Send status data every 100ms (10Hz)
 
-// Production mode default values - Optimized for 100Hz control loop
-#define PRODUCTION_TARGET_RPM 1440.0  // Original target RPM
-#define PRODUCTION_KP         0.25   // Proportional gain - balanced for 100Hz loop
-#define PRODUCTION_KI         0.015  // Integral gain - conservative for stability
-#define PRODUCTION_KD         0.003  // Derivative gain - minimal for noise rejection
+// PID limits - Optimized for low-speed control
+#define PID_OUTPUT_MIN      -1000 // Minimum PID output (expanded for low speeds)
+#define PID_OUTPUT_MAX      1000  // Maximum PID output (expanded for low speeds)
+#define INTEGRAL_WINDUP_MIN -200  // Anti-windup integral minimum (expanded)
+#define INTEGRAL_WINDUP_MAX 200   // Anti-windup integral maximum (expanded)
+
+// Default PID parameters (can be adjusted via Python GUI)
+#define DEFAULT_TARGET_RPM 1440.0  // Default target RPM
+#define DEFAULT_KP         3.25    // Default proportional gain - balanced for 100Hz loop
+#define DEFAULT_KI         0.0320   // Default integral gain - conservative for stability
+#define DEFAULT_KD         0.001   // Default derivative gain - minimal for noise rejection
 
 // Soft-start ramping parameters
 #define SOFT_START_DURATION_MS  2000  // 2 seconds ramp up time
