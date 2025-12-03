@@ -16,7 +16,7 @@
 
 ## Introduction
 
-This guide provides detailed step-by-step instructions for assembling and configuring a PID-controlled BLDC motor system. The controller maintains precise motor speed (1440 RPM) using feedback from the motor's built-in Hall effect sensors.
+This guide provides detailed step-by-step instructions for assembling and configuring a PID-controlled BLDC motor system. The controller maintains precise motor speed (DEFAULT_TARGET_RPM) using feedback from the motor's built-in Hall effect sensors.
 
 Two implementation versions are available:
 - **Arduino Uno Version**: Full-featured development and tuning platform
@@ -423,7 +423,7 @@ When using composite signals, update the pulse configuration:
 2. Set mode switch to production mode (open/floating)
 3. Apply power
 4. Monitor motor startup behavior
-5. Motor should ramp up smoothly to 1440 RPM
+5. Motor should ramp up smoothly to DEFAULT_TARGET_RPM
 
 ### ESC Calibration (if required)
 
@@ -455,10 +455,10 @@ Some ESCs require calibration:
 3. Send `MODE SERIAL` command
 4. Use SET commands:
    ```
-   SET TARGET 1440
-   SET KP 0.5
-   SET KI 0.1
-   SET KD 0.01
+   SET TARGET DEFAULT_TARGET_RPM
+   SET KP DEFAULT_KP
+   SET KI DEFAULT_KI
+   SET KD DEFAULT_KD
    ```
 5. Send `SAVE` to store parameters in EEPROM
 6. Monitor response in Serial Plotter

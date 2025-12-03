@@ -91,7 +91,7 @@ Arduino Pin 9 → 220Ω resistor → LED → GND
 # If LED stays off: Arduino code has problem
 ```
 
-### 2. RPM Reading Wrong (4907 RPM vs 1440 Target)
+### 2. RPM Reading Wrong (4907 RPM vs DEFAULT_TARGET_RPM)
 
 **What it means:** Your controller thinks motor is spinning 3.41x faster than it actually is.
 
@@ -615,9 +615,9 @@ Pin 5 (PB0) → ESC PWM input
 **Mitigation**:
 ```cpp
 // Production defaults (conservative tuning)
-#define PRODUCTION_KP 0.5
-#define PRODUCTION_KI 0.1
-#define PRODUCTION_KD 0.01
+#define DEFAULT_KP 3.25
+#define DEFAULT_KI 0.0320
+#define DEFAULT_KD 0.001
 
 // Tuning procedure:
 // 1. Start with KI=0, KD=0, increase KP until oscillation
@@ -793,7 +793,7 @@ Issue Resolved?
 **A:** Power supply too weak. Use supply rated for 2x motor current and add large capacitor.
 
 ### Q: PID gains don't work well?
-**A:** Start with conservative values: KP=0.5, KI=0.1, KD=0.01. Tune one parameter at a time.
+**A:** Start with conservative values: KP=DEFAULT_KP, KI=DEFAULT_KI, KD=DEFAULT_KD. Tune one parameter at a time.
 
 ### Q: Motor speed is unstable?
 **A:** Check Hall sensor connections and consider adding signal filtering for noisy environments.
