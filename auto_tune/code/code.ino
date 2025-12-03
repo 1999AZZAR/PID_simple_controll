@@ -361,7 +361,23 @@ void processSerialCommand(String command) {
             analogWrite(PWM_OUTPUT_PIN, 0);
             pidOutput = 0;
             integral = 0; // Reset integral when disabling
+            previousError = 0; // Reset derivative term
+            // Also reset any auto-tune specific variables
+            if (autoTuneMode) {
+                autoTuneMode = false;
+                Serial.println(F("Auto-tune mode disabled due to motor disable"));
+            }
         }
+
+    } else if (command == "FORCE_STOP") {
+        // Emergency stop - force motor to stop completely
+        motorEnabled = false;
+        autoTuneMode = false;
+        analogWrite(PWM_OUTPUT_PIN, 0);
+        pidOutput = 0;
+        integral = 0;
+        previousError = 0;
+        Serial.println(F("FORCE STOP: Motor completely disabled"));
 
     } else if (command.startsWith("SET_PWM ")) {
         if (autoTuneMode) {
@@ -405,6 +421,52 @@ void processSerialCommand(String command) {
         Serial.println(autoTuneMode ? F("ENABLED") : F("DISABLED"));
         Serial.println(F("===================================="));
 
+    } else if (command == "DIAGNOSTICS") {
+        Serial.println(F("=== ARDUINO DIAGNOSTICS ==="));
+        Serial.print(F("Motor Enabled: "));
+        Serial.println(motorEnabled ? F("YES") : F("NO"));
+        Serial.print(F("Auto-tune Mode: "));
+        Serial.println(autoTuneMode ? F("YES") : F("NO"));
+        Serial.print(F("Current RPM: "));
+        Serial.println(currentRPM, 1);
+        Serial.print(F("Target RPM: "));
+        Serial.println(targetRPM, 1);
+        Serial.print(F("PID Output: "));
+        Serial.println(pidOutput, 2);
+        Serial.print(F("Pulse Count: "));
+        Serial.println(pulseCount);
+        Serial.println(F("============================"));
+
+    } else if (command == "SEND_STATUS") {
+        // Force send STATUS data for debugging
+        Serial.println(F("Force sending STATUS data..."));
+        sendStatusData();
+
+    } else if (command == "FORCE_STATUS") {
+        // Send STATUS data without buffer check (for debugging)
+        Serial.print(F("STATUS:"));
+        Serial.print(millis());
+        Serial.print(F(","));
+        Serial.print(targetRPM, 0);
+        Serial.print(F(","));
+        Serial.print(currentRPM, 1);
+        Serial.print(F(","));
+        Serial.print(targetRPM - currentRPM, 1);
+        Serial.print(F(","));
+        Serial.print(pidOutput, 1);
+        Serial.print(F(","));
+        Serial.print(kp, 4);
+        Serial.print(F(","));
+        Serial.print(ki, 4);
+        Serial.print(F(","));
+        Serial.print(kd, 4);
+        Serial.print(F(","));
+        Serial.print(pulsesPerRev);
+        Serial.print(F(","));
+        Serial.print(motorEnabled ? 1 : 0);
+        Serial.print(F(","));
+        Serial.println(autoTuneMode ? 1 : 0);
+
     } else if (command == "RESET_CONTROLLER") {
         // Reset all control variables
         integral = 0;
@@ -422,7 +484,7 @@ void processSerialCommand(String command) {
 
 // Send status data to Python GUI
 void sendStatusData() {
-    // Simplified: Send data without buffer checks for now
+    // Temporarily remove buffer check to ensure STATUS data is sent
     Serial.print(F("STATUS:"));
     Serial.print(millis());
     Serial.print(F(","));
@@ -444,7 +506,6 @@ void sendStatusData() {
     Serial.print(F(","));
     Serial.print(motorEnabled ? 1 : 0);
     Serial.print(F(","));
-    Serial.print(autoTuneMode ? 1 : 0);
-    Serial.println();
+    Serial.println(autoTuneMode ? 1 : 0);
 }
 

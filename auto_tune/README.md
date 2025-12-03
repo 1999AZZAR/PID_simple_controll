@@ -21,6 +21,8 @@
 
 This advanced version of the Arduino Uno BLDC PID controller replaces potentiometer-based tuning with a comprehensive Python GUI. The system provides real-time parameter adjustment, live performance monitoring, and automatic PID tuning using the Ziegler-Nichols method.
 
+![img](../assets/python_ui.png "python ui")
+
 ### Key Differences from Basic Version
 
 - **No potentiometers required** - All configuration via Python GUI
@@ -58,17 +60,20 @@ This advanced version of the Arduino Uno BLDC PID controller replaces potentiome
 The GUI includes integrated serial communication testing:
 
 ### Built-in Tests
+
 - **Connection Test**: Verify Arduino connectivity and basic communication
 - **Parameter Tests**: Test PID parameter setting commands
 - **Motor Control Tests**: Test motor enable/disable functionality
 - **Controller Tests**: Test reset and control functions
 
 ### Manual Commands
+
 - Send custom commands directly to Arduino
 - Real-time log of all communication
 - Command history and response monitoring
 
 ### Usage
+
 1. Connect to Arduino using the Serial Connection section
 2. Click "Test Connection" in the Serial Testing section
 3. View results in the log area
@@ -103,6 +108,7 @@ pip install PyQt6 matplotlib pyserial numpy
 ### GUI Interface
 
 **PyQt6 Interface** (`control.py`) - **Primary**
+
 - Arduino code located in `code/` folder (Arduino IDE compatible)
 - Modern, professional appearance with excellent styling
 - Superior layout management - all controls guaranteed visible
@@ -139,11 +145,11 @@ auto_tune/
 
 ### Pin Connections
 
-| Component | Arduino Pin | Description |
-|-----------|-------------|-------------|
+| Component        | Arduino Pin   | Description                              |
+| ---------------- | ------------- | ---------------------------------------- |
 | BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from motor (interrupt pin) |
-| PWM Output | Digital Pin 9 | PWM signal to ESC |
-| Power/Ground | 5V/GND | Power for Hall sensor |
+| PWM Output       | Digital Pin 9 | PWM signal to ESC                        |
+| Power/Ground     | 5V/GND        | Power for Hall sensor                    |
 
 ### Power Supply Requirements
 
@@ -192,16 +198,19 @@ python control.py
 ### Parameter Adjustment
 
 #### Target RPM
+
 - Use the spinbox to set desired motor speed
 - Range: 0-5000 RPM
 - Changes take effect immediately
 
 #### PID Gains
+
 - **Kp (Proportional)**: 0-5.0 range, affects response speed
 - **Ki (Integral)**: 0-1.0 range, affects steady-state error
 - **Kd (Derivative)**: 0-0.1 range, affects stability
 
 #### Pulses Per Revolution
+
 - Set according to your motor's Hall sensor configuration
 - Typical values: 6, 12, 18, 24
 
@@ -242,6 +251,7 @@ The automatic PID tuning uses the Ziegler-Nichols method:
 ### Tuning Results
 
 The algorithm provides:
+
 - **Ku**: Ultimate gain (point of instability)
 - **Tu**: Oscillation period
 - **PID Gains**: Calculated using standard Z-N rules
@@ -290,12 +300,14 @@ STATUS:<timestamp>,<target_rpm>,<current_rpm>,<error>,<pid_output>,<kp>,<ki>,<kd
 ### Connection Issues
 
 **Problem**: Cannot connect to Arduino
+
 - Check serial port selection
 - Verify Arduino is powered and programmed
 - Try different baud rates
 - Check USB cable connection
 
 **Problem**: No data received
+
 - Verify Arduino sketch uploaded correctly
 - Check serial monitor in Arduino IDE
 - Ensure correct baud rate (115200)
@@ -303,12 +315,14 @@ STATUS:<timestamp>,<target_rpm>,<current_rpm>,<error>,<pid_output>,<kp>,<ki>,<kd
 ### Motor Control Issues
 
 **Problem**: Motor not starting
+
 - Check PWM output pin connection (Digital Pin 9)
 - Verify ESC power and motor connections
 - Check Hall sensor connection (Digital Pin 2)
 - Use "Enable Motor" button
 
 **Problem**: Unstable control
+
 - Reduce Kp gain first
 - Check for electrical noise on sensor lines
 - Verify proper motor/ESC grounding
@@ -317,12 +331,14 @@ STATUS:<timestamp>,<target_rpm>,<current_rpm>,<error>,<pid_output>,<kp>,<ki>,<kd
 ### Auto-Tuning Issues
 
 **Problem**: Auto-tune fails
+
 - Ensure motor is properly connected
 - Check that motor can reach target speed
 - Verify Hall sensor is providing pulses
 - Try manual tuning first
 
 **Problem**: Poor auto-tune results
+
 - Fine-tune manually after auto-tuning
 - Adjust target RPM to realistic values
 - Check motor/load characteristics
@@ -353,6 +369,7 @@ STATUS:<timestamp>,<target_rpm>,<current_rpm>,<error>,<pid_output>,<kp>,<ki>,<kd
 ### Parameter Persistence
 
 Parameters are automatically saved to Arduino EEPROM:
+
 - Survives power cycles
 - Manual save/load via GUI
 - Export configurations as JSON files
@@ -399,6 +416,7 @@ See the main project CONTRIBUTING.md for guidelines.
 ## Support
 
 For issues and questions:
+
 1. Check the troubleshooting section above
 2. Review Arduino serial output for error messages
 3. Verify hardware connections

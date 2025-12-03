@@ -115,8 +115,25 @@ class SerialWorker(QThread):
                                     # Only emit STATUS lines and important messages
                                     if line.startswith("STATUS:") or "ERROR" in line or "Kp set" in line:
                                         self.data_received.emit(line)
+                                    # Try to recover STATUS data - accept any comma-separated line as potential STATUS
+                                    elif ',' in line and not any(skip_word in line for skip_word in ["DEBUG:", "HEARTBEAT", "BLDC", "Ready", "Target", "Kp:", "Ki:", "Kd:", "Motor"]):
+                                        # Accept any comma-separated line as potential STATUS data
+                                        parts = line.split(',')
+                                        if len(parts) >= 9:  # At least basic STATUS format
+                                            try:
+                                                # Quick validation - first part should be numeric
+                                                float(parts[0].strip())
+                                                status_line = f"STATUS:{line}"
+                                                print(f"🔄 Recovered STATUS data: {status_line[:100]}...")
+                                                self.data_received.emit(status_line)
+                                                continue
+                                            except (ValueError, IndexError):
+                                                pass
+                                        print(f"Skipping line: {line[:50]}...")
+                                    else:
+                                        print(f"Skipping corrupted line: {line[:50]}...")
                                 else:
-                                    print(f"Skipping corrupted line: {line[:50]}...")
+                                    print(f"Skipping heavily corrupted line: {line[:50]}...")
 
                     except Exception as decode_error:
                         print(f"Serial decode error: {decode_error}")
@@ -518,6 +535,16 @@ class PIDControllerGUI(QMainWindow):
         self.stop_tune_btn.clicked.connect(self.stop_auto_tune)
         self.stop_tune_btn.setEnabled(False)
         tune_buttons.addWidget(self.stop_tune_btn)
+
+        # Add diagnostics button
+        self.diagnostics_btn = QPushButton("🔧 Diagnostics")
+        self.diagnostics_btn.clicked.connect(self.run_diagnostics)
+        tune_buttons.addWidget(self.diagnostics_btn)
+
+        # Add force status button
+        self.status_btn = QPushButton("📊 Send Status")
+        self.status_btn.clicked.connect(lambda: self.send_command("FORCE_STATUS"))
+        tune_buttons.addWidget(self.status_btn)
 
         tune_layout.addLayout(tune_buttons)
 
@@ -1018,7 +1045,7 @@ class PIDControllerGUI(QMainWindow):
         self.tune_status_label.setText("Running...")
         self.tune_status_label.setStyleSheet("font-weight: bold; color: orange;")
 
-        # Start auto-tuning in separate thread
+            # Start auto-tuning in separate thread
         try:
             self.auto_tune_thread = threading.Thread(target=self.auto_tune_pid, daemon=True)
             self.auto_tune_thread.start()
@@ -1030,9 +1057,13 @@ class PIDControllerGUI(QMainWindow):
     def _reset_system_for_autotune(self):
         """Reset motor and PID state for clean auto-tune operation"""
         try:
-            print("  Force stopping motor completely...")
-            # Use the dedicated force stop method
-            motor_stopped = self._force_motor_stop(max_attempts=8)
+            print("  Emergency motor stop...")
+            # Send FORCE_STOP command first
+            self.send_command("FORCE_STOP")
+            time.sleep(1.0)  # Give it time to take effect
+
+            # Then use the dedicated force stop method
+            motor_stopped = self._force_motor_stop(max_attempts=6)
             if not motor_stopped:
                 print("  CRITICAL: Unable to stop motor - auto-tune may be unreliable")
                 # Continue anyway, but warn the user
@@ -1089,75 +1120,122 @@ class PIDControllerGUI(QMainWindow):
                         initial_rpm = current_rpm
                         break
                 else:
-                    print("  ERROR: Motor failed to stop naturally")
+                    print("  ❌ Motor failed to stop naturally - hardware issue")
                     return False
 
+            # Ensure motor is enabled before testing
+            print("  Enabling motor for testing...")
+            self.send_command("ENABLE_MOTOR 1")
+            time.sleep(0.5)
+
             # Test 2: Low PWM test
-            print("  Testing low PWM response...")
+            print("  Testing low PWM response (50)...")
             self.send_command("SET_PWM 50")
-            time.sleep(4)  # Longer wait for response
+            time.sleep(5)  # Longer wait for response
             low_rpm = self.get_current_rpm_from_arduino()
             print(f"  Low PWM (50) RPM: {low_rpm}")
 
             # Test 3: Medium PWM test
-            print("  Testing medium PWM response...")
+            print("  Testing medium PWM response (150)...")
             self.send_command("SET_PWM 150")
-            time.sleep(4)  # Longer wait for response
+            time.sleep(5)  # Longer wait for response
             med_rpm = self.get_current_rpm_from_arduino()
             print(f"  Medium PWM (150) RPM: {med_rpm}")
 
             # Test 4: Stop motor
             print("  Stopping motor...")
             self.send_command("SET_PWM 0")
-            time.sleep(2)
+            time.sleep(3)
 
-            # Validate response with more realistic expectations
-            min_expected_rpm = target_rpm * 0.1  # Should reach at least 10% of target
-            max_expected_rpm = target_rpm * 1.2  # Should not exceed 120% of target
+            # Validate response with realistic expectations
+            print("  Analyzing motor response...")
 
-            if low_rpm < 20:
-                print(f"  WARNING: Motor shows minimal response to low PWM ({low_rpm} RPM)")
-                print("  This might indicate hardware issues or weak motor response")
-                # Don't fail here - some motors respond weakly at low PWM
-
-            if med_rpm < low_rpm + 30:
-                print(f"  WARNING: Motor response not significantly increasing: {low_rpm} → {med_rpm}")
+            if low_rpm < 10 and med_rpm < 10:
+                print("  ❌ CRITICAL: Motor shows NO response to PWM commands")
+                print("  Hardware issues:")
+                print("  - ESC not powered or armed")
+                print("  - Motor not connected to ESC")
+                print("  - Hall sensor not working")
+                print("  - Arduino PWM pin not connected")
                 return False
 
-            if med_rpm < min_expected_rpm:
-                print(f"  WARNING: Motor only reached {med_rpm} RPM, expected at least {min_expected_rpm}")
-                print("  Motor may be underpowered or have mechanical issues")
+            if med_rpm < low_rpm + 20:
+                print(f"  ❌ Motor response not increasing: {low_rpm} → {med_rpm}")
+                print("  ESC may not be responding properly")
                 return False
 
-            if med_rpm > max_expected_rpm:
-                print(f"  WARNING: Motor reached {med_rpm} RPM, which is unusually high for {target_rpm} target")
-                print("  ESC or motor may be overpowered")
+            expected_min_rpm = target_rpm * 0.05  # Should reach at least 5% of target
+            if med_rpm < expected_min_rpm:
+                print(f"  ❌ Motor only reached {med_rpm} RPM, expected at least {expected_min_rpm}")
+                print("  Motor/ESC may be underpowered or damaged")
+                return False
 
-            print("  Motor validation passed - system ready for auto-tune")
+            print("  ✅ Motor validation passed - ready for auto-tune")
             return True
 
         except Exception as e:
-            print(f"  Motor validation error: {e}")
+            print(f"  ❌ Motor validation error: {e}")
             return False
 
-    def _force_motor_stop(self, max_attempts=10):
-        """Force stop the motor completely"""
+    def run_diagnostics(self):
+        """Run comprehensive diagnostics to identify issues"""
+        print("🔧 RUNNING COMPREHENSIVE DIAGNOSTICS...")
+
+        # Test Arduino communication
+        print("1. Testing Arduino communication...")
+        self.send_command("DIAGNOSTICS")
+        time.sleep(0.5)
+
+        # Test motor enable/disable
+        print("2. Testing motor enable/disable...")
+        self.send_command("ENABLE_MOTOR 0")
+        time.sleep(0.5)
+        self.send_command("ENABLE_MOTOR 1")
+        time.sleep(0.5)
+
+        # Test PWM response
+        print("3. Testing PWM response...")
+        for pwm_val in [0, 50, 100, 150, 200]:
+            self.send_command(f"SET_PWM {pwm_val}")
+            time.sleep(1)
+            rpm = self.get_current_rpm_from_arduino()
+            print(f"   PWM {pwm_val}: {rpm} RPM")
+
+        # Stop motor
+        self.send_command("SET_PWM 0")
+        time.sleep(1)
+
+        print("4. Requesting STATUS data...")
+        self.send_command("GET_STATUS")
+        time.sleep(0.5)
+
+        print("🔧 DIAGNOSTICS COMPLETE - Check Arduino responses above")
+
+    def _force_motor_stop(self, max_attempts=8):
+        """Force stop the motor completely with proper command spacing"""
         print("  Force-stopping motor...")
         for attempt in range(max_attempts):
-            # Send multiple stop commands
-            self.send_command("ENABLE_MOTOR 0")
-            self.send_command("SET_PWM 0")
-            self.send_command("AUTO_TUNE 0")  # Exit any auto-tune mode
+            print(f"  Stop attempt {attempt + 1}/{max_attempts}...")
 
-            time.sleep(0.5)
+            # Send commands with proper delays to avoid concatenation
+            self.send_command("FORCE_STOP")
+            time.sleep(0.2)  # Wait for Arduino to process
+
+            self.send_command("ENABLE_MOTOR 0")
+            time.sleep(0.2)  # Wait for Arduino to process
+
+            self.send_command("SET_PWM 0")
+            time.sleep(0.3)  # Wait for motor to respond
+
             current_rpm = self.get_current_rpm_from_arduino()
-            print(f"    Stop attempt {attempt + 1}: RPM = {current_rpm}")
+            print(f"    RPM after stop attempt: {current_rpm}")
 
             if current_rpm < 20.0:
-                print(f"  Motor stopped after {attempt + 1} attempts")
+                print(f"  ✅ Motor stopped after {attempt + 1} attempts")
                 return True
 
-        print(f"  WARNING: Motor still at {current_rpm} RPM after {max_attempts} stop attempts")
+        print(f"  ❌ Motor still at {current_rpm} RPM after {max_attempts} stop attempts")
+        print("  Hardware issue: Check motor/ESC connection, power, Hall sensor")
         return False
 
     def stop_auto_tune(self):
@@ -1616,6 +1694,12 @@ class PIDControllerGUI(QMainWindow):
                             print("  - Hardware connection problems")
                             return None, None
 
+                except Exception as e:
+                    print(f"  ERROR during oscillation analysis: {e}")
+                    print("  Skipping this Kp value due to analysis error...")
+                    kp_test += 0.2
+                    continue
+
                     rpm_mean = np.mean(rpm_data)
                     rpm_std = np.std(rpm_data)
                     print(f"  RPM mean: {rpm_mean:.1f}, std: {rpm_std:.1f}, score: {oscillation_score:.3f}")
@@ -1706,11 +1790,12 @@ class PIDControllerGUI(QMainWindow):
     def get_current_rpm_from_arduino(self):
         """Extract current RPM from Arduino data"""
         try:
-            # During auto-tune, we need to poll for fresh data since normal updates might be paused
+            # During auto-tune, aggressively request fresh STATUS data
             if hasattr(self, 'serial_worker') and self.serial_worker.isRunning():
-                # Send a request for status and wait briefly
-                self.send_command("GET_STATUS")
-                time.sleep(0.05)  # Brief wait for response
+                # Send multiple requests for status data
+                for i in range(2):  # Send twice for reliability
+                    self.send_command("FORCE_STATUS")
+                    time.sleep(0.02)  # Brief wait for response
 
             # Get the most recent RPM data from the plot canvas
             if len(self.plot_canvas.current_rpm_data) > 0:
