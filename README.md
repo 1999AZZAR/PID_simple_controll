@@ -106,7 +106,7 @@ These diagrams provide visual reference for:
 - Two operating modes: Production (fixed parameters) and Potentiometer tuning
 - No serial commands or interactive tuning
 - 4 potentiometers: PPR (A0), Kp (A1), Ki (A2), Kd (A3)
-- ,No EEPROM storage or watchdog timer
+- No EEPROM storage or watchdog timer
 - Optimized memory usage: 21% flash, 18% RAM (highly stable)
 - Clean, maintainable codebase
 
@@ -127,10 +127,10 @@ These diagrams provide visual reference for:
 - Arduino code in proper IDE-compatible folder structure (`code/code.ino`)
 - Comprehensive parameter management and data export
 - **Core PID Control Only**: Essential motor control with integer math optimization
-- **2-Pin Operation**: Hall sensor input + PWM output (ultra-minimal)
+- **2-Pin Operation**: Hall sensor input + PWM output (minimal configuration)
 - No external dependencies
 - Fits in ATTiny85's 2KB flash limit
-- Pre-tuned PID parameters hardcoded for reliability
+- PID parameters optimized and hardcoded for reliability
 - Smaller footprint, lower cost (~$2 vs $20)
 - Production-ready for cost-sensitive applications
 
@@ -209,7 +209,7 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 | **Total Flash**       | 32,256 bytes                              | 2,048 bytes                                  |
 | **Total RAM**         | 2,048 bytes                               | 128 bytes                                    |
 | **Pin Count**         | 7 pins used                               | **2 pins only**                        |
-| **Cost**              | ~$20 | ~$2                                |                                              |
+| **Cost**              | ~$20                                      | ~$2                                         |
 | **Tuning Interface**  | 4 potentiometers (PPR, Kp, Ki, Kd)        | None (pre-tuned)                             |
 | **Safety Features**   | Anti-windup protection                    | Watchdog timer                               |
 | **EEPROM**            | None                                      | None                                         |
@@ -218,11 +218,11 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 | **Power Efficiency**  | Standard                                  | Optimized                                    |
 | **Reliability Focus** | Maximum stability                         | Cost-effective                               |
 
-**Key Takeaway**: Arduino Uno = Development platform with full features. ATTiny85 = Minimal production controller focused on cost and size.
+**Platform Summary**: Arduino Uno provides full development features. ATTiny85 offers minimal production control with cost optimization.
 
 ## Quick Start
 
-### Option 1: Advanced GUI with Auto-Tuning (Recommended)
+### Option 1: GUI with Auto-Tuning
 ```bash
 cd auto_tune
 pip install -r requirements.txt
