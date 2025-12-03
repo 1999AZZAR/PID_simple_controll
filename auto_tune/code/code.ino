@@ -17,7 +17,7 @@
  * - RPM feedback via Hall sensor (direct motor connection)
  * - PWM output to ESC
  * - Real-time monitoring data output
- * - EEPROM storage for PID parameters
+ * - All parameters controlled by Python GUI (no persistent storage)
  * - Configurable parameters (pulses per revolution, target RPM, etc.)
  *
  * Hardware Requirements:
@@ -37,7 +37,6 @@
 
 // Include configuration header (contains all pin definitions, constants, and settings)
 #include "config.h"
-#include <EEPROM.h>
 
 // Global variables
 volatile unsigned long pulseCount = 0;
@@ -61,7 +60,7 @@ boolean stringComplete = false;
 unsigned long lastSerialSend = 0;
 
 // Control state
-bool motorEnabled = true;
+bool motorEnabled = false; // Start disabled for safety
 bool autoTuneMode = false;
 
 // Soft-start ramping to avoid current surges
@@ -76,16 +75,6 @@ float computePID(float error);
 void outputToESC(int pwmValue);
 void processSerialCommand(String command);
 void sendStatusData();
-void saveParametersToEEPROM();
-void loadParametersFromEEPROM();
-
-// EEPROM addresses
-#define EEPROM_KP_ADDR         0
-#define EEPROM_KI_ADDR         4
-#define EEPROM_KD_ADDR         8
-#define EEPROM_TARGET_RPM_ADDR 12
-#define EEPROM_PULSES_PER_REV_ADDR 16
-#define EEPROM_CHECKSUM_ADDR   20
 
 void setup() {
     // Initialize serial communication
@@ -105,9 +94,6 @@ void setup() {
     // Brief startup delay
     delay(1000);
 
-    // Load parameters from EEPROM
-    loadParametersFromEEPROM();
-
     Serial.println(F("BLDC PID Controller Started - Python Configurable"));
     Serial.println(F("Ready for serial commands"));
     Serial.print(F("Target RPM: "));
@@ -118,6 +104,7 @@ void setup() {
     Serial.println(ki, 4);
     Serial.print(F("Kd: "));
     Serial.println(kd, 4);
+    Serial.flush();  // Ensure startup messages are sent
 }
 
 void loop() {
@@ -137,14 +124,67 @@ void loop() {
     }
 
     // Compute PID output if motor is enabled
-    if (motorEnabled && !autoTuneMode) {
+    if (motorEnabled) {
         float error = targetRPM - currentRPM;
-        pidOutput = computePID(error);
 
-        // Convert PID output to PWM value and output to ESC
-        int pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
-        pwmValue = constrain(pwmValue, 0, 255);
+        if (autoTuneMode) {
+            // During auto-tune: Use P-only control to test different Kp values
+            // Ki and Kd are set to 0 by the GUI before starting auto-tune
+            pidOutput = kp * error;  // Simple proportional control only
+        } else {
+            // Special handling for very low RPM targets (< 50 RPM)
+            if (targetRPM < 50) {
+                // Use simplified proportional-only control for low speeds
+                float lowSpeedKp = 2.0; // Higher proportional gain for low speeds
+                pidOutput = lowSpeedKp * error;
+
+                // Add small integral term for steady state accuracy
+                static float lowSpeedIntegral = 0;
+                lowSpeedIntegral += 0.01 * error;
+                lowSpeedIntegral = constrain(lowSpeedIntegral, -50, 50);
+                pidOutput += lowSpeedIntegral;
+
+                pidOutput = constrain(pidOutput, 0, 200); // Positive only for low speeds
+            } else {
+                // Normal PID control for higher speeds
+                pidOutput = computePID(error);
+            }
+        }
+
+        // Convert PID output to PWM value with better low-speed control
+        int pwmValue;
+        if (targetRPM < 50) {
+            // Direct mapping for low speeds (more resolution)
+            pwmValue = constrain(pidOutput, 20, 80); // Narrow range for fine control
+        } else {
+            // Standard mapping for normal speeds
+            pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 20, 255);
+            pwmValue = constrain(pwmValue, 0, 255);
+        }
+
         outputToESC(pwmValue);
+
+        // Debug output every 500ms for troubleshooting
+        static unsigned long lastDebug = 0;
+        if (millis() - lastDebug > 500) {
+            Serial.print(F("DEBUG: Mode="));
+            Serial.print(autoTuneMode ? F("AUTO") : F("NORMAL"));
+            Serial.print(F(", Target="));
+            Serial.print(targetRPM);
+            Serial.print(F(", Current="));
+            Serial.print(currentRPM);
+            if (!autoTuneMode) {
+                Serial.print(F(", Error="));
+                Serial.print(error);
+                Serial.print(F(", Kp="));
+                Serial.print(kp);
+                Serial.print(F(", PID="));
+                Serial.print(pidOutput);
+            }
+            Serial.print(F(", PWM="));
+            Serial.println(pwmValue);
+            lastDebug = millis();
+        }
     } else if (!motorEnabled) {
         // Motor disabled - stop immediately
         analogWrite(PWM_OUTPUT_PIN, 0);
@@ -155,6 +195,13 @@ void loop() {
     if (currentTime - lastSerialSend >= SERIAL_SEND_INTERVAL) {
         sendStatusData();
         lastSerialSend = currentTime;
+    }
+
+    // Debug: Send heartbeat every 2 seconds
+    static unsigned long lastHeartbeat = 0;
+    if (currentTime - lastHeartbeat >= 2000) {
+        Serial.println(F("HEARTBEAT"));
+        lastHeartbeat = currentTime;
     }
 
     // Control loop timing
@@ -185,6 +232,7 @@ void rpmSensorISR() {
 float calculateRPM() {
     static unsigned long lastPulseCount = 0;
     static unsigned long lastCalcTime = 0;
+    static float filteredRPM = 0.0; // Low-pass filter for stability
 
     unsigned long currentTime = millis();
     unsigned long timeDiff = currentTime - lastCalcTime;
@@ -197,16 +245,27 @@ float calculateRPM() {
 
         unsigned long pulseDiff = pulsesNow - lastPulseCount;
 
-        // Calculate RPM: (pulses / time) * (60 seconds / pulses_per_rev)
-        float rpm = (pulseDiff * 60000.0) / (timeDiff * pulsesPerRev);
+        float rpm = 0.0;
+        if (pulseDiff > 0) {
+            // Calculate RPM: (pulses / time) * (60 seconds / pulses_per_rev)
+            rpm = (pulseDiff * 60000.0) / (timeDiff * pulsesPerRev);
+        }
+        // For very low RPM (< 50), if no pulses detected, assume stopped
+        else if (currentRPM > 50) {
+            rpm = 0.0; // Motor stopped
+        }
+
+        // Apply low-pass filter for stability (alpha = 0.3)
+        filteredRPM = 0.3 * rpm + 0.7 * filteredRPM;
 
         lastPulseCount = pulsesNow;
         lastCalcTime = currentTime;
+        currentRPM = filteredRPM;
 
-        return rpm;
+        return filteredRPM;
     }
 
-    return currentRPM; // Return previous value if not enough time has passed
+    return currentRPM; // Return filtered value if not enough time has passed
 }
 
 // Compute PID output with anti-windup
@@ -270,38 +329,51 @@ void processSerialCommand(String command) {
 
     if (command.startsWith("SET_KP ")) {
         kp = command.substring(7).toFloat();
-        Serial.print(F("Kp set to: "));
+        Serial.print(F("✓ Kp set to: "));
         Serial.println(kp, 4);
-        saveParametersToEEPROM();
 
     } else if (command.startsWith("SET_KI ")) {
         ki = command.substring(7).toFloat();
-        Serial.print(F("Ki set to: "));
+        Serial.print(F("✓ Ki set to: "));
         Serial.println(ki, 4);
-        saveParametersToEEPROM();
 
     } else if (command.startsWith("SET_KD ")) {
         kd = command.substring(7).toFloat();
-        Serial.print(F("Kd set to: "));
+        Serial.print(F("✓ Kd set to: "));
         Serial.println(kd, 4);
-        saveParametersToEEPROM();
 
     } else if (command.startsWith("SET_TARGET_RPM ")) {
         targetRPM = command.substring(15).toFloat();
         Serial.print(F("Target RPM set to: "));
         Serial.println(targetRPM);
-        saveParametersToEEPROM();
 
     } else if (command.startsWith("SET_PULSES_PER_REV ")) {
         pulsesPerRev = command.substring(19).toInt();
         Serial.print(F("Pulses per revolution set to: "));
         Serial.println(pulsesPerRev);
-        saveParametersToEEPROM();
 
     } else if (command.startsWith("ENABLE_MOTOR ")) {
         motorEnabled = (command.substring(13) == "1");
         Serial.print(F("Motor "));
         Serial.println(motorEnabled ? F("enabled") : F("disabled"));
+        // Immediately set PWM to 0 if disabling motor
+        if (!motorEnabled) {
+            analogWrite(PWM_OUTPUT_PIN, 0);
+            pidOutput = 0;
+            integral = 0; // Reset integral when disabling
+        }
+
+    } else if (command.startsWith("SET_PWM ")) {
+        if (autoTuneMode) {
+            // Direct PWM control during auto-tune (computer-controlled)
+            int pwm_value = command.substring(8).toInt();
+            pwm_value = constrain(pwm_value, 0, 255);
+            analogWrite(PWM_OUTPUT_PIN, pwm_value);
+            Serial.print(F("PWM set to: "));
+            Serial.println(pwm_value);
+        } else {
+            Serial.println(F("ERROR: SET_PWM only allowed in auto-tune mode"));
+        }
 
     } else if (command.startsWith("AUTO_TUNE ")) {
         autoTuneMode = (command.substring(10) == "1");
@@ -309,25 +381,29 @@ void processSerialCommand(String command) {
             // Reset PID state for auto-tuning
             integral = 0;
             previousError = 0;
-            Serial.println(F("Auto-tune mode enabled"));
+            Serial.println(F("Auto-tune mode enabled - computer control"));
         } else {
-            Serial.println(F("Auto-tune mode disabled"));
+            Serial.println(F("✓ Auto-tune mode disabled - using PID control"));
         }
 
     } else if (command == "RESET_INTEGRAL") {
         integral = 0;
         Serial.println(F("Integral reset"));
 
-    } else if (command == "SAVE_PARAMETERS") {
-        saveParametersToEEPROM();
-        Serial.println(F("Parameters saved to EEPROM"));
-
-    } else if (command == "LOAD_PARAMETERS") {
-        loadParametersFromEEPROM();
-        Serial.println(F("Parameters loaded from EEPROM"));
-
     } else if (command == "GET_STATUS") {
         sendStatusData();
+
+    } else if (command == "VERIFY_TUNED_VALUES") {
+        Serial.println(F("=== TUNED PID VALUES VERIFICATION ==="));
+        Serial.print(F("Current Kp: "));
+        Serial.println(kp, 4);
+        Serial.print(F("Current Ki: "));
+        Serial.println(ki, 4);
+        Serial.print(F("Current Kd: "));
+        Serial.println(kd, 4);
+        Serial.print(F("Auto-tune mode: "));
+        Serial.println(autoTuneMode ? F("ENABLED") : F("DISABLED"));
+        Serial.println(F("===================================="));
 
     } else if (command == "RESET_CONTROLLER") {
         // Reset all control variables
@@ -346,16 +422,17 @@ void processSerialCommand(String command) {
 
 // Send status data to Python GUI
 void sendStatusData() {
+    // Simplified: Send data without buffer checks for now
     Serial.print(F("STATUS:"));
     Serial.print(millis());
     Serial.print(F(","));
-    Serial.print(targetRPM);
+    Serial.print(targetRPM, 0);  // Integer precision for target RPM
     Serial.print(F(","));
-    Serial.print(currentRPM);
+    Serial.print(currentRPM, 1);  // 1 decimal place for current RPM
     Serial.print(F(","));
-    Serial.print(targetRPM - currentRPM);
+    Serial.print(targetRPM - currentRPM, 1);  // 1 decimal place for error
     Serial.print(F(","));
-    Serial.print(pidOutput);
+    Serial.print(pidOutput, 1);  // 1 decimal place for PID output
     Serial.print(F(","));
     Serial.print(kp, 4);
     Serial.print(F(","));
@@ -371,44 +448,3 @@ void sendStatusData() {
     Serial.println();
 }
 
-// Save parameters to EEPROM
-void saveParametersToEEPROM() {
-    EEPROM.put(EEPROM_KP_ADDR, kp);
-    EEPROM.put(EEPROM_KI_ADDR, ki);
-    EEPROM.put(EEPROM_KD_ADDR, kd);
-    EEPROM.put(EEPROM_TARGET_RPM_ADDR, targetRPM);
-    EEPROM.put(EEPROM_PULSES_PER_REV_ADDR, pulsesPerRev);
-
-    // Calculate and save checksum
-    float checksum = kp + ki + kd + targetRPM + pulsesPerRev;
-    EEPROM.put(EEPROM_CHECKSUM_ADDR, checksum);
-}
-
-// Load parameters from EEPROM
-void loadParametersFromEEPROM() {
-    float savedKp, savedKi, savedKd, savedTargetRPM, savedChecksum;
-    int savedPulsesPerRev;
-
-    EEPROM.get(EEPROM_KP_ADDR, savedKp);
-    EEPROM.get(EEPROM_KI_ADDR, savedKi);
-    EEPROM.get(EEPROM_KD_ADDR, savedKd);
-    EEPROM.get(EEPROM_TARGET_RPM_ADDR, savedTargetRPM);
-    EEPROM.get(EEPROM_PULSES_PER_REV_ADDR, savedPulsesPerRev);
-    EEPROM.get(EEPROM_CHECKSUM_ADDR, savedChecksum);
-
-    // Verify checksum
-    float calculatedChecksum = savedKp + savedKi + savedKd + savedTargetRPM + savedPulsesPerRev;
-
-    if (abs(calculatedChecksum - savedChecksum) < 0.01) {
-        // Checksum valid, load parameters
-        kp = savedKp;
-        ki = savedKi;
-        kd = savedKd;
-        targetRPM = savedTargetRPM;
-        pulsesPerRev = savedPulsesPerRev;
-        Serial.println(F("Parameters loaded from EEPROM"));
-    } else {
-        // Checksum invalid, use defaults
-        Serial.println(F("EEPROM checksum invalid, using default parameters"));
-    }
-}

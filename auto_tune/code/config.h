@@ -18,13 +18,13 @@
 #define MIN_PULSE_WIDTH_US  50  // Minimum pulse width (50μs) - reduced for better responsiveness
 
 // Serial communication parameters
-#define SERIAL_SEND_INTERVAL 50  // Send status data every 50ms (20Hz)
+#define SERIAL_SEND_INTERVAL 100  // Send status data every 100ms (10Hz)
 
-// PID limits - Expanded range for higher resolution control
-#define PID_OUTPUT_MIN      -500 // Minimum PID output
-#define PID_OUTPUT_MAX      500  // Maximum PID output
-#define INTEGRAL_WINDUP_MIN -100  // Anti-windup integral minimum
-#define INTEGRAL_WINDUP_MAX 100   // Anti-windup integral maximum
+// PID limits - Optimized for low-speed control
+#define PID_OUTPUT_MIN      -1000 // Minimum PID output (expanded for low speeds)
+#define PID_OUTPUT_MAX      1000  // Maximum PID output (expanded for low speeds)
+#define INTEGRAL_WINDUP_MIN -200  // Anti-windup integral minimum (expanded)
+#define INTEGRAL_WINDUP_MAX 200   // Anti-windup integral maximum (expanded)
 
 // Default PID parameters (can be adjusted via Python GUI)
 #define DEFAULT_TARGET_RPM 1440.0  // Default target RPM
