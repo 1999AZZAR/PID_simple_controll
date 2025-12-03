@@ -112,26 +112,44 @@ class SerialWorker(QThread):
 
                                 # Filter out lines that are mostly replacement characters
                                 if '\ufffd' not in line or line.count('\ufffd') / len(line) < 0.3:
-                                    # Only emit STATUS lines and important messages
-                                    if line.startswith("STATUS:") or "ERROR" in line or "Kp set" in line:
+                                    # Emit STATUS lines and important messages
+                                    if line.startswith("STATUS:") or "ERROR" in line or "Kp set" in line or "Ki set" in line or "Kd set" in line:
                                         self.data_received.emit(line)
-                                    # Try to recover STATUS data - accept any comma-separated line as potential STATUS
-                                    elif ',' in line and not any(skip_word in line for skip_word in ["DEBUG:", "HEARTBEAT", "BLDC", "Ready", "Target", "Kp:", "Ki:", "Kd:", "Motor"]):
-                                        # Accept any comma-separated line as potential STATUS data
+                                    # Try to recover STATUS data from comma-separated lines
+                                    elif ',' in line:
                                         parts = line.split(',')
-                                        if len(parts) >= 9:  # At least basic STATUS format
+                                        # Check if this looks like STATUS data (10+ parts, first part numeric)
+                                        if len(parts) >= 10:
                                             try:
-                                                # Quick validation - first part should be numeric
+                                                # First part should be timestamp (numeric)
                                                 float(parts[0].strip())
+                                                # Check if other parts look numeric
+                                                float(parts[1].strip())  # target_rpm
+                                                float(parts[2].strip())  # current_rpm
                                                 status_line = f"STATUS:{line}"
-                                                print(f"🔄 Recovered STATUS data: {status_line[:100]}...")
                                                 self.data_received.emit(status_line)
                                                 continue
                                             except (ValueError, IndexError):
                                                 pass
-                                        print(f"Skipping line: {line[:50]}...")
+                                        # Check for partial STATUS data (starts with comma, looks like data continuation)
+                                        elif line.startswith(',') and len(parts) >= 9:
+                                            try:
+                                                float(parts[1].strip())  # target_rpm position in partial line
+                                                float(parts[2].strip())  # current_rpm
+                                                # Reconstruct with current timestamp since original was lost
+                                                current_time = int(time.time() * 1000)  # milliseconds
+                                                status_line = f"STATUS:{current_time}{line}"
+                                                self.data_received.emit(status_line)
+                                                continue
+                                            except (ValueError, IndexError):
+                                                pass
+                                        # Only skip obviously non-STATUS lines
+                                        if not any(info_word in line.lower() for info_word in ["heartbeat", "bldc", "ready", "target", "motor"]):
+                                            print(f"Skipping non-STATUS line: {line[:50]}...")
                                     else:
-                                        print(f"Skipping corrupted line: {line[:50]}...")
+                                        # Emit other important Arduino messages to GUI
+                                        if len(line) > 3 and not line.lower().startswith("heartbeat"):
+                                            self.data_received.emit(line)
                                 else:
                                     print(f"Skipping heavily corrupted line: {line[:50]}...")
 
@@ -189,7 +207,7 @@ class PlotCanvas(FigureCanvas):
         self.setup_plots()
 
         # Data storage (reduced for better performance)
-        self.max_points = 200  # Reduced from 500 for better performance
+        self.max_points = 25  # Show only latest 25 data points
         self.time_data = []
         self.target_rpm_data = []
         self.current_rpm_data = []
@@ -335,8 +353,7 @@ class PIDControllerGUI(QMainWindow):
             'ki': 0.015,
             'kd': 0.003,
             'pulses_per_rev': 18,
-            'motor_enabled': True,
-            'auto_tune': False
+            'motor_enabled': True
         }
 
         # Connection monitoring
@@ -511,14 +528,10 @@ class PIDControllerGUI(QMainWindow):
 
         tune_buttons = QHBoxLayout()
         # Add diagnostics button
-        self.diagnostics_btn = QPushButton("🔧 Diagnostics")
-        self.diagnostics_btn.clicked.connect(self.run_diagnostics)
-        tune_buttons.addWidget(self.diagnostics_btn)
-
-        # Add force status button
-        self.status_btn = QPushButton("📊 Send Status")
-        self.status_btn.clicked.connect(lambda: self.send_command("FORCE_STATUS"))
-        tune_buttons.addWidget(self.status_btn)
+        # Add PPR test button
+        self.ppr_test_btn = QPushButton("🔄 Test PPR")
+        self.ppr_test_btn.clicked.connect(self.test_ppr_calculation)
+        tune_buttons.addWidget(self.ppr_test_btn)
 
         tune_layout.addLayout(tune_buttons)
 
@@ -829,8 +842,14 @@ class PIDControllerGUI(QMainWindow):
                 line = self.data_queue.get_nowait()
                 if line.startswith("STATUS:"):
                     self.parse_status_data(line)
-                else:
-                    # Print other messages to status bar
+                elif line.startswith("HEARTBEAT"):
+                    # Skip heartbeat messages - too noisy
+                    pass
+                elif "ERROR" in line or "set to" in line:
+                    # Show important status messages
+                    self.statusBar().showMessage(f"Arduino: {line}")
+                elif len(line.strip()) > 0 and not line.lower().startswith(("bldc", "ready", "target", "kp:", "ki:", "kd:", "motor")):
+                    # Show other important Arduino messages (but filter out common startup messages)
                     self.statusBar().showMessage(f"Arduino: {line}")
 
             # Check for connection timeout
@@ -852,9 +871,9 @@ class PIDControllerGUI(QMainWindow):
                 return
 
             parts = data[7:].split(',')
-            # Require exactly 11 parts (timestamp + 10 data values)
-            if len(parts) != 11:
-                print(f"Invalid status data format: expected 11 parts, got {len(parts)}: {data}")
+            # Require exactly 10 parts (timestamp + 9 data values) after removing auto_tune
+            if len(parts) != 10:
+                print(f"Invalid status data format: expected 10 parts, got {len(parts)}: {data}")
                 return
 
             # Parse each field with error checking
@@ -984,495 +1003,27 @@ class PIDControllerGUI(QMainWindow):
         self.send_command("RESET_CONTROLLER")
         self.statusBar().showMessage("Controller reset")
 
-    def run_diagnostics(self):
-        """Run comprehensive diagnostics to identify issues"""
-        print("🔧 RUNNING COMPREHENSIVE DIAGNOSTICS...")
-
-        # Test Arduino communication
-        print("1. Testing Arduino communication...")
-        self.send_command("DIAGNOSTICS")
-        time.sleep(0.5)
-
-        # Test motor enable/disable
-        print("2. Testing motor enable/disable...")
-        self.send_command("ENABLE_MOTOR 0")
-        time.sleep(0.5)
-        self.send_command("ENABLE_MOTOR 1")
-        time.sleep(0.5)
-
-        # Test PWM response
-        print("3. Testing PWM response...")
-        for pwm_val in [0, 50, 100, 150, 200]:
-            self.send_command(f"SET_PWM {pwm_val}")
-            time.sleep(1)
-            rpm = self.get_current_rpm_from_arduino()
-            print(f"   PWM {pwm_val}: {rpm} RPM")
-
-        # Stop motor
-        self.send_command("SET_PWM 0")
-        time.sleep(1)
-
-        print("4. Requesting STATUS data...")
-        self.send_command("GET_STATUS")
-        time.sleep(0.5)
-
-        print("🔧 DIAGNOSTICS COMPLETE - Check Arduino responses above")
-
-    def test_pid_performance(self, kp, ki, kd, target_rpm):
-        """Test PID performance and return steady-state error"""
-        print(f"   Testing PID performance for {target_rpm} RPM...")
-
-        # Send test PID values to Arduino
-        self.send_command(f"SET_KP {kp:.4f}")
-        time.sleep(0.1)
-        self.send_command(f"SET_KI {ki:.4f}")
-        time.sleep(0.1)
-        self.send_command(f"SET_KD {kd:.4f}")
-        time.sleep(0.1)
-        self.send_command("AUTO_TUNE 0")  # Exit auto-tune mode
-        time.sleep(0.2)
-
-        # Enable motor and let it stabilize
-        self.send_command("ENABLE_MOTOR 1")
-        time.sleep(2)  # Let motor start and stabilize
-
-        # Collect RPM data for 10 seconds to measure steady-state error
-        rpm_samples = []
-        start_time = time.time()
-
-        print(f"   Collecting RPM data for 10 seconds...")
-        while time.time() - start_time < 10:
-            current_rpm = self.get_current_rpm_from_arduino()
-            if current_rpm is not None and current_rpm > 0:
-                rpm_samples.append(current_rpm)
-            time.sleep(0.1)  # 10Hz sampling
-
-        # Disable motor
-        self.send_command("ENABLE_MOTOR 0")
-
-        if len(rpm_samples) < 50:  # Need at least 5 seconds of data
-            print(f"   ERROR: INSUFFICIENT DATA: Only collected {len(rpm_samples)} samples")
-            return 999, 100.0  # Large error to force refinement
-
-        # Calculate steady-state error (average of last 50 samples = last 5 seconds)
-        steady_state_rpm = np.mean(rpm_samples[-50:])
-        steady_state_error = steady_state_rpm - target_rpm
-        error_percent = (steady_state_error / target_rpm) * 100
-
-        print(f"   Steady-state RPM: {steady_state_rpm:.2f}")
-        print(f"   Target RPM: {target_rpm}")
-        print(f"   Error: {steady_state_error:.2f} RPM ({error_percent:.2f}%)")
-
-        return steady_state_error, error_percent
-
-    def computer_pid_control(self, target_rpm, kp, ki, kd, duration):
-        """Run PID control entirely on computer"""
-        rpm_history = []
-        pwm_history = []
-        time_history = []
-
-        # PID state
-        integral = 0.0
-        prev_error = None  # Initialize as None
-        start_time = time.time()
-
-        print(f"Running computer PID control: Kp={kp:.3f}, Ki={ki:.3f}, Kd={kd:.3f}")
-
-        loop_count = 0
-        while time.time() - start_time < duration and self.auto_tune_running:
-            loop_start = time.time()
-
-            # Get current RPM from Arduino (synchronized data collection)
-            current_rpm = self.get_current_rpm_from_arduino()
-
-            # Always collect data (even if RPM is 0) for analysis
-            if current_rpm is not None:
-                # Calculate PID
-                error = target_rpm - current_rpm
-                integral += error * 0.1  # dt = 0.1s
-                integral = max(-1000, min(1000, integral))  # Anti-windup
-                derivative = (error - prev_error) / 0.1 if prev_error is not None else 0
-                prev_error = error
-
-                pid_output = kp * error + ki * integral + kd * derivative
-
-                # Convert to PWM (20-255 range) - more aggressive scaling for oscillation testing
-                pwm_value = int(127.5 + pid_output * 2.0)  # Higher gain for oscillation
-                pwm_value = max(20, min(255, pwm_value))
-
-                # Send PWM command to Arduino (only if changed significantly)
-                if not hasattr(self, '_last_pwm') or abs(pwm_value - self._last_pwm) > 5:
-                    self.send_command(f"SET_PWM {pwm_value}")
-                    self._last_pwm = pwm_value
-                    print(f"Sent PWM: {pwm_value}")  # Debug
-
-                # Store synchronized data
-                current_time = time.time() - start_time
-                rpm_history.append(current_rpm)
-                pwm_history.append(pwm_value)
-                time_history.append(current_time)
-
-            # Maintain consistent 10Hz timing
-            elapsed = time.time() - loop_start
-            if elapsed < 0.1:
-                time.sleep(0.1 - elapsed)
-
-        # Stop motor at end
-        self.send_command("SET_PWM 0")
-        if hasattr(self, '_last_pwm'):
-            delattr(self, '_last_pwm')
-
-        print(f"Collected {len(rpm_history)} data points")
-        if len(rpm_history) > 0:
-            print(f"RPM range: {min(rpm_history):.1f} - {max(rpm_history):.1f}")
-            print(f"PWM range: {min(pwm_history)} - {max(pwm_history)}")
-        return rpm_history, pwm_history
-
-    def get_current_rpm_from_arduino(self):
-        """Extract current RPM from Arduino data"""
-        try:
-            # During auto-tune, aggressively request fresh STATUS data
-            if hasattr(self, 'serial_worker') and self.serial_worker.isRunning():
-                # Send multiple requests for status data
-                for i in range(2):  # Send twice for reliability
-                    self.send_command("FORCE_STATUS")
-                    time.sleep(0.02)  # Brief wait for response
-
-            # Get the most recent RPM data from the plot canvas
-            if len(self.plot_canvas.current_rpm_data) > 0:
-                rpm_value = self.plot_canvas.current_rpm_data[-1]
-                # Validate RPM value
-                if isinstance(rpm_value, (int, float)) and rpm_value >= 0:
-                    return float(rpm_value)
-
-            # If no valid data, try to get it from the data queue directly
-            try:
-                while not self.data_queue.empty():
-                    line = self.data_queue.get_nowait()
-                    if line.startswith("STATUS:"):
-                        self.parse_status_data(line)
-                        # After parsing, check if we now have valid RPM data
-                        if len(self.plot_canvas.current_rpm_data) > 0:
-                            rpm_value = self.plot_canvas.current_rpm_data[-1]
-                            if isinstance(rpm_value, (int, float)) and rpm_value >= 0:
-                                return float(rpm_value)
-            except:
-                pass
-
-            return 0.0  # Return 0 instead of None for auto-tune continuity
-        except Exception as e:
-            print(f"Error getting RPM: {e}")
-            return 0.0
-
-    def analyze_oscillation_computer(self, rpm_data):
-        """Analyze RPM data for oscillation on computer"""
-        if len(rpm_data) < 30:
-            return 0.0
-
-        # Calculate basic statistics
-        rpm_mean = np.mean(rpm_data)
-        rpm_std = np.std(rpm_data)
-        rpm_min = np.min(rpm_data)
-        rpm_max = np.max(rpm_data)
-
-        # CRITICAL CHECK: If motor is not responding at all, no oscillation
-        if rpm_max < 10.0:  # Motor should spin at least 10 RPM if working
-            print(f"  Motor not responding (max RPM: {rpm_max:.1f}) - aborting oscillation test")
-            return 0.0
-
-        # Coefficient of variation (relative variability) - avoid division by zero
-        cv = rpm_std / abs(rpm_mean) if abs(rpm_mean) > 1e-6 else 0
-
-        # Peak-to-peak amplitude
-        amplitude = rpm_max - rpm_min
-
-        # Zero crossing rate (oscillation frequency) - avoid issues with zero mean
-        if abs(rpm_mean) > 1e-6:
-            centered_data = rpm_data - rpm_mean
-            zero_crossings = np.sum(np.diff(np.sign(centered_data)) != 0)
-            zcr = zero_crossings / len(centered_data) if len(centered_data) > 0 else 0
-        else:
-            zcr = 0
-
-        # Autocorrelation to detect periodicity (oscillation)
-        autocorr = 0
-        if len(rpm_data) > 50:
-            try:
-                # Calculate autocorrelation at lag 10 (about 2 seconds at 5Hz)
-                autocorr_result = np.corrcoef(rpm_data[:-10], rpm_data[10:])[0,1]
-                autocorr = abs(autocorr_result) if not np.isnan(autocorr_result) else 0
-            except:
-                autocorr = 0
-
-        # Combine multiple metrics for oscillation detection
-        # Protect against division by zero in amplitude calculation
-        amplitude_score = (amplitude / abs(rpm_mean)) * 3 if abs(rpm_mean) > 1e-6 else 0
-        oscillation_score = min(1.0, cv * 8 + amplitude_score + zcr * 6 + autocorr * 2)
-
-        return oscillation_score
-
-    def measure_oscillation_period_computer(self, rpm_data):
-        """Measure oscillation period from RPM data"""
-        if len(rpm_data) < 50:
-            return None
-
-        try:
-            # Simple period estimation using autocorrelation
-            # Look for the first peak in autocorrelation (excluding lag 0)
-            data = np.array(rpm_data) - np.mean(rpm_data)  # Remove DC component
-
-            # Compute autocorrelation
-            corr = np.correlate(data, data, mode='full')
-            corr = corr[len(corr)//2:]  # Take second half (positive lags)
-
-            # Find peaks in autocorrelation (oscillation period)
-            peaks = []
-            for i in range(5, min(len(corr)//2, 100)):  # Look for periods up to 10 seconds
-                if (corr[i] > corr[i-1] and corr[i] > corr[i+1] and
-                    corr[i] > 0.3 * np.max(corr[1:50])):  # Significant peak
-                    peaks.append(i)
-
-            if peaks:
-                # Use the first significant peak as the period (in seconds)
-                period = peaks[0] * 0.1  # 0.1s per sample
-                if 0.2 <= period <= 10.0:  # Reasonable range
-                    return period
-
-            # Fallback: simple zero-crossing based period estimation
-            diffs = np.diff(data)
-            zero_crossings = []
-            for i in range(1, len(diffs)):
-                if diffs[i-1] * diffs[i] < 0:  # Sign change
-                    zero_crossings.append(i)
-
-            if len(zero_crossings) >= 4:
-                # Average distance between zero crossings
-                distances = np.diff(zero_crossings)
-                avg_distance = np.mean(distances)
-                period = avg_distance * 0.1  # Convert to seconds
-                if 0.2 <= period <= 10.0:
-                    return period
-
-        except Exception as e:
-            print(f"Error measuring period: {e}")
-
-        return None
-
-
-
-    def measure_multiple_periods(self, data, min_periods=3):
-        """Measure multiple oscillation periods for robustness"""
-        periods = []
-
-        # Analyze in overlapping windows
-        window_size = min(80, len(data) // 2)
-
-        for start in range(0, len(data) - window_size, window_size // 3):
-            window = data[start:start + window_size]
-            if len(window) > 40:
-                period = self.estimate_period(window)
-                if 500 < period < 10000:  # Reasonable period range (0.5-10 seconds)
-                    periods.append(period)
-
-        # Return at least min_periods measurements
-        return periods[:min_periods] if len(periods) >= min_periods else None
-
-    def validate_and_optimize_gains(self, kp_zn, ki_zn, kd_zn):
-        """Validate calculated gains and optimize if necessary"""
-        try:
-            # Test the calculated gains
-            self.send_command(f"SET_KP {kp_zn}")
-            self.send_command(f"SET_KI {ki_zn}")
-            self.send_command(f"SET_KD {kd_zn}")
-
-            # Wait for system to settle
-            time.sleep(5)
-
-            # Evaluate performance with more comprehensive analysis
-            if len(self.plot_canvas.error_data) > 150:  # Need more data for reliable analysis
-                recent_errors = self.plot_canvas.error_data[-150:]
-
-                # Calculate comprehensive performance metrics
-                steady_state_error = np.mean(np.abs(recent_errors[-75:]))  # Last 3.75 seconds
-                overshoot = self.calculate_overshoot(recent_errors)
-                settling_time = self.calculate_settling_time(recent_errors)
-                oscillation_amplitude = self.calculate_oscillation_amplitude(recent_errors[-75:])
-
-                # Enhanced performance criteria
-                performance_score = self.calculate_performance_score(
-                    steady_state_error, overshoot, settling_time, oscillation_amplitude
-                )
-
-                # Excellent performance - use calculated gains
-                if performance_score >= 0.8:
-                    return (kp_zn, ki_zn, kd_zn)
-
-                # Good performance - minor adjustments
-                elif performance_score >= 0.6:
-                    # Fine-tune for slightly better performance
-                    if overshoot > 80:
-                        kp_adjusted = 0.9 * kp_zn
-                        ki_adjusted = 0.9 * ki_zn
-                        kd_adjusted = 1.1 * kd_zn
-                        return (kp_adjusted, ki_adjusted, kd_adjusted)
-                    return (kp_zn, ki_zn, kd_zn)
-
-                # Poor performance - apply conservative tuning
-                else:
-                    # Use more conservative Ziegler-Nichols coefficients
-                    kp_conservative = 0.35 * ku  # More conservative
-                    ti_conservative = 1.2 * tu   # Slower integral
-                    td_conservative = 0.1 * tu   # Less derivative
-
-                    ki_conservative = kp_conservative / ti_conservative
-                    kd_conservative = kp_conservative * td_conservative
-
-                    return (kp_conservative, ki_conservative, kd_conservative)
-
-            # If validation data insufficient, return original gains
-            return (kp_zn, ki_zn, kd_zn)
-
-        except Exception as e:
-            print(f"Gain validation error: {e}")
-            return (kp_zn, ki_zn, kd_zn)
-
-    def check_amplitude_stability(self, data, window=40):
-        """Check if oscillation amplitude is stable"""
-        if len(data) < window * 2:
-            return False
-
-        # Calculate amplitude in different segments
-        segment1 = data[-window*2:-window]
-        segment2 = data[-window:]
-
-        amp1 = np.max(segment1) - np.min(segment1)
-        amp2 = np.max(segment2) - np.min(segment2)
-
-        # Amplitude should be similar (within 20%)
-        return abs(amp1 - amp2) / max(amp1, amp2) < 0.2
-
-    def calculate_oscillation_amplitude(self, error_data):
-        """Calculate the amplitude of oscillations in steady state"""
-        if len(error_data) < 20:
-            return 0
-
-        # Use peak-to-peak amplitude of recent data
-        return np.max(error_data) - np.min(error_data)
-
-    def calculate_performance_score(self, steady_state_error, overshoot, settling_time, oscillation_amplitude):
-        """Calculate overall performance score (0-1, higher is better)"""
-        # Normalize metrics (lower values are better)
-        sse_score = max(0, 1 - steady_state_error / 100)  # Expect <100 RPM error
-        overshoot_score = max(0, 1 - overshoot / 150)     # Expect <150% overshoot
-        settling_score = max(0, 1 - settling_time / 10)   # Expect <10 seconds settling
-        oscillation_score = max(0, 1 - oscillation_amplitude / 200)  # Expect <200 RPM oscillation
-
-        # Weighted average (steady state most important)
-        return 0.4 * sse_score + 0.25 * overshoot_score + 0.2 * settling_score + 0.15 * oscillation_score
-
-    def calculate_overshoot(self, error_data, window=50):
-        """Calculate percentage overshoot from error data"""
-        if len(error_data) < window:
-            return 0
-
-        # Find peak error deviation
-        peak_error = max(np.abs(error_data[-window:]))
-        steady_state = np.mean(np.abs(error_data[-20:]))  # Last part as steady state
-
-        if steady_state == 0:
-            return 0
-
-        return (peak_error / steady_state - 1) * 100
-
-    def calculate_settling_time(self, error_data, threshold=5, steady_window=20):
-        """Calculate settling time (time to reach steady state)"""
-        if len(error_data) < steady_window * 2:
-            return float('inf')
-
-        # Find steady state value
-        steady_state = np.mean(error_data[-steady_window:])
-
-        # Find when error stays within threshold of steady state
-        threshold_value = abs(steady_state) * threshold / 100
-
-        for i in range(len(error_data) - steady_window, -1, -1):
-            window_errors = error_data[i:i + steady_window]
-            if np.all(np.abs(window_errors - steady_state) < threshold_value):
-                return (len(error_data) - i) / 20.0  # Convert to seconds
-
-        return float('inf')
-
-    def detect_oscillation(self, data, threshold=0.12):
-        """Enhanced oscillation detection with multiple criteria"""
-        if len(data) < 30:
-            return False
-
-        # Method 1: Zero crossing rate
-        diffs = np.diff(data)
-        sign_changes = np.diff(np.sign(diffs))
-        zero_crossings = np.sum(np.abs(sign_changes)) / 2
-        crossing_rate = zero_crossings / len(data)
-
-        # Method 2: Autocorrelation check (oscillating signals have high autocorrelation at lag = period)
-        if len(data) > 40:
-            # Check autocorrelation at different lags
-            autocorr_values = []
-            for lag in range(5, min(30, len(data)//3)):
-                corr = np.corrcoef(data[:-lag], data[lag:])[0, 1]
-                if not np.isnan(corr):
-                    autocorr_values.append(abs(corr))
-
-            max_autocorr = max(autocorr_values) if autocorr_values else 0
-        else:
-            max_autocorr = 0
-
-        # Method 3: Spectral analysis (check for dominant frequency)
-        if len(data) > 32:
-            # Simple FFT to check for dominant frequency
-            fft = np.fft.fft(data - np.mean(data))
-            freqs = np.fft.fftfreq(len(data))
-            magnitudes = np.abs(fft)
-
-            # Find dominant frequency (excluding DC component)
-            dominant_idx = np.argmax(magnitudes[1:]) + 1
-            dominant_magnitude = magnitudes[dominant_idx]
-            total_power = np.sum(magnitudes[1:]**2)
-
-            # Check if there's a clear dominant frequency
-            spectral_concentration = dominant_magnitude**2 / total_power if total_power > 0 else 0
-        else:
-            spectral_concentration = 0
-
-        # Combine criteria with weighted scoring
-        score = 0
-        score += 1.0 if crossing_rate > threshold else 0  # Zero crossing
-        score += 0.8 if max_autocorr > 0.6 else 0         # Autocorrelation
-        score += 0.6 if spectral_concentration > 0.3 else 0  # Spectral concentration
-
-        return score >= 1.2  # Require at least 2 out of 3 criteria
-
-    def estimate_period(self, data, sample_rate=20):
-        """Estimate oscillation period from zero crossings"""
-        if len(data) < 20:
-            return 1.0
-
-        # Find zero crossings of the signal around mean
-        mean_val = np.mean(data)
-        centered_data = data - mean_val
-
-        zero_crossings = []
-        for i in range(1, len(centered_data)):
-            if centered_data[i-1] * centered_data[i] < 0:
-                zero_crossings.append(i)
-
-        if len(zero_crossings) < 4:
-            return 1.0
-
-        # Calculate average period between zero crossings
-        periods = np.diff(zero_crossings)
-        avg_period = np.mean(periods)
-
-        return avg_period / sample_rate * 1000  # Convert to milliseconds
+    def test_ppr_calculation(self):
+        """Test PPR calculation by counting pulses"""
+        print("🔧 Testing PPR calculation...")
+        print(f"Current PPR setting: {self.current_params['pulses_per_rev']}")
+        print("This will count pulses for 5 seconds. Make sure motor is spinning at known RPM.")
+
+        # Ask user to confirm
+        reply = QMessageBox.question(
+            self, "PPR Test",
+            f"Current PPR: {self.current_params['pulses_per_rev']}\n\n"
+            "This test will:\n"
+            "1. Count pulses for 5 seconds\n"
+            "2. Calculate RPM based on PPR\n\n"
+            "Make sure your motor is spinning at a known RPM before proceeding.\n\n"
+            "Proceed with test?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self.send_command("TEST_PPR")
+            print("🔧 PPR test started - check Arduino serial output for results")
 
     def save_parameters(self):
         """Save current parameters to file"""

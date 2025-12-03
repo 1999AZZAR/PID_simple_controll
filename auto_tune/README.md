@@ -38,7 +38,7 @@ This advanced version of the Arduino Uno BLDC PID controller replaces potentiome
 - **Parameter Management**: Save/load configurations to JSON files
 - **Data Export**: Export performance data to CSV for analysis
 - **Motor Control**: Enable/disable motor, reset controller functions
-- **Diagnostics**: Built-in motor and system diagnostics
+- **PPR Verification**: Test pulse counting accuracy for correct RPM calculation
 - **Professional Styling**: Modern UI with hover effects and visual feedback
 
 ## Quick Start
@@ -191,6 +191,14 @@ python control.py
 2. Verify baud rate is 115200
 3. Click "Connect"
 4. Status should show "Connected" in green
+
+### PPR Configuration
+
+1. Set pulses per revolution (PPR) for your motor's Hall sensor
+2. Click "Test PPR" to verify pulse counting accuracy
+3. Test counts pulses for 5 seconds and calculates RPM
+4. Compare with known motor speed to verify PPR setting
+5. Adjust PPR value if RPM calculation is incorrect
 
 ### Parameter Adjustment
 

@@ -13,7 +13,7 @@
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
 // RPM calculation parameters
-#define DEFAULT_PULSES_PER_REV 11   // Default number of pulses per revolution
+#define DEFAULT_PULSES_PER_REV 24   // Default number of pulses per revolution got from 4 cycles×6 steps=24 state changes per revolution.
 #define RPM_CALC_INTERVAL   25  // RPM calculation interval (25ms) - faster updates for smooth control
 #define MIN_PULSE_WIDTH_US  100  // Minimum pulse width (100μs) - reduced for better responsiveness
 

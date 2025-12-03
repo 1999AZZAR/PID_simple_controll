@@ -81,8 +81,7 @@ void setup() {
     inputString.reserve(200);
 
     // Configure pins
-    pinMode(RPM_SENSOR_PIN, INPUT_PULLUPwindow.loadPackages not available quick-purchase:1:83
-    );
+    pinMode(RPM_SENSOR_PIN, INPUT_PULLUP);
     pinMode(PWM_OUTPUT_PIN, OUTPUT);
 
     // Attach interrupt for BLDC Hall sensor
@@ -127,28 +126,22 @@ void loop() {
     if (motorEnabled) {
         float error = targetRPM - currentRPM;
 
-        if (autoTuneMode) {
-            // During auto-tune: Use P-only control to test different Kp values
-            // Ki and Kd are set to 0 by the GUI before starting auto-tune
-            pidOutput = kp * error;  // Simple proportional control only
+        // Special handling for very low RPM targets (< 50 RPM)
+        if (targetRPM < 50) {
+            // Use simplified proportional-only control for low speeds
+            float lowSpeedKp = 2.0; // Higher proportional gain for low speeds
+            pidOutput = lowSpeedKp * error;
+
+            // Add small integral term for steady state accuracy
+            static float lowSpeedIntegral = 0;
+            lowSpeedIntegral += 0.01 * error;
+            lowSpeedIntegral = constrain(lowSpeedIntegral, -50, 50);
+            pidOutput += lowSpeedIntegral;
+
+            pidOutput = constrain(pidOutput, 0, 200); // Positive only for low speeds
         } else {
-            // Special handling for very low RPM targets (< 50 RPM)
-            if (targetRPM < 50) {
-                // Use simplified proportional-only control for low speeds
-                float lowSpeedKp = 2.0; // Higher proportional gain for low speeds
-                pidOutput = lowSpeedKp * error;
-
-                // Add small integral term for steady state accuracy
-                static float lowSpeedIntegral = 0;
-                lowSpeedIntegral += 0.01 * error;
-                lowSpeedIntegral = constrain(lowSpeedIntegral, -50, 50);
-                pidOutput += lowSpeedIntegral;
-
-                pidOutput = constrain(pidOutput, 0, 200); // Positive only for low speeds
-            } else {
-                // Normal PID control for higher speeds
-                pidOutput = computePID(error);
-            }
+            // Normal PID control for higher speeds
+            pidOutput = computePID(error);
         }
 
         // Convert PID output to PWM value with better low-speed control
@@ -163,19 +156,6 @@ void loop() {
         }
 
         outputToESC(pwmValue);
-
-        // Debug output every 500ms for troubleshooting
-        static unsigned long lastDebug = 0;
-        if (millis() - lastDebug > 500) {
-            Serial.print(F("DEBUG: Mode="));
-            Serial.print(F(", Target="));
-            Serial.print(targetRPM);
-            Serial.print(F(", Current="));
-            Serial.print(currentRPM);
-            Serial.print(F(", PWM="));
-            Serial.println(pwmValue);
-            lastDebug = millis();
-        }
     } else if (!motorEnabled) {
         // Motor disabled - stop immediately
         analogWrite(PWM_OUTPUT_PIN, 0);
@@ -188,12 +168,6 @@ void loop() {
         lastSerialSend = currentTime;
     }
 
-    // Debug: Send heartbeat every 2 seconds
-    static unsigned long lastHeartbeat = 0;
-    if (currentTime - lastHeartbeat >= 2000) {
-        Serial.println(F("HEARTBEAT"));
-        lastHeartbeat = currentTime;
-    }
 
     // Control loop timing
     delay(CONTROL_PERIOD_MS);
@@ -356,97 +330,36 @@ void processSerialCommand(String command) {
             // Also reset any auto-tune specific variables
             }
 
-    } else if (command == "FORCE_STOP") {
-        // Emergency stop - force motor to stop completely
-        motorEnabled = false;
-        analogWrite(PWM_OUTPUT_PIN, 0);
-        pidOutput = 0;
-        integral = 0;
-        previousError = 0;
-        Serial.println(F("FORCE STOP: Motor completely disabled"));
-
-    } else if (command.startsWith("SET_PWM ")) {
-        if (autoTuneMode) {
-            // Direct PWM control during auto-tune (computer-controlled)
-            int pwm_value = command.substring(8).toInt();
-            pwm_value = constrain(pwm_value, 0, 255);
-            analogWrite(PWM_OUTPUT_PIN, pwm_value);
-            Serial.print(F("PWM set to: "));
-            Serial.println(pwm_value);
-        } else {
-            Serial.println(F("ERROR: SET_PWM only allowed in auto-tune mode"));
-        }
-
-    } else if (command.startsWith("AUTO_TUNE ")) {
-        autoTuneMode = (command.substring(10) == "1");
-        if (autoTuneMode) {
-            // Reset PID state for auto-tuning
-            integral = 0;
-            previousError = 0;
-            Serial.println(F("Auto-tune mode enabled - computer control"));
-        } else {
-            Serial.println(F("✓ Auto-tune mode disabled - using PID control"));
-        }
-
-    } else if (command == "RESET_INTEGRAL") {
-        integral = 0;
-        Serial.println(F("Integral reset"));
-
     } else if (command == "GET_STATUS") {
         sendStatusData();
 
-    } else if (command == "VERIFY_TUNED_VALUES") {
-        Serial.println(F("=== TUNED PID VALUES VERIFICATION ==="));
-        Serial.print(F("Current Kp: "));
-        Serial.println(kp, 4);
-        Serial.print(F("Current Ki: "));
-        Serial.println(ki, 4);
-        Serial.print(F("Current Kd: "));
-        Serial.println(kd, 4);
-        Serial.print(F("Auto-tune mode: "));
+    } else if (command == "TEST_PPR") {
+        Serial.println(F("=== PPR TEST MODE ==="));
+        Serial.print(F("Configured PPR: "));
+        Serial.println(pulsesPerRev);
+
+        // Count pulses for 5 seconds
+        unsigned long startTime = millis();
+        unsigned long startPulses = pulseCount;
+        Serial.println(F("Counting pulses for 5 seconds..."));
+
+        while (millis() - startTime < 5000) {
+            delay(1000); // Update every second
+            Serial.print(F("Elapsed: "));
+            Serial.print((millis() - startTime) / 1000);
+            Serial.print(F("s, Pulses: "));
+            Serial.println(pulseCount - startPulses);
+        }
+
+        unsigned long totalPulses = pulseCount - startPulses;
+        float measuredRPM = (totalPulses * 60.0) / (5.0 * pulsesPerRev);  // Simplified formula for 5 seconds
+        Serial.print(F("Total pulses counted: "));
+        Serial.println(totalPulses);
+        Serial.print(F("Calculated RPM (5s average): "));
+        Serial.println(measuredRPM, 2);
+        Serial.println(F("If motor was spinning at known RPM, compare this value."));
+        Serial.println(F("Formula: RPM = (pulses * 60) / (time_seconds * PPR)"));
         Serial.println(F("===================================="));
-
-    } else if (command == "DIAGNOSTICS") {
-        Serial.println(F("=== ARDUINO DIAGNOSTICS ==="));
-        Serial.print(F("Motor Enabled: "));
-        Serial.println(motorEnabled ? F("YES") : F("NO"));
-        Serial.print(F("Auto-tune Mode: "));
-        Serial.print(F("Current RPM: "));
-        Serial.println(currentRPM, 1);
-        Serial.print(F("Target RPM: "));
-        Serial.println(targetRPM, 1);
-        Serial.print(F("PID Output: "));
-        Serial.println(pidOutput, 2);
-        Serial.print(F("Pulse Count: "));
-        Serial.println(pulseCount);
-        Serial.println(F("============================"));
-
-    } else if (command == "SEND_STATUS") {
-        // Force send STATUS data for debugging
-        Serial.println(F("Force sending STATUS data..."));
-        sendStatusData();
-
-    } else if (command == "FORCE_STATUS") {
-        Serial.print(F("STATUS:"));
-        Serial.print(millis());
-        Serial.print(F(","));
-        Serial.print(targetRPM, 0);
-        Serial.print(F(","));
-        Serial.print(currentRPM, 1);
-        Serial.print(F(","));
-        Serial.print(targetRPM - currentRPM, 1);
-        Serial.print(F(","));
-        Serial.print(pidOutput, 1);
-        Serial.print(F(","));
-        Serial.print(kp, 4);
-        Serial.print(F(","));
-        Serial.print(ki, 4);
-        Serial.print(F(","));
-        Serial.print(kd, 4);
-        Serial.print(F(","));
-        Serial.print(pulsesPerRev);
-        Serial.print(F(","));
-        Serial.println(motorEnabled ? 1 : 0);
 
     } else if (command == "RESET_CONTROLLER") {
         // Reset all control variables
