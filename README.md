@@ -199,40 +199,43 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 
 ## Platform Comparison
 
-| Feature                     | Arduino Uno (Simplified)                  | ATTiny85 (Production)                        |
-| --------------------------- | ----------------------------------------- | -------------------------------------------- |
-| **Purpose**           | Clean development and testing             | Production deployment                        |
-| **Target RPM**        | Fixed at 1440 RPM                         | Fixed at 1440 RPM                            |
-| **Flash Usage**       | 6,968 bytes (21%)                         | 1,586 bytes (77%)                            |
-| **RAM Usage**         | 372 bytes (18%)                           | 49 bytes (38%)                               |
-| **Efficiency Ratio**  | **4.4x smaller than full-featured** | **11.7x smaller flash, 7.6x less RAM** |
-| **Total Flash**       | 32,256 bytes                              | 2,048 bytes                                  |
-| **Total RAM**         | 2,048 bytes                               | 128 bytes                                    |
-| **Pin Count**         | 7 pins used                               | **2 pins only**                        |
-| **Cost**              | ~$20                                      | ~$2                                         |
-| **Tuning Interface**  | 4 potentiometers (PPR, Kp, Ki, Kd)        | None (pre-tuned)                             |
-| **Safety Features**   | Anti-windup protection                    | Watchdog timer                               |
-| **EEPROM**            | None                                      | None                                         |
-| **Serial Output**     | 7-parameter monitoring                    | None                                         |
-| **Development Time**  | Quick setup, stable operation             | Deploy & forget                              |
-| **Power Efficiency**  | Standard                                  | Optimized                                    |
-| **Reliability Focus** | Maximum stability                         | Cost-effective                               |
+| Feature                     | Arduino Uno (Simplified)                        | ATTiny85 (Production)                        |
+| --------------------------- | ----------------------------------------------- | -------------------------------------------- |
+| **Purpose**           | Clean development and testing                   | Production deployment                        |
+| **Target RPM**        | Fixed at 1440 RPM                               | Fixed at 1440 RPM                            |
+| **Flash Usage**       | 6,968 bytes (21%)                               | 1,586 bytes (77%)                            |
+| **RAM Usage**         | 372 bytes (18%)                                 | 49 bytes (38%)                               |
+| **Efficiency Ratio**  | **4.4x smaller than full-featured**       | **11.7x smaller flash, 7.6x less RAM** |
+| **Total Flash**       | 32,256 bytes                                    | 2,048 bytes                                  |
+| **Total RAM**         | 2,048 bytes                                     | 128 bytes                                    |
+| **Pin Count**         | 7 pins used                                     | **2 pins only**                        |
+| **Cost**              | ~$20                                      | ~$2 |                                              |
+| **Tuning Interface**  | 4 potentiometers (PPR, Kp, Ki, Kd)              | None (pre-tuned)                             |
+| **Safety Features**   | Anti-windup protection                          | Watchdog timer                               |
+| **EEPROM**            | None                                            | None                                         |
+| **Serial Output**     | 7-parameter monitoring                          | None                                         |
+| **Development Time**  | Quick setup, stable operation                   | Deploy & forget                              |
+| **Power Efficiency**  | Standard                                        | Optimized                                    |
+| **Reliability Focus** | Maximum stability                               | Cost-effective                               |
 
 **Platform Summary**: Arduino Uno provides full development features. ATTiny85 offers minimal production control with cost optimization.
 
 ## Quick Start
 
 ### Option 1: GUI with Auto-Tuning
+
 ```bash
 cd auto_tune
 pip install -r requirements.txt
 python control.py
 ```
+
 - Modern PyQt6 interface with automatic PID tuning
 - Real-time monitoring and parameter adjustment
 - Integrated serial testing and validation
 
 ### Option 2: Basic Arduino Development
+
 1. **Choose your platform:**
    - Open `arduino_uno/arduino_uno.ino` for basic development
    - Open `attiny85/attiny85.ino` for production
@@ -241,11 +244,13 @@ python control.py
    - `attiny85/README.md` for ATTiny85 setup
 
 ### Option 3: Arduino IDE Compatible Auto-Tune
+
 1. Open `auto_tune/code/code.ino` in Arduino IDE
 2. Upload to Arduino Uno
 3. Use the GUI: `python auto_tune/control.py`
 
 ### General Setup
+
 - **Documentation:** `howto.md` - Detailed assembly guide
 - **Assets:** `assets/` - Visual diagrams and datasheets
 - **Hardware:** Refer to schematic files in each platform folder
@@ -316,7 +321,7 @@ BLDC Motor Hall Sensors → Controller/Microcontroller → ESC → Motor Power
 
 - **Any Hall wire works**: Connect Hall A, B, or C to the sensor input pin
 - **No isolation needed**: The controller and BLDC motor can safely share Hall wires
-- **6 pulses per revolution**: Code is configured for 3-Hall BLDC motors
+- **pulses per revolution**: Code is configured for 3-Hall BLDC motors
 - **Power sharing**: Hall sensors typically operate at 5V, same as microcontroller
 - **Common ground**: Ensure all components share a common ground connection
 
@@ -326,13 +331,13 @@ For optimal performance, the controller can use a composite signal from all thre
 
 **Signal Composition Methods:**
 
-1. **Single Hall Wire**: Connect any one Hall sensor (A, B, or C) - provides 2 pulses per electrical revolution
-2. **Composite Signal**: Combine all three Hall sensors using OR logic - provides 6 pulses per electrical revolution
+1. **Single Hall Wire**: Connect any one Hall sensor (A, B, or C) - provides simpler pulses per electrical revolution
+2. **Composite Signal**: Combine all three Hall sensors using OR logic - provides combination/aggregation pulses per electrical revolution
 3. **Sensor Selection**: Use the Hall sensor that provides the most stable signal for your specific motor
 
 **Composite Signal Benefits:**
 
-- **Higher Resolution**: 6 pulses vs 2 pulses per electrical revolution
+- **Higher Resolution**: higher pulses per electrical revolution
 - **Better Reliability**: Redundant position information from three sensors
 - **Improved Control**: More frequent position updates for smoother motor control
 
@@ -364,6 +369,61 @@ BLDC motor Hall sensors can be either push-pull or open-collector outputs:
 2. Monitor Hall sensor signal with oscilloscope during motor rotation
 3. Adjust edge detection (RISING vs FALLING) based on observed signal characteristics
 4. Ensure pull-up resistors are appropriate for your sensor type
+
+#### Single Hall Wire for RPM Monitoring
+
+For **RPM (tachometer) applications**, using only **one Hall sensor wire** is the standard and recommended approach. This provides sufficient accuracy for speed monitoring while significantly simplifying implementation.
+
+##### Why Single Wire is Optimal for RPM Monitoring
+
+- **Simplified Wiring**: Connect only one Hall signal wire (A, B, or C) plus ground
+- **Easier Code**: Single interrupt handling instead of complex multi-signal processing
+- **Lower CPU Load**: Process 4 pulses per revolution instead of 24 state changes
+- **Sufficient Resolution**: Adequate for most speed monitoring applications
+
+##### Trade-offs: Resolution at Low Speeds
+
+The main consideration is **response time at very low speeds**:
+
+- **Single Hall Wire**: 4 pulses per revolution
+  - At 1 RPM: Updates every 250ms
+  - May feel slightly laggy when starting from stop
+- **Three Hall Wires**: 24 state changes per revolution
+  - At 1 RPM: Updates every ~41ms
+  - Faster response but more complex implementation
+
+**Recommendation**: Single wire is perfectly adequate unless you need precise control at extremely low speeds (e.g., self-balancing robots).
+
+##### Implementation for Single Hall Wire
+
+For an 8-pole motor (4 pole pairs), one Hall sensor provides 4 pulses per revolution:
+
+```
+RPM = (Pulses per Second × 60) / 4
+```
+
+##### Wiring Safety Requirements
+
+1. **Voltage Verification**: Most Hall sensors operate at 5V (Arduino-safe), but some use 12V
+
+   - Test signal voltage with multimeter before connecting
+   - Use voltage divider or level shifter for 12V signals
+2. **Common Ground**: Always connect Arduino GND to motor controller GND
+3. **Pull-up Configuration**:
+
+   - Motor controller typically provides pull-up resistor
+   - Enable Arduino internal pull-up if testing without controller: `pinMode(pin, INPUT_PULLUP);`
+
+##### Single vs Three Wire Comparison
+
+| Feature                       | Single Wire (Recommended)          | Three Wires                               |
+| ----------------------------- | ---------------------------------- | ----------------------------------------- |
+| **Wiring Complexity**   | Low (Signal + GND)                 | High (3 Signals + GND)                    |
+| **Coding Difficulty**   | Easy (Single Interrupt)            | Hard (Port manipulation)                  |
+| **Response Time**       | Good (adequate for RPM monitoring) | Excellent (optimal for precision control) |
+| **Direction Detection** | Not possible                       | Possible (forward/reverse)                |
+
+**Conclusion**: Start with single wire for RPM monitoring. Upgrade to three wires only if low-speed precision is critical.
 
 ### PWM/ESC Interface Requirements
 

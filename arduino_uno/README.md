@@ -21,7 +21,7 @@ The Arduino Uno version provides a streamlined PID controller for BLDC motors wi
 
 ### Key Features
 
-- **Fixed Target Speed**: 1440 RPM constant speed control
+- **Fixed Target Speed**: `DEFAULT_TARGET_RPM` constant speed control
 - **Potentiometer Tuning**: 4 potentiometers for real-time parameter adjustment
 - **Serial Plotter Integration**: Real-time visualization of control performance
 - **Modular Configuration**: All settings centralized in `config.h`
@@ -113,11 +113,11 @@ All Arduino Uno settings are centralized in `config.h`:
 
 ### Control Parameters
 ```cpp
-#define PRODUCTION_TARGET_RPM 1440.0  // Default target RPM
-#define PRODUCTION_KP         0.5     // Default proportional gain
-#define PRODUCTION_KI         0.1     // Default integral gain
-#define PRODUCTION_KD         0.01    // Default derivative gain
-#define PULSES_PER_REV          6     // Hall sensor pulses per revolution
+#define DEFAULT_TARGET_RPM     1440.0  // Default target RPM
+#define DEFAULT_KP             3.25    // Default proportional gain
+#define DEFAULT_KI             0.0320  // Default integral gain
+#define DEFAULT_KD             0.001   // Default derivative gain
+#define DEFAULT_PULSES_PER_REV 24      // Default pulses per revolution
 ```
 
 ### Safety Settings
@@ -136,7 +136,7 @@ The Arduino Uno version supports two operating modes selected by the mode switch
 
 ### Production Mode (Default)
 - **Mode Switch**: HIGH or floating
-- **Behavior**: Uses fixed target RPM (1440 RPM) with potentiometer-adjustable PID parameters
+- **Behavior**: Uses fixed target RPM (`DEFAULT_TARGET_RPM`) with potentiometer-adjustable PID parameters
 - **Features**: Stable, predictable operation
 - **Use Case**: Final production deployment
 

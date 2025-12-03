@@ -31,7 +31,7 @@ This is the production-ready version of the BLDC PID controller running on ATtin
 ### Hardware Simplicity
 - **2 Connections Only**: RPM sensor input + PWM output to ESC
 - **No External Components**: No potentiometers, switches, or LEDs needed
-- **Direct Operation**: Powers on and maintains 1440 RPM automatically
+- **Direct Operation**: Powers on and maintains `DEFAULT_TARGET_RPM` automatically
 
 ### Minimal Production Design
 - **Core PID Control Only**: Essential motor control with integer math optimization (77% flash usage)
@@ -130,10 +130,10 @@ The ATtiny85 version now uses a modular `config.h` file (similar to Arduino Uno)
 // Safety features removed for minimal operation
 
 // Control parameters
-#define PRODUCTION_TARGET_RPM 1440.0   // Target RPM
-#define PRODUCTION_KP         0.5      // Proportional gain
-#define PRODUCTION_KI         0.1      // Integral gain
-#define PRODUCTION_KD         0.01     // Derivative gain
+#define DEFAULT_TARGET_RPM    1440.0   // Target RPM
+#define DEFAULT_KP            3.25     // Proportional gain
+#define DEFAULT_KI            0.0320   // Integral gain
+#define DEFAULT_KD            0.001    // Derivative gain
 ```
 
 ### Safety Feature Configuration
@@ -144,16 +144,16 @@ The ATtiny85 version now uses a modular `config.h` file (similar to Arduino Uno)
 
 ### Step 1: Tune on Arduino First
 - Use the Arduino version with potentiometers and Serial Plotter
-- Tune PID gains for optimal 1440 RPM performance
+- Tune PID gains for optimal `DEFAULT_TARGET_RPM` performance
 - Record the final Kp, Ki, Kd values
 
 ### Step 2: Transfer Tuned Values
 Update these constants in the ATtiny85 code with your Arduino-tuned values:
 ```cpp
-#define PRODUCTION_TARGET_RPM 1440.0  // Usually stays 1440
-#define PRODUCTION_KP         0.5     // Your tuned proportional gain
-#define PRODUCTION_KI         0.1     // Your tuned integral gain
-#define PRODUCTION_KD         0.01    // Your tuned derivative gain
+#define DEFAULT_TARGET_RPM    1440.0  // Usually stays at default value
+#define DEFAULT_KP            3.25    // Your tuned proportional gain
+#define DEFAULT_KI            0.0320  // Your tuned integral gain
+#define DEFAULT_KD            0.001   // Your tuned derivative gain
 ```
 
 ### Step 3: Upload to ATtiny85
@@ -162,7 +162,7 @@ Update these constants in the ATtiny85 code with your Arduino-tuned values:
 - No potentiometers or switches required
 
 ### Step 4: Production Operation
-- Power on and the system automatically maintains 1440 RPM
+- Power on and the system automatically maintains `DEFAULT_TARGET_RPM`
 - No user intervention needed
 - Reliable, calibrated operation
 
