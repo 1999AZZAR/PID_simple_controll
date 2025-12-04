@@ -13,14 +13,14 @@
 #define POT_KI              A2  // Potentiometer for Ki gain
 #define POT_KD              A3  // Potentiometer for Kd gain
 
-// Control parameters - Optimized for real-time performance
-#define CONTROL_LOOP_HZ     100 // Control loop frequency (100 Hz) - optimal for BLDC control
+// Control parameters - Optimized for maximum accuracy and responsiveness
+#define CONTROL_LOOP_HZ     200 // Control loop frequency (200 Hz) - higher frequency for better control
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
 // RPM calculation parameters
 #define DEFAULT_PULSES_PER_REV 24   // Default number of pulses per revolution got from 4 cycles×6 steps=24 state changes per revolution.
-#define RPM_CALC_INTERVAL   25  // RPM calculation interval (25ms) - faster updates for smooth control
-#define MIN_PULSE_WIDTH_US  100  // Minimum pulse width (100μs) - reduced for better responsiveness
+#define RPM_CALC_INTERVAL   10  // RPM calculation interval (10ms) - faster updates for maximum accuracy
+#define MIN_PULSE_WIDTH_US  50   // Minimum pulse width (50μs) - optimized for fast response
 
 // Serial communication parameters
 #define SERIAL_SEND_INTERVAL 100  // Send status data every 100ms (10Hz)

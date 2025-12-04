@@ -53,6 +53,12 @@ float currentRPM = 0.0;
 const float targetRPM = DEFAULT_TARGET_RPM; // Fixed target RPM for constant speed control
 int pulsesPerRev = DEFAULT_PULSES_PER_REV; // Configurable pulses per revolution via potentiometer
 
+// Moving average filter for RPM smoothing and accuracy
+#define RPM_FILTER_SIZE 5
+float rpmHistory[RPM_FILTER_SIZE] = {0};
+int rpmHistoryIndex = 0;
+float rpmFiltered = 0.0;
+
 // PID variables
 float kp = DEFAULT_KP;
 float ki = DEFAULT_KI;
@@ -173,15 +179,15 @@ void rpmSensorISR() {
     }
 }
 
-// Calculate RPM from pulse count with atomic read
+// Calculate RPM from pulse count with microsecond precision and moving average filtering
 float calculateRPM() {
     static unsigned long lastPulseCount = 0;
     static unsigned long lastCalcTime = 0;
 
-    unsigned long currentTime = millis();
+    unsigned long currentTime = micros();  // Use micros for maximum precision
     unsigned long timeDiff = currentTime - lastCalcTime;
 
-    if (timeDiff >= RPM_CALC_INTERVAL) {
+    if (timeDiff >= RPM_CALC_INTERVAL * 1000UL) {  // Convert ms to microseconds
         // Atomic read of volatile pulseCount to avoid race conditions
         noInterrupts();
         unsigned long pulsesNow = pulseCount;
@@ -189,16 +195,28 @@ float calculateRPM() {
 
         unsigned long pulseDiff = pulsesNow - lastPulseCount;
 
-        // Calculate RPM: (pulses / time) * (60 seconds / pulses_per_rev)
-        float rpm = (pulseDiff * 60000.0) / (timeDiff * pulsesPerRev);
+        // Calculate RPM with microsecond precision: (pulses / time_seconds) * (60 / pulses_per_rev)
+        float timeSeconds = timeDiff / 1000000.0;
+        float rpm = (pulseDiff / timeSeconds) * (60.0 / pulsesPerRev);
+
+        // Apply moving average filter for noise reduction and stability
+        rpmHistory[rpmHistoryIndex] = rpm;
+        rpmHistoryIndex = (rpmHistoryIndex + 1) % RPM_FILTER_SIZE;
+
+        // Calculate filtered RPM
+        float sum = 0;
+        for(int i = 0; i < RPM_FILTER_SIZE; i++) {
+            sum += rpmHistory[i];
+        }
+        rpmFiltered = sum / RPM_FILTER_SIZE;
 
         lastPulseCount = pulsesNow;
         lastCalcTime = currentTime;
 
-        return rpm;
+        return rpmFiltered;  // Return filtered value for maximum accuracy
     }
 
-    return currentRPM; // Return previous value if not enough time has passed
+    return rpmFiltered; // Return previous filtered value if not enough time has passed
 }
 
 // Read potentiometer and map to specified range (float)

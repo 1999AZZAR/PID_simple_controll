@@ -8,14 +8,14 @@
 #define RPM_SENSOR_PIN     3    // Arduino pin 3 (PB3), BLDC Hall sensor input (interrupt capable)
 #define PWM_OUTPUT_PIN     0    // Arduino pin 0 (PB0), PWM capable
 
-// Control parameters - Optimized for ATtiny85 real-time performance
-#define CONTROL_LOOP_HZ     80  // Control loop frequency (80 Hz) - balanced for ATtiny85 capabilities
+// Control parameters - Optimized for maximum accuracy on ATtiny85
+#define CONTROL_LOOP_HZ     160  // Control loop frequency (160 Hz) - increased for better control (balanced for ATtiny85)
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
 // RPM calculation parameters
 #define DEFAULT_PULSES_PER_REV 24   // Default number of pulses per revolution got from 4 cycles×6 steps=24 state changes per revolution.
-#define RPM_CALC_INTERVAL   25  // RPM calculation interval (25ms) - faster updates for smooth control
-#define MIN_PULSE_WIDTH_US  100  // Minimum pulse width (100μs) - reduced for better responsiveness
+#define RPM_CALC_INTERVAL   10   // RPM calculation interval (10ms) - faster updates for maximum accuracy
+#define MIN_PULSE_WIDTH_US  50   // Minimum pulse width (50μs) - optimized for fast response
 
 // PID limits - Optimized for low-speed control
 #define PID_OUTPUT_MIN      -1000 // Minimum PID output (expanded for low speeds)

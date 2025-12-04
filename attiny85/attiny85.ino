@@ -52,6 +52,12 @@ unsigned long lastRPMCalcTime = 0;
 int currentRPM = 0;  // RPM * 10 (fixed point, e.g., 14400 = 1440.0 RPM)
 const int pulsesPerRev = DEFAULT_PULSES_PER_REV; // Runtime variable for consistency
 
+// Moving average filter for RPM smoothing and accuracy (ATtiny85 optimized)
+#define RPM_FILTER_SIZE 3  // Smaller filter for ATtiny85 memory constraints
+int rpmHistory[RPM_FILTER_SIZE] = {0};
+int rpmHistoryIndex = 0;
+int rpmFiltered = 0;
+
 // PID variables - Pre-tuned values from Arduino (scaled for integer math)
 const int targetRPM_scaled = (int)(DEFAULT_TARGET_RPM * 10);  // Target RPM * 10
 const int kp_scaled = (int)(DEFAULT_KP * 100);                // Kp * 100
@@ -166,11 +172,12 @@ void setupTimer() {
 
 int calculateRPM() {
     static unsigned long lastPulseCount = 0;
-    static unsigned long lastCalcTime = 0;
+    static unsigned long lastCalcTime_us = 0;  // Use microseconds for precision
 
-    unsigned long timeDiff = timer_ms - lastCalcTime;
+    unsigned long currentTime_us = timer_us;
+    unsigned long timeDiff_us = currentTime_us - lastCalcTime_us;
 
-    if (timeDiff >= RPM_CALC_INTERVAL) {
+    if (timeDiff_us >= RPM_CALC_INTERVAL * 1000UL) {  // Convert ms to microseconds
         // Atomic read of volatile pulseCount to avoid race conditions
         cli();
         unsigned long pulsesNow = pulseCount;
@@ -178,17 +185,30 @@ int calculateRPM() {
 
         unsigned long pulseDiff = pulsesNow - lastPulseCount;
 
-        // Calculate RPM using integer math: (pulses * 600000) / (timeDiff * pulsesPerRev)
-        // This gives RPM * 10 (e.g., 14400 = 1440.0 RPM)
-        unsigned long rpm_scaled = (pulseDiff * 600000UL) / (timeDiff * pulsesPerRev);
+        // Calculate RPM with microsecond precision using integer math
+        // (pulses * 60000000) / (timeDiff_us * pulsesPerRev) gives RPM * 10
+        // This gives RPM * 10 (e.g., 14400 = 1440.0 RPM) with microsecond precision
+        // 60000000 = 60 seconds/minute * 1000000 microseconds/second * 10 for scaling
+        unsigned long rpm_scaled = (pulseDiff * 60000000UL) / (timeDiff_us * pulsesPerRev);
+
+        // Apply moving average filter for noise reduction (ATtiny85 optimized)
+        rpmHistory[rpmHistoryIndex] = (int)rpm_scaled;
+        rpmHistoryIndex = (rpmHistoryIndex + 1) % RPM_FILTER_SIZE;
+
+        // Calculate filtered RPM
+        long sum = 0;
+        for(int i = 0; i < RPM_FILTER_SIZE; i++) {
+            sum += rpmHistory[i];
+        }
+        rpmFiltered = (int)(sum / RPM_FILTER_SIZE);
 
         lastPulseCount = pulsesNow;
-        lastCalcTime = timer_ms;
+        lastCalcTime_us = currentTime_us;
 
-        return (int)rpm_scaled;
+        return rpmFiltered;  // Return filtered value for maximum accuracy
     }
 
-    return currentRPM; // Return previous value if not enough time has passed
+    return rpmFiltered; // Return previous filtered value if not enough time has passed
 }
 
 int computePID(int error_scaled) {

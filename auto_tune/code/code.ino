@@ -46,6 +46,12 @@ float currentRPM = 0.0;
 float targetRPM = DEFAULT_TARGET_RPM;
 int pulsesPerRev = DEFAULT_PULSES_PER_REV;
 
+// Moving average filter for RPM smoothing and accuracy
+#define RPM_FILTER_SIZE 5
+float rpmHistory[RPM_FILTER_SIZE] = {0};
+int rpmHistoryIndex = 0;
+float rpmFiltered = 0.0;
+
 // PID variables
 float kp = DEFAULT_KP;
 float ki = DEFAULT_KI;
@@ -193,16 +199,15 @@ void rpmSensorISR() {
     }
 }
 
-// Calculate RPM from pulse count with atomic read
+// Calculate RPM from pulse count with microsecond precision and moving average filtering
 float calculateRPM() {
     static unsigned long lastPulseCount = 0;
     static unsigned long lastCalcTime = 0;
-    static float filteredRPM = 0.0; // Low-pass filter for stability
 
-    unsigned long currentTime = millis();
+    unsigned long currentTime = micros();  // Use micros for maximum precision
     unsigned long timeDiff = currentTime - lastCalcTime;
 
-    if (timeDiff >= RPM_CALC_INTERVAL) {
+    if (timeDiff >= RPM_CALC_INTERVAL * 1000UL) {  // Convert ms to microseconds
         // Atomic read of volatile pulseCount to avoid race conditions
         noInterrupts();
         unsigned long pulsesNow = pulseCount;
@@ -212,25 +217,34 @@ float calculateRPM() {
 
         float rpm = 0.0;
         if (pulseDiff > 0) {
-            // Calculate RPM: (pulses / time) * (60 seconds / pulses_per_rev)
-            rpm = (pulseDiff * 60000.0) / (timeDiff * pulsesPerRev);
+            // Calculate RPM with microsecond precision: (pulses / time_seconds) * (60 / pulses_per_rev)
+            float timeSeconds = timeDiff / 1000000.0;
+            rpm = (pulseDiff / timeSeconds) * (60.0 / pulsesPerRev);
         }
         // For very low RPM (< 50), if no pulses detected, assume stopped
         else if (currentRPM > 50) {
             rpm = 0.0; // Motor stopped
         }
 
-        // Apply low-pass filter for stability (alpha = 0.3)
-        filteredRPM = 0.3 * rpm + 0.7 * filteredRPM;
+        // Apply moving average filter for noise reduction and stability
+        rpmHistory[rpmHistoryIndex] = rpm;
+        rpmHistoryIndex = (rpmHistoryIndex + 1) % RPM_FILTER_SIZE;
+
+        // Calculate filtered RPM
+        float sum = 0;
+        for(int i = 0; i < RPM_FILTER_SIZE; i++) {
+            sum += rpmHistory[i];
+        }
+        rpmFiltered = sum / RPM_FILTER_SIZE;
 
         lastPulseCount = pulsesNow;
         lastCalcTime = currentTime;
-        currentRPM = filteredRPM;
+        currentRPM = rpmFiltered;
 
-        return filteredRPM;
+        return rpmFiltered;
     }
 
-    return currentRPM; // Return filtered value if not enough time has passed
+    return currentRPM; // Return previous filtered value if not enough time has passed
 }
 
 // Compute PID output with anti-windup
