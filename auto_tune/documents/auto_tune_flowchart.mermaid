@@ -1,0 +1,249 @@
+---
+config:
+  layout: elk
+---
+flowchart TD
+    %% System Startup Flow
+    START(["🚀 User runs: python control.py"])
+    A["Import PyQt6, matplotlib, pyserial, numpy"]
+    B["Create QApplication instance"]
+    C["Initialize PIDControllerGUI()"]
+    D["Setup default parameters"]
+    D1["target_rpm = 1440.0"]
+    D2["kp = 0.25, ki = 0.015, kd = 0.003"]
+    D3["pulses_per_rev = 18"]
+    E["Create GUI components"]
+    E1["Serial connection panel"]
+    E2["PID tuning controls"]
+    E3["Real-time plots (4 subplots)"]
+    F["Start Qt event loop"]
+    F1["QApplication.exec()"]
+
+    %% User Connection Flow
+    G["👤 User selects serial port"]
+    H["User clicks 'Connect'"]
+    I["Validate port selection"]
+    J["Create SerialWorker thread"]
+    J1["Port: /dev/ttyACM0 (Linux)"]
+    J2["Baud: 115200"]
+    K["Open serial connection"]
+    L["Flush input/output buffers"]
+    M["Emit connection_status(True)"]
+    N["Update GUI status: 'Connected'"]
+    O["Send GET_STATUS command"]
+    P["Wait for Arduino response"]
+
+    %% Arduino Response Processing
+    Q["Arduino sends STATUS message"]
+    Q1["STATUS:timestamp,target,current,error,pid,kp,ki,kd,ppr,motor"]
+    R["SerialWorker receives data"]
+    S["Parse complete lines (\\n delimited)"]
+    T["Extract STATUS: prefix"]
+    U["Split by commas: 10 fields expected"]
+    V["Validate numeric fields"]
+    W["Emit data_received signal"]
+    X["GUI processes STATUS data"]
+    Y["Update parameter displays"]
+    Z["Add data to plot buffers"]
+
+    %% Real-time Processing Loop
+    AA["Qt Timer fires (100ms - 10Hz)"]
+    BB["process_serial_data() called"]
+    CC["Check data_queue for new messages"]
+    DD["Parse STATUS data fields"]
+    DD1["timestamp, target_rpm, current_rpm"]
+    DD2["error, pid_output, kp, ki, kd"]
+    DD3["ppr, motor_enabled"]
+    EE["Update GUI controls"]
+    EE1["Set target_rpm spinbox"]
+    EE2["Update PID sliders/spinboxes"]
+    FF["Plot update counter +1"]
+    GG{"Counter >= 5?"}
+    HH["Update matplotlib plots"]
+    HH1["Add data points to arrays"]
+    HH2["Limit to 25 data points"]
+    HH3["Refresh plot display"]
+    II["Reset counter to 0"]
+
+    %% User Parameter Adjustment
+    JJ["👤 User adjusts PID parameter"]
+    JJ1["Moves Kp slider or changes spinbox"]
+    KK["Immediate GUI update"]
+    KK1["Slider value → spinbox display"]
+    LL["Send serial command"]
+    LL1["SET_KP 2.5\\n"]
+    MM["Arduino receives command"]
+    NN["Parse command in processSerialCommand()"]
+    OO["Update Arduino PID parameters"]
+    PP["Store in EEPROM (persistence)"]
+    QQ["Send confirmation STATUS"]
+    RR["GUI receives updated STATUS"]
+    SS["Synchronize parameter displays"]
+
+    %% Motor Control Flow
+    TT["👤 User clicks 'Enable Motor'"]
+    UU["Send ENABLE_MOTOR 1 command"]
+    VV["Arduino enables PWM output"]
+    WW["ESC receives PWM signal"]
+    XX["Motor starts spinning"]
+    YY["Hall sensor detects rotation"]
+    ZZ["RPM pulses counted by interrupt"]
+    AAA["Arduino calculates current RPM"]
+    BBB["PID controller computes output"]
+    CCC["PWM duty cycle updated"]
+    DDD["STATUS sent to GUI"]
+    EEE["Real-time plot updates"]
+
+    %% PPR Testing Flow
+    FFF["👤 User clicks 'Test PPR'"]
+    GGG["Send TEST_PPR command"]
+    HHH["Arduino counts pulses for 5 seconds"]
+    III["Calculate RPM from pulse count"]
+    III1["RPM = (pulses × 60) / (5 × PPR)"]
+    JJJ["Send results to serial"]
+    JJJ1["Total pulses counted: 7200"]
+    JJJ2["Calculated RPM: 1440"]
+    KKK["GUI displays results"]
+    LLL["User verifies PPR accuracy"]
+
+    %% Data Export Flow
+    MMM["👤 User selects 'Export Data'"]
+    NNN["Validate plot data exists"]
+    OOO["Open file save dialog"]
+    PPP["Generate CSV header"]
+    PPP1["Time(ms),Target_RPM,Current_RPM,Error,PID_Output,Kp,Ki,Kd"]
+    QQQ["Write data rows"]
+    RRR["Close file"]
+    SSS["Show success message"]
+
+    %% Error Handling Flow
+    TTT["Serial connection lost"]
+    UUU["Connection timeout (10s)"]
+    VVV["Display warning message"]
+    WWW["Attempt automatic reconnection"]
+    XXX["Preserve current parameters"]
+    YYY["Continue with last known values"]
+
+    %% System Shutdown
+    ZZZ["👤 User closes GUI"]
+    AAAA["Stop SerialWorker thread"]
+    BBBB["Close serial connection"]
+    CCCC["Save any pending data"]
+    DDDD["Exit QApplication"]
+
+    %% Flow Connections - Startup
+    START --> A
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+
+    %% Flow Connections - Connection
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+    J --> K
+    K --> L
+    L --> M
+    M --> N
+    N --> O
+    O --> P
+
+    %% Flow Connections - Data Processing
+    P --> Q
+    Q --> R
+    R --> S
+    S --> T
+    T --> U
+    U --> V
+    V --> W
+    W --> X
+    X --> Y
+    Y --> Z
+
+    %% Flow Connections - Real-time Loop
+    Z --> AA
+    AA --> BB
+    BB --> CC
+    CC --> DD
+    DD --> EE
+    EE --> FF
+    FF --> GG
+    GG --> HH
+    HH --> II
+
+    %% Flow Connections - Parameter Adjustment
+    II --> JJ
+    JJ --> KK
+    KK --> LL
+    LL --> MM
+    MM --> NN
+    NN --> OO
+    OO --> PP
+    PP --> QQ
+    QQ --> RR
+    RR --> SS
+
+    %% Flow Connections - Motor Control
+    SS --> TT
+    TT --> UU
+    UU --> VV
+    VV --> WW
+    WW --> XX
+    XX --> YY
+    YY --> ZZ
+    ZZ --> AAA
+    AAA --> BBB
+    BBB --> CCC
+    CCC --> DDD
+    DDD --> EEE
+
+    %% Flow Connections - PPR Testing
+    EEE --> FFF
+    FFF --> GGG
+    GGG --> HHH
+    HHH --> III
+    III --> JJJ
+    JJJ --> KKK
+    KKK --> LLL
+
+    %% Flow Connections - Data Export
+    LLL --> MMM
+    MMM --> NNN
+    NNN --> OOO
+    OOO --> PPP
+    PPP --> QQQ
+    QQQ --> RRR
+    RRR --> SSS
+
+    %% Flow Connections - Error Handling
+    SSS --> TTT
+    TTT --> UUU
+    UUU --> VVV
+    VVV --> WWW
+    WWW --> XXX
+    XXX --> YYY
+
+    %% Flow Connections - Shutdown
+    YYY --> ZZZ
+    ZZZ --> AAAA
+    AAAA --> BBBB
+    BBBB --> CCCC
+    CCCC --> DDDD
+
+    %% Styling
+    classDef startEnd fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px
+    classDef process fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef decision fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef io fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef user fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef error fill:#ffebee,stroke:#d32f2f,stroke-width:2px
+
+    class START,D startEnd
+    class FFF,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,BB,CC,DD,EE,FF,HH,II,KK,LL,MM,NN,OO,PP,QQ,RR,SS,UU,VV,WW,XX,YY,ZZ,AAA,BBB,CCC,DDD,EEE,GGG,HHH,III,JJJ,KKK,OOO,PPP,QQQ,RRR,SSS,WWW,XXX,YYYY,AAAA,BBBB,CCCC process
+    class GG decision
+    class DDDD startEnd
+    class JJ,TT,MMM,ZZZ user
+    class TTT,UUU,VVV error
