@@ -144,8 +144,9 @@ void loop() {
         // Convert PID output to PWM value with full range for better accuracy
         int pwmValue;
         static unsigned long emergencyStartTime = 0;
+        static bool emergencyRecoveryMode = false;
 
-        if (abs(error) > 2000) {  // If error > 2000 RPM, emergency stop
+        if (abs(error) > 2000 && !emergencyRecoveryMode) {  // If error > 2000 RPM, emergency stop
             if (emergencyStartTime == 0) {
                 emergencyStartTime = millis();
                 Serial.println("EMERGENCY STOP: Motor out of control!");
@@ -161,6 +162,12 @@ void loop() {
         // Reset emergency timer after 2 seconds regardless of current error state
         if (emergencyStartTime > 0 && millis() - emergencyStartTime > 2000) {
             emergencyStartTime = 0;  // Reset emergency after 2 seconds
+            emergencyRecoveryMode = true;  // Allow one recovery cycle before checking emergency again
+        }
+
+        // Clear recovery mode after one cycle to allow emergency checks again
+        if (emergencyRecoveryMode && emergencyStartTime == 0) {
+            emergencyRecoveryMode = false;
         }
 
         // Temporarily disable hysteresis for debugging
@@ -271,12 +278,8 @@ int applySoftStart(int targetPWM) {
 
 // Output PWM value to ESC with soft-start protection
 void outputToESC(int pwmValue) {
-    // Temporarily disable soft start for debugging
-    // int safePWM = applySoftStart(pwmValue);
-    // analogWrite(PWM_OUTPUT_PIN, safePWM);
-
-    // Direct PWM output for testing
-    analogWrite(PWM_OUTPUT_PIN, pwmValue);
+    int safePWM = applySoftStart(pwmValue);
+    analogWrite(PWM_OUTPUT_PIN, safePWM);
 }
 
 // Process serial commands from Python GUI
