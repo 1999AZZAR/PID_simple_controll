@@ -30,7 +30,7 @@
 #define POT_KD              A3  // Potentiometer for Kd gain
 
 // Soft-start ramping parameters
-#define SOFT_START_DURATION_MS  2000  // 2 seconds ramp up time
+#define SOFT_START_DURATION_MS  5000  // 5 seconds ramp up time
 #define SOFT_START_STEPS       20     // Number of ramp steps
 
 #endif // CONFIG_H

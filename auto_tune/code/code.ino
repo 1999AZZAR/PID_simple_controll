@@ -137,34 +137,12 @@ void loop() {
     if (motorEnabled) {
         float error = targetRPM - currentRPM;
 
-        // Special handling for very low RPM targets (< 50 RPM)
-        if (targetRPM < 50) {
-            // Use simplified proportional-only control for low speeds
-            float lowSpeedKp = 2.0; // Higher proportional gain for low speeds
-            pidOutput = lowSpeedKp * error;
+        // Use standard PID control for all speeds
+        pidOutput = computePID(error);
 
-            // Add small integral term for steady state accuracy
-            static float lowSpeedIntegral = 0;
-            lowSpeedIntegral += 0.01 * error;
-            lowSpeedIntegral = constrain(lowSpeedIntegral, -50, 50);
-            pidOutput += lowSpeedIntegral;
-
-            pidOutput = constrain(pidOutput, 0, 200); // Positive only for low speeds
-        } else {
-            // Normal PID control for higher speeds
-            pidOutput = computePID(error);
-        }
-
-        // Convert PID output to PWM value with better low-speed control
-        int pwmValue;
-        if (targetRPM < 50) {
-            // Direct mapping for low speeds (more resolution)
-            pwmValue = constrain(pidOutput, 20, 80); // Narrow range for fine control
-        } else {
-            // Standard mapping for normal speeds
-            pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 20, 255);
-            pwmValue = constrain(pwmValue, 0, 255);
-        }
+        // Convert PID output to PWM value
+        int pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 20, 255);
+        pwmValue = constrain(pwmValue, 0, 255); // Final safety constraint
 
         outputToESC(pwmValue);
     } else if (!motorEnabled) {

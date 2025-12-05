@@ -18,7 +18,7 @@
 #define SERIAL_SEND_INTERVAL 100  // Send status data every 100ms (10Hz)
 
 // Soft-start ramping parameters
-#define SOFT_START_DURATION_MS  2000  // 2 seconds ramp up time
+#define SOFT_START_DURATION_MS  5000  // 5 seconds ramp up time
 #define SOFT_START_STEPS       20     // Number of ramp steps
 
 #endif // CONFIG_H
