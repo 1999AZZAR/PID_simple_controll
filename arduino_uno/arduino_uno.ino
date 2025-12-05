@@ -57,6 +57,7 @@ unsigned long lastRPMCalcTime = 0;
 float currentRPM = 0.0;
 const float targetRPM = DEFAULT_TARGET_RPM; // Fixed target RPM for constant speed control
 int pulsesPerRev = DEFAULT_PULSES_PER_REV; // Configurable pulses per revolution via potentiometer
+int lastPWMValue = 0; // Last PWM value for hysteresis
 
 // Moving average filter for RPM smoothing and accuracy
 #define RPM_FILTER_SIZE 5
@@ -103,6 +104,10 @@ void setup() {
     pinMode(RPM_SENSOR_PIN, INPUT_PULLUP);
     pinMode(PWM_OUTPUT_PIN, OUTPUT);
     pinMode(MODE_SWITCH_PIN, INPUT_PULLUP);
+
+    // Set PWM frequency to 50Hz (standard for RC ESCs)
+    // Timer1 is used for PWM on pin 9 (OC1A)
+    TCCR1B = (TCCR1B & 0xF8) | 0x03;  // Set prescaler to 64 for ~50Hz
 
     // Attach interrupt for BLDC Hall sensor
     attachInterrupt(digitalPinToInterrupt(RPM_SENSOR_PIN), rpmSensorISR, RISING);
@@ -162,9 +167,30 @@ void loop() {
     float error = targetRPM - currentRPM;
     pidOutput = computePID(error);
 
-    // Convert PID output to PWM value and output to ESC
-    int pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
-    pwmValue = constrain(pwmValue, 0, 255);
+    // Emergency stop if error is extremely large (motor out of control)
+    int pwmValue;
+    static unsigned long emergencyStartTime = 0;
+
+    if (abs(error) > 2000) {  // If error > 2000 RPM, emergency stop (increased threshold)
+        if (emergencyStartTime == 0) {
+            emergencyStartTime = millis();
+            Serial.println("EMERGENCY STOP: Motor out of control!");
+        }
+        pwmValue = 0;  // Cut power completely for 2 seconds
+    } else {
+        // Convert PID output to PWM value and output to ESC
+        // Use wider PWM range for better control authority: 0-255 full range
+        pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
+        pwmValue = constrain(pwmValue, 0, 255);
+    }
+
+    // Reset emergency timer after 2 seconds regardless of current error state
+    if (emergencyStartTime > 0 && millis() - emergencyStartTime > 2000) {
+        emergencyStartTime = 0;  // Reset emergency after 2 seconds
+    }
+
+    // Temporarily disable hysteresis for debugging
+    lastPWMValue = pwmValue;
     outputToESC(pwmValue);
 
     // Output to Serial Plotter for monitoring
@@ -271,8 +297,12 @@ int applySoftStart(int targetPWM) {
 
 // Output PWM value to ESC with soft-start protection
 void outputToESC(int pwmValue) {
-    int safePWM = applySoftStart(pwmValue);
-    analogWrite(PWM_OUTPUT_PIN, safePWM);
+    // Temporarily disable soft start for debugging
+    // int safePWM = applySoftStart(pwmValue);
+    // analogWrite(PWM_OUTPUT_PIN, safePWM);
+
+    // Direct PWM output for testing
+    analogWrite(PWM_OUTPUT_PIN, pwmValue);
 }
 
 // Print data for Serial Plotter
@@ -288,6 +318,9 @@ void printToSerialPlotter() {
     Serial.print(",");
     Serial.print("PID_Output:");
     Serial.print(pidOutput);
+    Serial.print(",");
+    Serial.print("PWM:");
+    Serial.print(lastPWMValue);  // Show actual PWM being sent
     Serial.print(",");
     Serial.print("Kp:");
     Serial.print(kp, 2);

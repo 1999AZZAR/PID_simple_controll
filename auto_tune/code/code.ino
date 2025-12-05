@@ -72,6 +72,7 @@ unsigned long lastSerialSend = 0;
 
 // Control state
 bool motorEnabled = false; // Start disabled for safety
+int lastPWMValue = 0; // Last PWM value for monitoring
 
 // Soft-start ramping to avoid current surges
 unsigned long softStartStartTime = 0;
@@ -141,9 +142,29 @@ void loop() {
         pidOutput = computePID(error);
 
         // Convert PID output to PWM value with full range for better accuracy
-        int pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
-        pwmValue = constrain(pwmValue, 0, 255); // Final safety constraint
+        int pwmValue;
+        static unsigned long emergencyStartTime = 0;
 
+        if (abs(error) > 2000) {  // If error > 2000 RPM, emergency stop
+            if (emergencyStartTime == 0) {
+                emergencyStartTime = millis();
+                Serial.println("EMERGENCY STOP: Motor out of control!");
+            }
+            pwmValue = 0;  // Cut power completely for 2 seconds
+        } else {
+            // Convert PID output to PWM value and output to ESC
+            // Use wider PWM range for better control authority: 0-255 full range
+            pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
+            pwmValue = constrain(pwmValue, 0, 255);
+        }
+
+        // Reset emergency timer after 2 seconds regardless of current error state
+        if (emergencyStartTime > 0 && millis() - emergencyStartTime > 2000) {
+            emergencyStartTime = 0;  // Reset emergency after 2 seconds
+        }
+
+        // Temporarily disable hysteresis for debugging
+        lastPWMValue = pwmValue;
         outputToESC(pwmValue);
     } else if (!motorEnabled) {
         // Motor disabled - stop immediately
@@ -250,8 +271,12 @@ int applySoftStart(int targetPWM) {
 
 // Output PWM value to ESC with soft-start protection
 void outputToESC(int pwmValue) {
-    int safePWM = applySoftStart(pwmValue);
-    analogWrite(PWM_OUTPUT_PIN, safePWM);
+    // Temporarily disable soft start for debugging
+    // int safePWM = applySoftStart(pwmValue);
+    // analogWrite(PWM_OUTPUT_PIN, safePWM);
+
+    // Direct PWM output for testing
+    analogWrite(PWM_OUTPUT_PIN, pwmValue);
 }
 
 // Process serial commands from Python GUI
@@ -332,6 +357,8 @@ void sendStatusData() {
     Serial.print(ki, 4);
     Serial.print(F(","));
     Serial.print(kd, 4);
+    Serial.print(F(","));
+    Serial.print(lastPWMValue);
     Serial.print(F(","));
     Serial.print(pulsesPerRev);
     Serial.print(F(","));
