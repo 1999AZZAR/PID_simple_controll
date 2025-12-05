@@ -7,7 +7,7 @@
 #define RPM_TIMEOUT_US      500000  // Timeout for RPM detection (500ms)
 #define MIN_PULSE_WIDTH_US  50      // Minimum pulse width (50μs)
 #define RPM_CALC_INTERVAL   10      // RPM calculation interval (10ms)
-#define RPM_FILTER_SIZE     5       // Moving average filter size
+#define RPM_FILTER_SIZE     3       // Moving average filter size (reduced for accuracy)
 
 // PID control parameters (shared)
 #define PID_OUTPUT_MIN      -1000   // Minimum PID output
@@ -21,8 +21,8 @@
 
 // Default PID parameters (can be overridden by each project)
 #define DEFAULT_TARGET_RPM 1440.0   // Default target RPM
-#define DEFAULT_KP         3.25     // Default proportional gain
-#define DEFAULT_KI         0.0320   // Default integral gain
-#define DEFAULT_KD         0.001    // Default derivative gain
+#define DEFAULT_KP         1.25     // Default proportional gain (reduced for stability)
+#define DEFAULT_KI         0.015    // Default integral gain (reduced for accuracy)
+#define DEFAULT_KD         0.002    // Default derivative gain (increased for damping)
 
 #endif // CONFIG_COMMON_H

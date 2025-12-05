@@ -140,8 +140,8 @@ void loop() {
         // Use standard PID control for all speeds
         pidOutput = computePID(error);
 
-        // Convert PID output to PWM value
-        int pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 20, 255);
+        // Convert PID output to PWM value with full range for better accuracy
+        int pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
         pwmValue = constrain(pwmValue, 0, 255); // Final safety constraint
 
         outputToESC(pwmValue);

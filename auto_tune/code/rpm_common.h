@@ -5,6 +5,9 @@
 
 // Shared RPM calculation functions with period measurement
 
+// Constants for RPM calculation accuracy
+#define RPM_CALC_CONSTANT 60000000.0  // 60 seconds * 1,000,000 microseconds
+
 // Moving average filter for RPM smoothing
 #define RPM_FILTER_SIZE 5
 
