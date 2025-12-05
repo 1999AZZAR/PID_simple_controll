@@ -684,7 +684,7 @@ This document covers advanced issues including RPM measurement discrepancies, po
 
 **No RPM Reading**
 
-- Confirm sensor type and pulse count configuration
+- Confirm sensor type and period measurement configuration
 - Check interrupt pin connection
 - Verify sensor power and signal levels
 

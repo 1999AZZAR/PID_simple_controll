@@ -34,8 +34,8 @@
 - Any Hall wire (A, B, or C) from 3-Hall BLDC motor → ATtiny85 Physical Pin 2 (PB3)
 - Compatible with motors like 42BLF20-22.0223 and similar 3-Hall BLDC motors
 - Hall sensors share power/ground with ATtiny85 (5V/GND)
-- **Note**: PB3 is interrupt-capable (INT0) for accurate RPM counting
-- 6 pulses per electrical revolution from 3-Hall BLDC motors
+- **Note**: PB3 is interrupt-capable (INT0) for accurate period measurement
+- 4 pulses per mechanical revolution from 8-pole BLDC motors with single Hall sensor
 
 ### PWM Output to ESC
 - ATtiny85 Physical Pin 5 (PB0) → ESC signal input

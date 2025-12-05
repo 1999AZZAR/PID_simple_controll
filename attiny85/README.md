@@ -43,7 +43,7 @@ This is the production-ready version of the BLDC PID controller running on ATtin
 ### Robust Control
 - **Anti-windup Protection**: Prevents integrator runaway
 - **100Hz Control Loop**: Responsive motor control
-- **Interrupt-based RPM**: Accurate speed measurement
+- **Interrupt-based RPM**: Accurate speed measurement using period timing
 - **Production-hardened**: Optimized for reliability
 
 ## Hardware Setup
@@ -53,7 +53,7 @@ This is the production-ready version of the BLDC PID controller running on ATtin
 | Physical Pin | Function | Connection |
 |-------------|----------|------------|
 | 1 (RST) | Reset | Programming only |
-| 2 (PB3) | BLDC Hall Sensor | Any Hall wire (A/B/C) from 3-Hall BLDC motor - provides 2 pulses per electrical revolution |
+| 2 (PB3) | BLDC Hall Sensor | Any Hall wire (A/B/C) from 3-Hall BLDC motor - provides 4 pulses per mechanical revolution |
 | 3 (PB4) | Not Connected | - |
 | 4 (GND) | Ground | Common ground with motor Hall sensors |
 | 5 (PB0) | PWM to ESC | Motor controller input |
@@ -67,12 +67,13 @@ The ATtiny85 uses a single Hall sensor wire for RPM feedback, but you can enhanc
 
 #### Single Hall Sensor (Current Implementation)
 - Connect any one Hall wire (A, B, or C) to physical pin 2 (PB3)
-- Provides 2 pulses per electrical revolution
+- Provides 4 pulses per mechanical revolution for 8-pole motors
+- Uses period measurement for accurate RPM calculation at low speeds
 - Minimal wiring, reliable operation
 
 #### Composite Hall Sensor Signal (Enhanced Performance)
 - Combine all three Hall sensors using external OR gate
-- Provides 6 pulses per electrical revolution
+- Provides 12 pulses per mechanical revolution for 8-pole motors
 - Higher resolution for smoother motor control
 - Better position feedback reliability
 
@@ -181,7 +182,7 @@ Update these constants in the ATtiny85 code with your Arduino-tuned values:
 ### Timing Accuracy
 - Custom Timer1-based millisecond counter
 - 100Hz control loop maintained
-- Interrupt-based RPM counting
+- Interrupt-based period measurement for RPM calculation
 
 ### PWM Output
 - 8-bit resolution (0-255)

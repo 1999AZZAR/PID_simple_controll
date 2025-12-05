@@ -97,8 +97,8 @@ Arduino Pin 9 → 220Ω resistor → LED → GND
 
 **Beginner Explanation:**
 - Hall sensor sends electrical pulses as motor spins
-- Controller counts these pulses to calculate speed
-- Wrong count = wrong speed calculation
+- Controller measures time between pulses to calculate speed
+- System configured for 8-pole motors with 4 pulses per revolution
 
 **Quick Test:**
 1. Manually spin motor slowly (1 rotation per second)
@@ -164,9 +164,9 @@ Option B: Motor Power Supply ────→ Arduino Uno (disconnect USB)
 
 ### RPM Measurement Issues
 
-#### Issue 1: Wrong Pulse Count (Most Common RPM Problem)
+#### Issue 1: Motor Configuration Mismatch
 
-**What it means:** Your Hall sensor is sending more/fewer pulses than the code expects.
+**What it means:** System is configured for 8-pole BLDC motors. Different motor types may require code adjustments.
 
 **For Beginners:** Imagine counting people entering a room. If you count each person twice, your total will be 2x too high.
 
@@ -196,15 +196,15 @@ Step 4: Compare with expected:
 **Advanced Testing (With Oscilloscope):**
 1. Connect oscilloscope probe to Hall sensor wire
 2. Set trigger to "rising edge"
-3. Spin motor one full rotation
-4. Count pulses on screen
-5. Update code with correct number
+3. Spin motor and observe signal timing
+4. Verify 4 pulses per mechanical revolution for 8-pole motors
+5. Check period measurement calculations
 
 **Why This Happens:**
 - Different motor types have different Hall sensor configurations
-- 3-Hall motors: 6 pulses per mechanical revolution
-- 6-Hall motors: 12 pulses per mechanical revolution
-- Some motors have internal gearing that multiplies pulse count
+- System configured for 8-pole BLDC motors: 4 pulses per mechanical revolution
+- Different motor pole counts require code modifications
+- Contact manufacturer for motor specifications
 
 #### Issue 2: Hall Sensor Signal Problems
 
@@ -353,7 +353,7 @@ Final Drive ──► What you actually want to control
 
 **Symptoms**:
 - RPM discrepancy between controller and external measurement
-- Ratio not matching expected pulse count
+- Motor pole count mismatch with system configuration
 
 **Mitigation**:
 - Ensure laser tachometer targets same shaft as motor output shaft
@@ -683,7 +683,7 @@ Power Issues?
      ▼
 RPM Reading Issues?
      │
-     ├── Yes → Count actual Hall sensor pulses per revolution
+     ├── Yes → Verify 8-pole BLDC motor configuration
      │       → Verify interrupt pin connections
      │       → Check for electrical noise (add filtering)
      │       → Confirm tachometer measures correct shaft
@@ -740,7 +740,7 @@ Issue Resolved?
 - [ ] Test with dummy load before actual motor
 
 ### Testing Phase
-- [ ] Verify pulse counting with oscilloscope
+- [ ] Verify Hall sensor signal timing with oscilloscope
 - [ ] Test power supply combinations safely
 - [ ] Characterize motor behavior under load
 - [ ] Validate PID tuning across operating range
@@ -769,7 +769,7 @@ Issue Resolved?
 ## FAQ - Frequently Asked Questions
 
 ### Q: Motor spins but not at target RPM. What's wrong?
-**A:** Check your Hall sensor pulse count. Most beginners use wrong pulse count. Do the LED flash test above.
+**A:** Verify your motor is an 8-pole BLDC type. The system is configured for 4 pulses per mechanical revolution. Different motor types require code modifications.
 
 ### Q: Arduino works with USB but not with external power?
 **A:** This is the power supply conflict! Use ONE power source only. Don't connect both USB and external power.
@@ -878,7 +878,7 @@ Motor Connections:
 - [ ] PID parameters reasonable
 
 ### Advanced Checks:
-- [ ] Pulse count verified (LED flash test)
+- [ ] Motor pole count verified (8-pole BLDC)
 - [ ] No electrical noise (capacitors added)
 - [ ] PID tuned for your motor
 - [ ] PID gains tuned for stable operation

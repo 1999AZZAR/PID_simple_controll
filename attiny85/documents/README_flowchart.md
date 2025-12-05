@@ -66,7 +66,7 @@ Timer1 Compare Interrupt (TIM1_COMPA_vect)
 RPM Sensor Interrupt (INT0_vect)
 ├── Capture microsecond timestamp
 ├── Debounce filtering (100μs minimum)
-├── Increment pulse counter (atomic)
+├── Store pulse interval (atomic)
 └── Update last pulse timestamp
 ```
 
@@ -121,13 +121,13 @@ ATtiny85 Physical Pin Mapping:
 
 ### Input Processing Pipeline
 ```
-Hardware Interrupt (RPM Sensor) → Debounce Filter → Pulse Counter → RPM Calculation → Error Computation → PID Algorithm → PWM Generation → ESC Output
+Hardware Interrupt (RPM Sensor) → Debounce Filter → Period Storage → RPM Calculation → Error Computation → PID Algorithm → PWM Generation → ESC Output
 ```
 
 ### Memory-Efficient Design
 ```
 Global Variables (Minimal):
-├── Volatile counters: pulseCount, timer_ms, timer_us
+├── Volatile counters: pulseInterval, timer_ms, timer_us
 ├── PID state: previousError_scaled, integral_scaled, pidOutput
 ├── RPM tracking: currentRPM, lastRPMCalcTime
 └── Constants: targetRPM_scaled, PID gains (pre-computed)
@@ -276,7 +276,7 @@ loop()
 
 ISR Routines
 ├── TIM1_COMPA_vect: timing counters
-└── INT0_vect: RPM pulse counting
+└── INT0_vect: RPM period measurement
 ```
 
 ### Register Configuration

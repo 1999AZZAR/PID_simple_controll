@@ -14,7 +14,7 @@ The Python GUI PID controller implements a modern, responsive interface for conf
 - **Real-time Serial Communication**: Robust bidirectional communication with Arduino
 - **Live Data Visualization**: Four synchronized matplotlib plots with automatic updates
 - **Parameter Management**: Save/load configurations and data export capabilities
-- **PPR Testing**: Built-in pulse counting verification for accurate RPM calculation
+- **PPR Configuration**: Fixed at 4 pulses per revolution for 8-pole motors
 - **Cross-Platform Compatibility**: Windows, macOS, and Linux support
 
 ## Flowchart Structure
@@ -254,8 +254,8 @@ Parameter Testing
 └── Motor Control Command Testing
 
 PPR Calculation Testing
-├── 5-Second Pulse Counting Period
-├── RPM Calculation from Pulse Count
+├── Period Measurement for RPM Calculation
+├── Timeout Detection (500ms)
 ├── PPR Accuracy Verification
 ├── Motor Speed Comparison
 └── Formula Validation: RPM = (pulses × 60) / (time_seconds × PPR)

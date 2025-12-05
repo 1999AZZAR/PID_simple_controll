@@ -39,7 +39,7 @@
 #include "config.h"
 
 // Global variables
-volatile unsigned long pulseCount = 0;
+volatile unsigned long pulseInterval = 0;  // Time interval between pulses in microseconds
 volatile unsigned long lastPulseMicros = 0;
 unsigned long lastRPMCalcTime = 0;
 float currentRPM = 0.0;
@@ -192,38 +192,35 @@ void serialEvent() {
 
 // Interrupt service routine for RPM sensor with debounce filtering
 void rpmSensorISR() {
-    unsigned long t = micros();
-    if (t - lastPulseMicros > MIN_PULSE_WIDTH_US) {
-        pulseCount++;
-        lastPulseMicros = t;
+    unsigned long currentMicros = micros();
+    if (currentMicros - lastPulseMicros > MIN_PULSE_WIDTH_US) {
+        pulseInterval = currentMicros - lastPulseMicros;
+        lastPulseMicros = currentMicros;
     }
 }
 
-// Calculate RPM from pulse count with microsecond precision and moving average filtering
+// Calculate RPM from pulse interval with timeout detection and moving average filtering
 float calculateRPM() {
-    static unsigned long lastPulseCount = 0;
     static unsigned long lastCalcTime = 0;
+    unsigned long currentTime = micros();
 
-    unsigned long currentTime = micros();  // Use micros for maximum precision
-    unsigned long timeDiff = currentTime - lastCalcTime;
-
-    if (timeDiff >= RPM_CALC_INTERVAL * 1000UL) {  // Convert ms to microseconds
-        // Atomic read of volatile pulseCount to avoid race conditions
-        noInterrupts();
-        unsigned long pulsesNow = pulseCount;
-        interrupts();
-
-        unsigned long pulseDiff = pulsesNow - lastPulseCount;
-
+    // Check if enough time has passed for RPM calculation interval
+    if (currentTime - lastCalcTime >= RPM_CALC_INTERVAL * 1000UL) {
         float rpm = 0.0;
-        if (pulseDiff > 0) {
-            // Calculate RPM with microsecond precision: (pulses / time_seconds) * (60 / pulses_per_rev)
-            float timeSeconds = timeDiff / 1000000.0;
-            rpm = (pulseDiff / timeSeconds) * (60.0 / pulsesPerRev);
-        }
-        // For very low RPM (< 50), if no pulses detected, assume stopped
-        else if (currentRPM > 50) {
+
+        // Timeout check: if no pulses received within timeout period, motor is stopped
+        if (currentTime - lastPulseMicros > RPM_TIMEOUT_US) {
             rpm = 0.0; // Motor stopped
+        } else {
+            // Atomic read of volatile pulseInterval to avoid race conditions
+            noInterrupts();
+            unsigned long interval = pulseInterval;
+            interrupts();
+
+            // Calculate RPM using period measurement: RPM = (60,000,000) / (interval_μs * pulses_per_rev)
+            if (interval > 0) {
+                rpm = 60000000.0 / (interval * pulsesPerRev);
+            }
         }
 
         // Apply moving average filter for noise reduction and stability
@@ -237,7 +234,6 @@ float calculateRPM() {
         }
         rpmFiltered = sum / RPM_FILTER_SIZE;
 
-        lastPulseCount = pulsesNow;
         lastCalcTime = currentTime;
         currentRPM = rpmFiltered;
 
@@ -346,34 +342,6 @@ void processSerialCommand(String command) {
 
     } else if (command == "GET_STATUS") {
         sendStatusData();
-
-    } else if (command == "TEST_PPR") {
-        Serial.println(F("=== PPR TEST MODE ==="));
-        Serial.print(F("Configured PPR: "));
-        Serial.println(pulsesPerRev);
-
-        // Count pulses for 5 seconds
-        unsigned long startTime = millis();
-        unsigned long startPulses = pulseCount;
-        Serial.println(F("Counting pulses for 5 seconds..."));
-
-        while (millis() - startTime < 5000) {
-            delay(1000); // Update every second
-            Serial.print(F("Elapsed: "));
-            Serial.print((millis() - startTime) / 1000);
-            Serial.print(F("s, Pulses: "));
-            Serial.println(pulseCount - startPulses);
-        }
-
-        unsigned long totalPulses = pulseCount - startPulses;
-        float measuredRPM = (totalPulses * 60.0) / (5.0 * pulsesPerRev);  // Simplified formula for 5 seconds
-        Serial.print(F("Total pulses counted: "));
-        Serial.println(totalPulses);
-        Serial.print(F("Calculated RPM (5s average): "));
-        Serial.println(measuredRPM, 2);
-        Serial.println(F("If motor was spinning at known RPM, compare this value."));
-        Serial.println(F("Formula: RPM = (pulses * 60) / (time_seconds * PPR)"));
-        Serial.println(F("===================================="));
 
     } else if (command == "RESET_CONTROLLER") {
         // Reset all control variables

@@ -439,8 +439,8 @@ The GUI automatically detects Arduino-compatible serial ports:
 
 Pulses Per Revolution (PPR) tells the controller how many pulses your Hall sensor produces per motor revolution.
 
-1. **Set PPR Value**: Use the spinbox to enter your motor's PPR
-   - 3-Hall motors: typically 6, 12, 18, or 24
+1. **Set PPR Value**: The system is configured for 8-pole BLDC motors with single Hall sensor
+   - Fixed at 4 pulses per mechanical revolution for optimal performance
    - Check motor datasheet or count manually
 
 2. **Test PPR Accuracy**:
@@ -558,7 +558,7 @@ SET_KP <value>              # Set proportional gain
 SET_KI <value>              # Set integral gain
 SET_KD <value>              # Set derivative gain
 SET_TARGET_RPM <value>      # Set target RPM
-SET_PULSES_PER_REV <value>  # Set pulses per revolution
+SET_PULSES_PER_REV <value>  # Set pulses per revolution (fixed at 4 for 8-pole motors)
 ENABLE_MOTOR <0|1>          # Enable/disable motor
 RESET_CONTROLLER            # Reset controller state
 GET_STATUS                  # Request status update
@@ -1210,7 +1210,6 @@ def run_system_tests():
 | `FORCE_STATUS` | None | Force immediate status update |
 | `DIAGNOSTICS` | None | Run system diagnostics |
 | `FORCE_STOP` | None | Emergency motor stop |
-| `TEST_PPR` | None | Test PPR calculation (5 seconds) |
 
 ### Status Response Format (Arduino → GUI)
 

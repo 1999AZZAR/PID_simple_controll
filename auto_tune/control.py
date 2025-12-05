@@ -528,10 +528,6 @@ class PIDControllerGUI(QMainWindow):
 
         tune_buttons = QHBoxLayout()
         # Add diagnostics button
-        # Add PPR test button
-        self.ppr_test_btn = QPushButton("🔄 Test PPR")
-        self.ppr_test_btn.clicked.connect(self.test_ppr_calculation)
-        tune_buttons.addWidget(self.ppr_test_btn)
 
         tune_layout.addLayout(tune_buttons)
 
@@ -1002,28 +998,6 @@ class PIDControllerGUI(QMainWindow):
         """Reset PID controller"""
         self.send_command("RESET_CONTROLLER")
         self.statusBar().showMessage("Controller reset")
-
-    def test_ppr_calculation(self):
-        """Test PPR calculation by counting pulses"""
-        print("🔧 Testing PPR calculation...")
-        print(f"Current PPR setting: {self.current_params['pulses_per_rev']}")
-        print("This will count pulses for 5 seconds. Make sure motor is spinning at known RPM.")
-
-        # Ask user to confirm
-        reply = QMessageBox.question(
-            self, "PPR Test",
-            f"Current PPR: {self.current_params['pulses_per_rev']}\n\n"
-            "This test will:\n"
-            "1. Count pulses for 5 seconds\n"
-            "2. Calculate RPM based on PPR\n\n"
-            "Make sure your motor is spinning at a known RPM before proceeding.\n\n"
-            "Proceed with test?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-
-        if reply == QMessageBox.StandardButton.Yes:
-            self.send_command("TEST_PPR")
-            print("🔧 PPR test started - check Arduino serial output for results")
 
     def save_parameters(self):
         """Save current parameters to file"""

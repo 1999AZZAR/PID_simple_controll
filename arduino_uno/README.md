@@ -62,7 +62,7 @@ arduino_uno/
 
 | Component | Arduino Pin | Description |
 |-----------|-------------|-------------|
-| BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from motor (interrupt pin) - provides 2 pulses per electrical revolution |
+| BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from motor (interrupt pin) - provides 4 pulses per mechanical revolution |
 | PWM Output | Digital Pin 9 | PWM signal to ESC |
 | Mode Switch | Digital Pin 3 | LOW = Potentiometer mode, HIGH = Production/Serial mode |
 | PPR Pot | Analog A0 | Pulses per revolution (1-100) |
@@ -77,12 +77,13 @@ The controller uses a single Hall sensor wire for RPM feedback, but for enhanced
 
 #### Single Hall Sensor (Current Implementation)
 - Connect any one Hall wire (A, B, or C) to Arduino Pin 2
-- Provides 2 pulses per electrical revolution
+- Provides 4 pulses per mechanical revolution for 8-pole motors
+- Uses period measurement for accurate RPM calculation at low speeds
 - Simple wiring, reliable operation
 
 #### Composite Hall Sensor Signal (Advanced)
 - Combine all three Hall sensors using OR logic
-- Provides 6 pulses per electrical revolution
+- Provides 12 pulses per mechanical revolution for 8-pole motors
 - Higher resolution and smoother motor control
 - Requires external OR gate or additional microcontroller pins
 
@@ -206,4 +207,5 @@ Target,Current,Error,PID_Output,Kp,Ki,Kd,PPR
 - **Control Frequency**: 50Hz main loop, 20Hz RPM calculation
 - **PWM Frequency**: ~490Hz (Timer0 with prescaler 8)
 - **Interrupt Response**: Hall sensor debounce filter prevents false triggers
+- **RPM Calculation**: Period measurement provides stable low-speed operation
 - **Simplified Design**: No EEPROM wear or serial command overhead

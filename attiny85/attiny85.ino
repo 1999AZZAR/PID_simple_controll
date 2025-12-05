@@ -44,7 +44,7 @@
 #include <avr/wdt.h>
 
 // Global variables - Production Mode Only (Integer optimized for ATTiny85)
-volatile unsigned long pulseCount = 0;
+volatile unsigned long pulseInterval = 0;  // Time interval between pulses in microseconds
 volatile unsigned long timer_ms = 0;
 volatile unsigned long timer_us = 0;  // Microsecond counter for debounce
 volatile unsigned long lastPulseMicros = 0;
@@ -91,10 +91,10 @@ ISR(TIM1_COMPA_vect) {
 
 // RPM sensor interrupt with debounce filtering
 ISR(INT0_vect) {
-    unsigned long t = timer_us;
-    if (t - lastPulseMicros > MIN_PULSE_WIDTH_US) {
-        pulseCount++;
-        lastPulseMicros = t;
+    unsigned long currentMicros = timer_us;
+    if (currentMicros - lastPulseMicros > MIN_PULSE_WIDTH_US) {
+        pulseInterval = currentMicros - lastPulseMicros;
+        lastPulseMicros = currentMicros;
     }
 }
 
@@ -171,28 +171,31 @@ void setupTimer() {
 
 
 int calculateRPM() {
-    static unsigned long lastPulseCount = 0;
     static unsigned long lastCalcTime_us = 0;  // Use microseconds for precision
 
     unsigned long currentTime_us = timer_us;
-    unsigned long timeDiff_us = currentTime_us - lastCalcTime_us;
 
-    if (timeDiff_us >= RPM_CALC_INTERVAL * 1000UL) {  // Convert ms to microseconds
-        // Atomic read of volatile pulseCount to avoid race conditions
-        cli();
-        unsigned long pulsesNow = pulseCount;
-        sei();
+    if (currentTime_us - lastCalcTime_us >= RPM_CALC_INTERVAL * 1000UL) {  // Convert ms to microseconds
+        int rpm_scaled = 0;
 
-        unsigned long pulseDiff = pulsesNow - lastPulseCount;
+        // Timeout check: if no pulses received within timeout period, motor is stopped
+        if (currentTime_us - lastPulseMicros > RPM_TIMEOUT_US) {
+            rpm_scaled = 0; // Motor stopped
+        } else {
+            // Atomic read of volatile pulseInterval to avoid race conditions
+            cli();
+            unsigned long interval = pulseInterval;
+            sei();
 
-        // Calculate RPM with microsecond precision using integer math
-        // (pulses * 60000000) / (timeDiff_us * pulsesPerRev) gives RPM * 10
-        // This gives RPM * 10 (e.g., 14400 = 1440.0 RPM) with microsecond precision
-        // 60000000 = 60 seconds/minute * 1000000 microseconds/second * 10 for scaling
-        unsigned long rpm_scaled = (pulseDiff * 60000000UL) / (timeDiff_us * pulsesPerRev);
+            // Calculate RPM using period measurement: RPM = (60,000,000) / (interval_μs * pulses_per_rev)
+            // For scaled result (RPM * 10): (600,000,000) / (interval_μs * pulses_per_rev)
+            if (interval > 0) {
+                rpm_scaled = (int)(600000000UL / (interval * pulsesPerRev));
+            }
+        }
 
         // Apply moving average filter for noise reduction (ATtiny85 optimized)
-        rpmHistory[rpmHistoryIndex] = (int)rpm_scaled;
+        rpmHistory[rpmHistoryIndex] = rpm_scaled;
         rpmHistoryIndex = (rpmHistoryIndex + 1) % RPM_FILTER_SIZE;
 
         // Calculate filtered RPM
@@ -202,7 +205,6 @@ int calculateRPM() {
         }
         rpmFiltered = (int)(sum / RPM_FILTER_SIZE);
 
-        lastPulseCount = pulsesNow;
         lastCalcTime_us = currentTime_us;
 
         return rpmFiltered;  // Return filtered value for maximum accuracy

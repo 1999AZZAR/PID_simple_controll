@@ -56,11 +56,11 @@
 
 ## BLDC Hall Sensor Configuration
 
-### 3-Hall BLDC Motor Compatibility
-- Designed for motors like 42BLF20-22.0223 with built-in Hall sensors
+### 8-Pole BLDC Motor Compatibility
+- Designed for 8-pole BLDC motors with built-in Hall sensors
 - Compatible with any 3-Hall BLDC motor (Hall A, Hall B, Hall C)
-- Each Hall sensor provides 2 pulses per electrical revolution
-- Total: 6 pulses per electrical revolution when using any single Hall wire
+- Single Hall sensor provides 4 pulses per mechanical revolution for 8-pole motors
+- Uses period measurement for accurate RPM calculation at low speeds
 - Connect ANY Hall wire (A, B, or C) to Arduino Pin 2
 - Hall sensors operate at 5V, compatible with Arduino Uno
 - No diode isolation required between controller and motor Hall sensors
@@ -83,10 +83,7 @@
 5. ESC should beep to confirm calibration
 
 ### RPM Sensor Calibration
-- Default `PULSES_PER_REV` is set to 18
-- For 3-Hall BLDC motors, typically use 6 pulses per electrical revolution
-- If using a different sensor type, adjust this constant in `config.h`:
-  - Single Hall sensor: Usually 2 pulses per revolution
-  - Optical encoder: Check datasheet for pulses per revolution
-  - Tachometer: Usually 1 pulse per revolution
-  - Other sensors: Measure actual pulses per revolution
+- System configured for 8-pole BLDC motors with single Hall sensor
+- Fixed at 4 pulses per mechanical revolution for optimal performance
+- Uses period measurement instead of pulse counting for better low-speed stability
+- No calibration required - PPR is fixed in configuration

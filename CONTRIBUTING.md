@@ -98,7 +98,7 @@ arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal8 atti
 ### C/C++ Style Guidelines
 
 #### Naming Conventions
-- **Variables**: `camelCase` (e.g., `pulseCount`, `currentRPM`)
+- **Variables**: `camelCase` (e.g., `pulseInterval`, `currentRPM`)
 - **Functions**: `camelCase` (e.g., `calculateRPM()`, `readPotentiometer()`)
 - **Constants**: `UPPER_SNAKE_CASE` (e.g., `CONTROL_LOOP_HZ`, `PID_OUTPUT_MAX`)
 - **Types**: `PascalCase` for structs/classes (rare in Arduino)
@@ -112,13 +112,13 @@ arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal8 atti
 #### Example Code Style
 ```c++
 // Good: Clear naming and structure
-volatile unsigned long pulseCount = 0;
+volatile unsigned long pulseInterval = 0;
 unsigned long lastRPMCalcTime = 0;
 
 float calculateRPM() {
     // Atomic read to avoid race conditions
     noInterrupts();
-    unsigned long pulsesNow = pulseCount;
+    unsigned long interval = pulseInterval;
     interrupts();
 
     // Calculate RPM with proper units
@@ -129,7 +129,7 @@ float calculateRPM() {
 // Avoid: Unclear abbreviations or magic numbers
 float calcRPM() {
     noInterrupts();
-    unsigned long p = pulseCount;  // What does 'p' mean?
+    unsigned long interval = pulseInterval;  // Clear variable name
     interrupts();
 
     return (p * 60000) / (t * 6);  // Magic numbers
@@ -214,7 +214,7 @@ BLDC_PID_Controller/
 - [ ] Potentiometer mode changes parameters
 - [ ] Serial commands adjust PID values
 - [ ] EEPROM saves/loads parameters
-- [ ] Different pulse counts work correctly
+- [ ] Period measurement provides accurate RPM at low speeds
 
 #### Edge Cases
 - [ ] Motor stall recovery
@@ -246,9 +246,9 @@ echo "Compilation successful!"
 5. **Update documentation** if needed
 6. **Commit with clear messages**:
    ```bash
-   git commit -m "feat: add configurable pulse count per revolution
+   git commit -m "feat: implement period measurement for RPM calculation
 
-   - Add runtime-configurable PULSES_PER_REV parameter
+   - Replace pulse counting with period timing for better low-speed accuracy
    - Store in EEPROM for persistence
    - Add serial command SET PULSES <value>
    - Update documentation and help text
@@ -285,7 +285,7 @@ Types:
 Examples:
 ```
 feat(pid): add anti-windup protection for integral term
-fix(isr): prevent race conditions in pulse counting
+fix(isr): prevent race conditions in period measurement
 docs(readme): update PWM specification details
 ```
 

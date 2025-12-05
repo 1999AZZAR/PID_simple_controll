@@ -53,7 +53,7 @@ Arduino Uno Pin Mapping - Python GUI Version:
 ### Detailed Pin Functions
 
 #### Digital Pin 2 (RPM Input)
-- **Function**: Hall sensor pulse counting
+- **Function**: Hall sensor period measurement
 - **Interrupt**: Hardware interrupt 0 (rising edge triggered)
 - **Debounce**: 100µs minimum pulse width filtering
 - **Pull-up**: Internal INPUT_PULLUP enabled
@@ -99,11 +99,10 @@ SET_KP <value>              # Set proportional gain
 SET_KI <value>              # Set integral gain
 SET_KD <value>              # Set derivative gain
 SET_TARGET_RPM <value>      # Set target RPM
-SET_PULSES_PER_REV <value>  # Set pulses per revolution
+SET_PULSES_PER_REV <value>  # Set pulses per revolution (fixed at 4 for 8-pole motors)
 ENABLE_MOTOR <0|1>          # Enable/disable motor
 RESET_CONTROLLER            # Reset PID state
 GET_STATUS                  # Request status update
-TEST_PPR                    # Test PPR calculation
 ```
 
 **Arduino → Python GUI Status Response:**
@@ -241,8 +240,7 @@ Power Connections
 ### RPM Sensor Test
 1. **Manual Rotation**: Spin motor shaft by hand
 2. **Monitor Serial**: Watch for RPM changes in STATUS messages
-3. **Pulse Counting**: Use `TEST_PPR` command for verification
-4. **Verify PPR**: Compare with motor specifications
+3. **Verify PPR**: PPR is fixed at 4 for 8-pole BLDC with single Hall sensor
 
 ### Full System Test
 1. **Power On**: Arduino and motor power supplies

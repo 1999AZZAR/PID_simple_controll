@@ -45,7 +45,7 @@
 // Serial removed - no interactive commands
 
 // Global variables
-volatile unsigned long pulseCount = 0;
+volatile unsigned long pulseInterval = 0;  // Time interval between pulses in microseconds
 volatile unsigned long lastPulseMicros = 0;
 // Safety features removed for simplified operation
 unsigned long lastRPMCalcTime = 0;
@@ -171,33 +171,37 @@ void loop() {
 
 // Interrupt service routine for RPM sensor with debounce filtering
 void rpmSensorISR() {
-    unsigned long t = micros();
-    if (t - lastPulseMicros > MIN_PULSE_WIDTH_US) {
-        pulseCount++;
-        lastPulseMicros = t;
+    unsigned long currentMicros = micros();
+    if (currentMicros - lastPulseMicros > MIN_PULSE_WIDTH_US) {
+        pulseInterval = currentMicros - lastPulseMicros;
+        lastPulseMicros = currentMicros;
         // Safety features removed for simplified operation
     }
 }
 
-// Calculate RPM from pulse count with microsecond precision and moving average filtering
+// Calculate RPM from pulse interval with timeout detection and moving average filtering
 float calculateRPM() {
-    static unsigned long lastPulseCount = 0;
     static unsigned long lastCalcTime = 0;
 
     unsigned long currentTime = micros();  // Use micros for maximum precision
-    unsigned long timeDiff = currentTime - lastCalcTime;
 
-    if (timeDiff >= RPM_CALC_INTERVAL * 1000UL) {  // Convert ms to microseconds
-        // Atomic read of volatile pulseCount to avoid race conditions
-        noInterrupts();
-        unsigned long pulsesNow = pulseCount;
-        interrupts();
+    if (currentTime - lastCalcTime >= RPM_CALC_INTERVAL * 1000UL) {  // Convert ms to microseconds
+        float rpm = 0.0;
 
-        unsigned long pulseDiff = pulsesNow - lastPulseCount;
+        // Timeout check: if no pulses received within timeout period, motor is stopped
+        if (currentTime - lastPulseMicros > RPM_TIMEOUT_US) {
+            rpm = 0.0; // Motor stopped
+        } else {
+            // Atomic read of volatile pulseInterval to avoid race conditions
+            noInterrupts();
+            unsigned long interval = pulseInterval;
+            interrupts();
 
-        // Calculate RPM with microsecond precision: (pulses / time_seconds) * (60 / pulses_per_rev)
-        float timeSeconds = timeDiff / 1000000.0;
-        float rpm = (pulseDiff / timeSeconds) * (60.0 / pulsesPerRev);
+            // Calculate RPM using period measurement: RPM = (60,000,000) / (interval_μs * pulses_per_rev)
+            if (interval > 0) {
+                rpm = 60000000.0 / (interval * pulsesPerRev);
+            }
+        }
 
         // Apply moving average filter for noise reduction and stability
         rpmHistory[rpmHistoryIndex] = rpm;
@@ -210,7 +214,6 @@ float calculateRPM() {
         }
         rpmFiltered = sum / RPM_FILTER_SIZE;
 
-        lastPulseCount = pulsesNow;
         lastCalcTime = currentTime;
 
         return rpmFiltered;  // Return filtered value for maximum accuracy

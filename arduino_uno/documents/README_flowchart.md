@@ -56,8 +56,8 @@ Main Control Loop (50Hz timing)
 RPM Sensor Interrupt (ISR)
 ├── Microsecond Timestamp Capture
 ├── Debounce Filtering (100μs minimum)
-├── Pulse Count Increment
-└── Pulse Counting (debounce filtered)
+├── Period Measurement Storage
+└── Period Timing (debounce filtered)
 ```
 
 ## Operational Modes
@@ -116,7 +116,7 @@ Arduino Uno Pin Mapping:
 
 ### Input Processing
 ```
-Hardware Inputs → Interrupt Processing → Pulse Counting → RPM Calculation → Error Computation → PID Algorithm → PWM Generation → Motor Control
+Hardware Inputs → Interrupt Processing → Period Measurement → RPM Calculation → Error Computation → PID Algorithm → PWM Generation → Motor Control
 ```
 
 ### Output Streams
@@ -248,13 +248,13 @@ loop()
 rpmSensorISR()
 ├── micros() timestamp
 ├── debounce filtering
-└── pulseCount increment
+└── pulseInterval storage
 ```
 
 ### Memory Map
 ```
 Global Variables (372 bytes):
-├── Volatile counters: pulseCount, lastPulseMicros
+├── Volatile counters: pulseInterval, lastPulseMicros
 ├── PID state: kp, ki, kd, integral, previousError
 ├── Timing: lastRPMCalcTime, lastLoopTime
 ├── Mode control: tuningMode

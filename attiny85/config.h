@@ -13,9 +13,10 @@
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
 // RPM calculation parameters
-#define DEFAULT_PULSES_PER_REV 24   // Default number of pulses per revolution got from 4 cycles×6 steps=24 state changes per revolution.
+#define DEFAULT_PULSES_PER_REV 4    // 8-pole BLDC motor with single Hall sensor = 4 pulses per revolution (1 pulse per pole pair)
 #define RPM_CALC_INTERVAL   10   // RPM calculation interval (10ms) - faster updates for maximum accuracy
 #define MIN_PULSE_WIDTH_US  50   // Minimum pulse width (50μs) - optimized for fast response
+#define RPM_TIMEOUT_US      500000  // Timeout for RPM detection (500ms) - if no pulses received, motor is considered stopped
 
 // PID limits - Optimized for low-speed control
 #define PID_OUTPUT_MIN      -1000 // Minimum PID output (expanded for low speeds)

@@ -30,9 +30,9 @@ flowchart TB
         P["Calculate Current RPM"]
         Q["Use Previous RPM Value"]
         P1["calculateRPM() Function"]
-        P2["Atomic Read of pulseCount"]
-        P3["Calculate RPM from Pulse Difference"]
-        P4["Update lastPulseCount & lastCalcTime"]
+        P2["Atomic Read of pulseInterval"]
+        P3["Calculate RPM from Period Measurement"]
+        P4["Update lastCalcTime"]
         R["PID Computation"]
         U{"Which Mode?"}
         V["updatePIDGains() Function"]
@@ -69,7 +69,7 @@ flowchart TB
         EE2["Read Current Microseconds"]
         EE3{"Check Debounce Filter"}
         EE4["t - lastPulseMicros > MIN_PULSE_WIDTH_US?"]
-        EE5["Increment pulseCount"]
+        EE5["Store Pulse Interval"]
         EE6["Ignore Bounce"]
         EE7["Update lastPulseMicros"]
         EEA["Return from Interrupt"]
