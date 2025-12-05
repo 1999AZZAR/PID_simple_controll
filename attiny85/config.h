@@ -8,32 +8,17 @@
 #define RPM_SENSOR_PIN     3    // Arduino pin 3 (PB3), BLDC Hall sensor input (interrupt capable)
 #define PWM_OUTPUT_PIN     0    // Arduino pin 0 (PB0), PWM capable
 
+// Include shared common headers
+#include "config_common.h"
+
+// ATtiny85 specific configuration overrides
+#define DEFAULT_PULSES_PER_REV 4    // 8-pole BLDC motor with single Hall sensor = 4 pulses per revolution (1 pulse per pole pair)
+
 // Control parameters - Optimized for maximum accuracy on ATtiny85
 #define CONTROL_LOOP_HZ     160  // Control loop frequency (160 Hz) - increased for better control (balanced for ATtiny85)
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
-// RPM calculation parameters
-#define DEFAULT_PULSES_PER_REV 4    // 8-pole BLDC motor with single Hall sensor = 4 pulses per revolution (1 pulse per pole pair)
-#define RPM_CALC_INTERVAL   10   // RPM calculation interval (10ms) - faster updates for maximum accuracy
-#define MIN_PULSE_WIDTH_US  50   // Minimum pulse width (50μs) - optimized for fast response
-#define RPM_TIMEOUT_US      500000  // Timeout for RPM detection (500ms) - if no pulses received, motor is considered stopped
-
-// PID limits - Optimized for low-speed control
-#define PID_OUTPUT_MIN      -1000 // Minimum PID output (expanded for low speeds)
-#define PID_OUTPUT_MAX      1000  // Maximum PID output (expanded for low speeds)
-#define INTEGRAL_WINDUP_MIN -200  // Anti-windup integral minimum (expanded)
-#define INTEGRAL_WINDUP_MAX 200   // Anti-windup integral maximum (expanded)
-
-// Default PID parameters (can be adjusted via Python GUI)
-#define DEFAULT_TARGET_RPM 1440.0  // Default target RPM
-#define DEFAULT_KP         3.25    // Default proportional gain - balanced for 100Hz loop
-#define DEFAULT_KI         0.0320   // Default integral gain - conservative for stability
-#define DEFAULT_KD         0.001   // Default derivative gain - minimal for noise rejection
-
-// Safety parameters
-// Safety features removed for minimal size optimization
-
-// Soft-start ramping parameters
+// Soft-start ramping parameters (ATtiny85 specific)
 #define SOFT_START_DURATION_MS  2000  // 2 seconds ramp up time
 
 #endif // CONFIG_ATTINY_H

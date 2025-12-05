@@ -38,6 +38,11 @@
 // Include configuration header
 #include "config.h"
 
+// Include shared common headers
+#include "pid_common.h"
+#include "rpm_common.h"
+#include "isr_common.h"
+
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
@@ -92,10 +97,7 @@ ISR(TIM1_COMPA_vect) {
 // RPM sensor interrupt with debounce filtering
 ISR(INT0_vect) {
     unsigned long currentMicros = timer_us;
-    if (currentMicros - lastPulseMicros > MIN_PULSE_WIDTH_US) {
-        pulseInterval = currentMicros - lastPulseMicros;
-        lastPulseMicros = currentMicros;
-    }
+    rpmSensorISR_common(currentMicros, lastPulseMicros, pulseInterval, MIN_PULSE_WIDTH_US);
 }
 
 void setup() {
@@ -189,21 +191,14 @@ int calculateRPM() {
 
             // Calculate RPM using period measurement: RPM = (60,000,000) / (interval_μs * pulses_per_rev)
             // For scaled result (RPM * 10): (600,000,000) / (interval_μs * pulses_per_rev)
+            // Use sequential division to avoid intermediate multiplication overflow
             if (interval > 0) {
-                rpm_scaled = (int)(600000000UL / (interval * pulsesPerRev));
+                rpm_scaled = (int)(600000000UL / interval / pulsesPerRev);
             }
         }
 
         // Apply moving average filter for noise reduction (ATtiny85 optimized)
-        rpmHistory[rpmHistoryIndex] = rpm_scaled;
-        rpmHistoryIndex = (rpmHistoryIndex + 1) % RPM_FILTER_SIZE;
-
-        // Calculate filtered RPM
-        long sum = 0;
-        for(int i = 0; i < RPM_FILTER_SIZE; i++) {
-            sum += rpmHistory[i];
-        }
-        rpmFiltered = (int)(sum / RPM_FILTER_SIZE);
+        updateMovingAverageInt(rpmFiltered, rpm_scaled, rpmHistory, rpmHistoryIndex, RPM_FILTER_SIZE);
 
         lastCalcTime_us = currentTime_us;
 
@@ -214,32 +209,10 @@ int calculateRPM() {
 }
 
 int computePID(int error_scaled) {
-    // Proportional term: kp_scaled * error_scaled / 1000
-    // (kp_scaled is Kp*100, error_scaled is error*10, so divide by 1000 for Kp*error)
-    long proportional = (long)kp_scaled * error_scaled / 1000;
-
-    // Integral term with anti-windup: integral_scaled += ki_scaled * error_scaled / 100
-    // (ki_scaled is Ki*100, error_scaled is error*10, so divide by 100 for Ki*error)
-    integral_scaled += (long)ki_scaled * error_scaled / 100;
-
-    // Clamp integral to prevent windup (scaled by 1000)
-    long integral_max_scaled = INTEGRAL_WINDUP_MAX * 1000;
-    long integral_min_scaled = INTEGRAL_WINDUP_MIN * 1000;
-    if (integral_scaled > integral_max_scaled) integral_scaled = integral_max_scaled;
-    if (integral_scaled < integral_min_scaled) integral_scaled = integral_min_scaled;
-
-    // Derivative term: kd_scaled * (error_scaled - previousError_scaled) / 1000
-    long derivative = (long)kd_scaled * (error_scaled - previousError_scaled) / 1000;
-    previousError_scaled = error_scaled;
-
-    // Calculate total PID output: proportional + (integral_scaled/1000) + derivative
-    long output = proportional + (integral_scaled / 1000) + derivative;
-
-    // Clamp output to safe range
-    if (output > PID_OUTPUT_MAX) output = PID_OUTPUT_MAX;
-    if (output < PID_OUTPUT_MIN) output = PID_OUTPUT_MIN;
-
-    return (int)output;
+    return computePID_fixed(error_scaled, integral_scaled, previousError_scaled,
+                           kp_scaled, ki_scaled, kd_scaled,
+                           INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
+                           PID_OUTPUT_MIN, PID_OUTPUT_MAX);
 }
 
 // Soft-start removed for size optimization

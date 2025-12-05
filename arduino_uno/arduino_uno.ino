@@ -42,6 +42,11 @@
 // Include configuration header (contains all pin definitions, constants, and settings)
 #include "config.h"
 
+// Include shared common headers
+#include "pid_common.h"
+#include "rpm_common.h"
+#include "isr_common.h"
+
 // Serial removed - no interactive commands
 
 // Global variables
@@ -172,11 +177,8 @@ void loop() {
 // Interrupt service routine for RPM sensor with debounce filtering
 void rpmSensorISR() {
     unsigned long currentMicros = micros();
-    if (currentMicros - lastPulseMicros > MIN_PULSE_WIDTH_US) {
-        pulseInterval = currentMicros - lastPulseMicros;
-        lastPulseMicros = currentMicros;
-        // Safety features removed for simplified operation
-    }
+    rpmSensorISR_common(currentMicros, lastPulseMicros, pulseInterval, MIN_PULSE_WIDTH_US);
+    // Safety features removed for simplified operation
 }
 
 // Calculate RPM from pulse interval with timeout detection and moving average filtering
@@ -198,21 +200,14 @@ float calculateRPM() {
             interrupts();
 
             // Calculate RPM using period measurement: RPM = (60,000,000) / (interval_μs * pulses_per_rev)
+            // Use sequential division to avoid intermediate multiplication overflow
             if (interval > 0) {
-                rpm = 60000000.0 / (interval * pulsesPerRev);
+                rpm = 60000000.0 / interval / pulsesPerRev;
             }
         }
 
         // Apply moving average filter for noise reduction and stability
-        rpmHistory[rpmHistoryIndex] = rpm;
-        rpmHistoryIndex = (rpmHistoryIndex + 1) % RPM_FILTER_SIZE;
-
-        // Calculate filtered RPM
-        float sum = 0;
-        for(int i = 0; i < RPM_FILTER_SIZE; i++) {
-            sum += rpmHistory[i];
-        }
-        rpmFiltered = sum / RPM_FILTER_SIZE;
+        updateMovingAverage(rpmFiltered, rpm, rpmHistory, rpmHistoryIndex, RPM_FILTER_SIZE);
 
         lastCalcTime = currentTime;
 
@@ -242,28 +237,11 @@ void updatePIDGains() {
     kd = readPotentiometer(POT_KD, 0, 0.1);                         // 0-0.1 Kd range
 }
 
-// Compute PID output with anti-windup
+// Compute PID output using shared function with overflow protection
 float computePID(float error) {
-    // Proportional term
-    float proportional = kp * error;
-
-    // Integral term with anti-windup
-    integral += ki * error;
-
-    // Clamp integral to prevent windup
-    integral = constrain(integral, INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX);
-
-    // Derivative term
-    float derivative = kd * (error - previousError);
-    previousError = error;
-
-    // Calculate total PID output
-    float output = proportional + integral + derivative;
-
-    // Clamp output to safe range
-    output = constrain(output, PID_OUTPUT_MIN, PID_OUTPUT_MAX);
-
-    return output;
+    return computePID_float(error, integral, previousError, kp, ki, kd,
+                           INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
+                           PID_OUTPUT_MIN, PID_OUTPUT_MAX);
 }
 
 // Apply soft-start ramping to avoid current surges
