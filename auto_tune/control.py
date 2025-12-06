@@ -867,9 +867,9 @@ class PIDControllerGUI(QMainWindow):
                 return
 
             parts = data[7:].split(',')
-            # Require exactly 10 parts (timestamp + 9 data values) after removing auto_tune
-            if len(parts) != 10:
-                print(f"Invalid status data format: expected 10 parts, got {len(parts)}: {data}")
+            # Require exactly 11 parts (timestamp + 10 data values)
+            if len(parts) != 11:
+                print(f"Invalid status data format: expected 11 parts, got {len(parts)}: {data}")
                 return
 
             # Parse each field with error checking
@@ -881,8 +881,9 @@ class PIDControllerGUI(QMainWindow):
             kp = float(parts[5])
             ki = float(parts[6])
             kd = float(parts[7])
-            ppr = int(float(parts[8]))  # Convert to float first to handle decimal strings
-            motor_enabled = int(float(parts[9]))
+            last_pwm_value = int(float(parts[8]))  # Last PWM value sent to motor
+            ppr = int(float(parts[9]))  # Convert to float first to handle decimal strings
+            motor_enabled = int(float(parts[10]))
 
             # Update plot less frequently to improve performance
             self.plot_update_counter += 1
