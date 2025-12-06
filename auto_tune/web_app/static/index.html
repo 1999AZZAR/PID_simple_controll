@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BLDC Motor PID Controller</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient">
+        <div class="container-fluid">
+            <span class="navbar-brand fw-bold">
+                BLDC Motor Controller
+            </span>
+
+            <div class="d-flex align-items-center gap-3">
+                <div id="connection-status" class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span class="status-text">Disconnected</span>
+                </div>
+
+                <button id="about-btn" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-info-circle"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <!-- System Status Bar -->
+        <div class="system-status mb-4">
+            <div class="status-item">
+                <span class="status-label">Connection</span>
+                <span id="serial-status" class="status-value">Not Connected</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Motor</span>
+                <span id="motor-status" class="status-value">Disabled</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">RPM</span>
+                <span id="rpm-display" class="status-value">0</span>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Control Panel -->
+            <div class="col-lg-4">
+                <!-- Connection Panel -->
+                <div class="control-panel mb-4">
+                    <div class="panel-header">
+                        <h3>Connection</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div class="compatibility-notice mb-3">
+                            <div class="notice-icon">
+                                <i class="fas fa-chrome"></i>
+                            </div>
+                            <div class="notice-content">
+                                <div class="notice-title">Web Serial API</div>
+                                <div class="notice-text">Requires Chrome, Edge, or Opera browser</div>
+                            </div>
+                        </div>
+
+                        <div class="action-buttons">
+                            <button id="connect-btn" class="btn btn-primary btn-lg w-100 mb-2">
+                                Connect to Arduino
+                            </button>
+
+                            <div class="btn-row">
+                                <button id="request-status-btn" class="btn btn-outline-secondary flex-fill" disabled>
+                                    Request Status
+                                </button>
+                                <button id="reconnect-btn" class="btn btn-warning flex-fill" style="display: none;">
+                                    Reconnect
+                                </button>
+                            </div>
+
+                            <button id="refresh-ports-btn" class="btn btn-link btn-sm w-100 mt-2 text-muted">
+                                Connection Help
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PID Tuning Panel -->
+                <div class="control-panel mb-4">
+                    <div class="panel-header">
+                        <h3>PID Tuning</h3>
+                    </div>
+                    <div class="panel-body">
+                        <!-- Target RPM -->
+                        <div class="control-group mb-3">
+                            <label class="control-label">Target Speed</label>
+                            <div class="input-with-unit">
+                                <input type="number" id="target-rpm" class="form-control" min="0" max="5000" step="10" value="1440">
+                                <span class="unit">RPM</span>
+                            </div>
+                        </div>
+
+                        <!-- PID Gains -->
+                        <div class="pid-controls">
+                            <div class="control-group mb-3">
+                                <div class="gain-header">
+                                    <span class="gain-label">Kp (Proportional)</span>
+                                    <span class="gain-value" id="kp-value">0.250</span>
+                                </div>
+                                <input type="range" id="kp-slider" class="gain-slider" min="0" max="5" step="0.01" value="0.25">
+                            </div>
+
+                            <div class="control-group mb-3">
+                                <div class="gain-header">
+                                    <span class="gain-label">Ki (Integral)</span>
+                                    <span class="gain-value" id="ki-value">0.015</span>
+                                </div>
+                                <input type="range" id="ki-slider" class="gain-slider" min="0" max="1" step="0.001" value="0.015">
+                            </div>
+
+                            <div class="control-group mb-3">
+                                <div class="gain-header">
+                                    <span class="gain-label">Kd (Derivative)</span>
+                                    <span class="gain-value" id="kd-value">0.003</span>
+                                </div>
+                                <input type="range" id="kd-slider" class="gain-slider" min="0" max="0.1" step="0.0001" value="0.003">
+                            </div>
+                        </div>
+
+                        <!-- Encoder Settings -->
+                        <div class="control-group">
+                            <label class="control-label">Encoder</label>
+                            <div class="input-with-unit">
+                                <input type="number" id="ppr" class="form-control" min="1" max="100" value="18">
+                                <span class="unit">PPR</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Motor Control Panel -->
+                <div class="control-panel mb-4">
+                    <div class="panel-header">
+                        <h3>Motor Control</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div class="motor-status mb-3">
+                            <div class="status-indicator-large">
+                                <div id="motor-indicator" class="motor-dot disabled"></div>
+                                <span id="motor-state-text" class="motor-text">Motor Disabled</span>
+                            </div>
+                        </div>
+
+                        <div class="control-buttons">
+                            <button id="motor-toggle-btn" class="btn btn-danger btn-lg w-100 mb-2">
+                                Enable Motor
+                            </button>
+                            <button id="reset-btn" class="btn btn-outline-secondary w-100">
+                                Reset Controller
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Management Panel -->
+                <div class="control-panel">
+                    <div class="panel-header">
+                        <h3>Data Management</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div class="data-actions">
+                            <button id="save-params-btn" class="btn btn-outline-primary w-100 mb-2">
+                                Save Settings
+                            </button>
+                            <button id="load-params-btn" class="btn btn-outline-secondary w-100 mb-2">
+                                Load Settings
+                            </button>
+                            <button id="export-data-btn" class="btn btn-success w-100">
+                                Export Data
+                            </button>
+                        </div>
+                        <div class="mt-2 small text-muted">
+                            Settings saved to browser storage
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Panel -->
+            <div class="col-lg-8 col-md-7">
+                <!-- Motor Speed Chart -->
+                <div class="chart-panel mb-4">
+                    <div class="chart-header">
+                        <h3>Motor Speed</h3>
+                        <div class="chart-controls">
+                            <button class="btn-icon" title="Reset Zoom">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="speed-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Control Charts Row -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-6">
+                        <div class="chart-panel">
+                            <div class="chart-header">
+                                <h4>Control Error</h4>
+                            </div>
+                            <div class="chart-body">
+                                <canvas id="error-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="chart-panel">
+                            <div class="chart-header">
+                                <h4>PID Output</h4>
+                            </div>
+                            <div class="chart-body">
+                                <canvas id="output-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PID Gains Chart -->
+                <div class="chart-panel">
+                    <div class="chart-header">
+                        <h3>PID Gains</h3>
+                        <div class="gain-legend">
+                            <div class="legend-item">
+                                <div class="legend-color kp"></div>
+                                <span>Kp</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color ki"></div>
+                                <span>Ki</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color kd"></div>
+                                <span>Kd</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="gains-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input for loading parameters -->
+    <input type="file" id="file-input" accept=".json" style="display: none;">
+
+    <!-- About Modal -->
+    <div class="modal fade" id="about-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-info-circle"></i> About BLDC PID Controller
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Direct Web Serial Control</h6>
+                            <p>This version connects directly to your Arduino using the Web Serial API - no backend server required!</p>
+
+                            <h6>Key Features</h6>
+                            <ul>
+                                <li>Direct serial communication</li>
+                                <li>Real-time hardware data</li>
+                                <li>Live PID parameter control</li>
+                                <li>Actual motor speed control</li>
+                                <li>Browser-based storage</li>
+                                <li>Cross-device compatibility</li>
+                            </ul>
+
+                            <h6>Browser Support</h6>
+                            <div class="browser-requirements">
+                                <strong>Requires:</strong>
+                                <ul class="mb-0">
+                                    <li>Chrome 89+</li>
+                                    <li>Edge 89+</li>
+                                    <li>Opera 75+</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Technology</h6>
+                            <ul>
+                                <li><strong>Hardware:</strong> Arduino + BLDC Motor</li>
+                                <li><strong>API:</strong> Web Serial API (Native)</li>
+                                <li><strong>Frontend:</strong> HTML/CSS/JS + Chart.js</li>
+                                <li><strong>Communication:</strong> Direct Serial Port</li>
+                                <li><strong>UI:</strong> Bootstrap 5</li>
+                            </ul>
+
+                            <h6>Setup Steps</h6>
+                            <ol>
+                                <li>Upload Arduino firmware</li>
+                                <li>Open this page in supported browser</li>
+                                <li>Click "Connect to Arduino"</li>
+                                <li>Grant serial port permission</li>
+                                <li>Control your motor in real-time!</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <hr>
+                    <div class="text-center">
+                        <p><strong>Author:</strong> azzar persona (AI assistant)<br>
+                        <strong>Version:</strong> Web Serial API Direct Connection<br>
+                        <strong>Date:</strong> December 2025</p>
+                        <div class="zero-backend-notice">
+                            <strong>Zero Backend!</strong> Pure browser-to-hardware control.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Custom JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>

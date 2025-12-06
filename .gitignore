@@ -358,9 +358,6 @@ vendor/
 *.synctex.gz
 *.toc
 
-# Markdown
-*.html
-
 # Temporary files
 *.tmp
 *.temp
