@@ -666,6 +666,7 @@ Console logs show:
         } else if (status === 'No Data') {
             statusEl.textContent = 'No Data - Connected but no STATUS messages';
             statusEl.style.color = 'var(--warning)';
+            this.isConnected = false;
             document.getElementById('reconnect-btn').style.display = 'block';
             console.log('Connection status: No Data');
         } else if (status === 'Device Lost') {
@@ -675,7 +676,7 @@ Console logs show:
             console.log('Connection status: Device Lost');
         } else {
             statusEl.textContent = 'Not Connected';
-            statusEl.style.color = 'var(--gray-500)';
+            statusEl.style.color = 'var(--text-muted)';
             connectBtn.className = 'btn btn-primary';
             connectBtn.textContent = 'Connect to Arduino';
             this.currentData.connected = false;
@@ -699,13 +700,13 @@ Console logs show:
             motorText.textContent = 'Motor Enabled';
         } else {
             motorStatusEl.textContent = 'Disabled';
-            motorStatusEl.style.color = 'var(--gray-500)';
+            motorStatusEl.style.color = 'var(--text-muted)';
             motorIndicator.className = 'motor-dot disabled';
             motorText.textContent = 'Motor Disabled';
         }
 
         rpmDisplay.textContent = Math.round(currentRpm);
-        rpmDisplay.style.color = isEnabled ? 'var(--success)' : 'var(--gray-500)';
+        rpmDisplay.style.color = isEnabled ? 'var(--success)' : 'var(--text-muted)';
     }
 
     async loadPorts() {
@@ -759,17 +760,6 @@ Console logs show:
         await this.sendCommand(`SET_PULSES_PER_REV ${parseInt(value)}`);
     }
 
-    async sendParameterUpdate(params) {
-        try {
-            await fetch('/api/parameters', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(params)
-            });
-        } catch (error) {
-            console.error('Parameter update error:', error);
-        }
-    }
 
     async toggleMotor() {
         const enabled = !this.currentData.parameters.motor_enabled;
@@ -781,20 +771,29 @@ Console logs show:
         this.showAlert('Controller reset', 'info');
     }
 
-    async saveParameters() {
+    saveParameters() {
         try {
-            const response = await fetch('/api/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(this.currentData.parameters)
-            });
+            const paramsToSave = {
+                ...this.currentData.parameters,
+                timestamp: new Date().toISOString(),
+                version: '1.0'
+            };
 
-            const result = await response.json();
-            if (result.success) {
-                this.showAlert(`Parameters saved as ${result.filename}`, 'success');
-            } else {
-                this.showAlert('Failed to save parameters', 'danger');
-            }
+            // Save to localStorage
+            localStorage.setItem('bldc_pid_parameters', JSON.stringify(paramsToSave));
+
+            // Also offer download as JSON file
+            const blob = new Blob([JSON.stringify(paramsToSave, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pid_parameters_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            this.showAlert('Parameters saved to browser storage and downloaded as file', 'success');
         } catch (error) {
             console.error('Save error:', error);
             this.showAlert('Failed to save parameters', 'danger');
@@ -802,6 +801,39 @@ Console logs show:
     }
 
     loadParameters() {
+        // Try to load from localStorage first
+        const savedParams = localStorage.getItem('bldc_pid_parameters');
+        if (savedParams) {
+            try {
+                const params = JSON.parse(savedParams);
+                // Apply parameters to current data
+                this.currentData.parameters = {
+                    target_rpm: params.target_rpm || 1440,
+                    kp: params.kp || 0.25,
+                    ki: params.ki || 0.015,
+                    kd: params.kd || 0.003,
+                    pulses_per_rev: params.pulses_per_rev || 18,
+                    motor_enabled: params.motor_enabled || false
+                };
+
+                // Update UI
+                this.updateUI();
+
+                // Send parameters to Arduino
+                this.sendCommand(`SET_TARGET_RPM ${this.currentData.parameters.target_rpm}`);
+                this.sendCommand(`SET_KP ${this.currentData.parameters.kp}`);
+                this.sendCommand(`SET_KI ${this.currentData.parameters.ki}`);
+                this.sendCommand(`SET_KD ${this.currentData.parameters.kd}`);
+                this.sendCommand(`SET_PULSES_PER_REV ${this.currentData.parameters.pulses_per_rev}`);
+
+                this.showAlert('Parameters loaded from browser storage', 'success');
+                return;
+            } catch (error) {
+                console.warn('Failed to load from localStorage:', error);
+            }
+        }
+
+        // Fall back to file loading
         document.getElementById('file-input').click();
     }
 
@@ -813,30 +845,67 @@ Console logs show:
             const text = await file.text();
             const params = JSON.parse(text);
 
-            // Apply parameters
-            await fetch('/api/parameters', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(params)
-            });
+            // Apply parameters to current data
+            this.currentData.parameters = {
+                target_rpm: params.target_rpm || 1440,
+                kp: params.kp || 0.25,
+                ki: params.ki || 0.015,
+                kd: params.kd || 0.003,
+                pulses_per_rev: params.pulses_per_rev || 18,
+                motor_enabled: params.motor_enabled || false
+            };
 
-            this.showAlert('Parameters loaded successfully', 'success');
+            // Update UI
+            this.updateUI();
+
+            // Send parameters to Arduino
+            this.sendCommand(`SET_TARGET_RPM ${this.currentData.parameters.target_rpm}`);
+            this.sendCommand(`SET_KP ${this.currentData.parameters.kp}`);
+            this.sendCommand(`SET_KI ${this.currentData.parameters.ki}`);
+            this.sendCommand(`SET_KD ${this.currentData.parameters.kd}`);
+            this.sendCommand(`SET_PULSES_PER_REV ${this.currentData.parameters.pulses_per_rev}`);
+
+            this.showAlert('Parameters loaded from file successfully', 'success');
         } catch (error) {
             console.error('Load error:', error);
-            this.showAlert('Failed to load parameters', 'danger');
+            this.showAlert('Failed to load parameters from file', 'danger');
         }
 
         // Reset file input
         event.target.value = '';
     }
 
-    async exportData() {
+    exportData() {
         try {
-            const response = await fetch('/api/export');
-            const data = await response.json();
+            const plotData = this.currentData.plot_data;
+            const timeData = plotData.time;
+            const maxPoints = timeData.length;
+
+            if (maxPoints === 0) {
+                this.showAlert('No data to export. Connect to Arduino first.', 'warning');
+                return;
+            }
+
+            // Create CSV content
+            let csvContent = 'Time(s),Target_RPM,Current_RPM,Error,PID_Output,Kp,Ki,Kd\n';
+
+            for (let i = 0; i < maxPoints; i++) {
+                const relativeTime = i > 0 ? (timeData[i] - timeData[0]) / 1000 : 0;
+                const row = [
+                    relativeTime.toFixed(3),
+                    plotData.target_rpm[i] || 0,
+                    plotData.current_rpm[i] || 0,
+                    plotData.error[i] || 0,
+                    plotData.pid_output[i] || 0,
+                    plotData.kp[i] || 0,
+                    plotData.ki[i] || 0,
+                    plotData.kd[i] || 0
+                ];
+                csvContent += row.join(',') + '\n';
+            }
 
             // Create and download CSV file
-            const blob = new Blob([data.csv_data], { type: 'text/csv' });
+            const blob = new Blob([csvContent], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -846,7 +915,7 @@ Console logs show:
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
 
-            this.showAlert('Data exported successfully', 'success');
+            this.showAlert(`Data exported successfully (${maxPoints} data points)`, 'success');
         } catch (error) {
             console.error('Export error:', error);
             this.showAlert('Failed to export data', 'danger');
