@@ -1,4 +1,11 @@
+# BLDC Motor PID Controller - PC-Powered Auto-Tune
+# Install with: pip install -r requirements.txt
+
+# Core dependencies
 PyQt6>=6.4.0
-matplotlib>=3.5.0
+matplotlib>=3.6.0
 pyserial>=3.5
-numpy>=1.21.0
+numpy>=1.23.0
+
+# Advanced analysis (optional but recommended)
+scipy>=1.9.0

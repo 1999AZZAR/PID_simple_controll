@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BLDC Motor PID Controller</title>
+    <title>BLDC PID Controller - PC-Powered Auto-Tune</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient">
+    <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container-fluid">
             <span class="navbar-brand fw-bold">
-                BLDC Motor Controller
+                <i class="fas fa-microchip me-2"></i>BLDC PID Controller
             </span>
 
             <div class="d-flex align-items-center gap-3">
@@ -41,8 +41,24 @@
                 <span id="motor-status" class="status-value">Disabled</span>
             </div>
             <div class="status-item">
-                <span class="status-label">RPM</span>
+                <span class="status-label">Raw RPM</span>
                 <span id="rpm-display" class="status-value">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Filtered RPM</span>
+                <span id="filtered-rpm-display" class="status-value highlight">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Error</span>
+                <span id="error-display" class="status-value">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Stability</span>
+                <span id="stability-display" class="status-value">--%</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Status</span>
+                <span id="hunting-status" class="status-value status-badge">--</span>
             </div>
         </div>
 
@@ -52,44 +68,70 @@
                 <!-- Connection Panel -->
                 <div class="control-panel mb-4">
                     <div class="panel-header">
-                        <h3>Connection</h3>
+                        <h3><i class="fas fa-plug me-2"></i>Connection</h3>
                     </div>
                     <div class="panel-body">
                         <div class="compatibility-notice mb-3">
                             <div class="notice-icon">
-                                <i class="fas fa-chrome"></i>
+                                <i class="fab fa-chrome"></i>
                             </div>
                             <div class="notice-content">
                                 <div class="notice-title">Web Serial API</div>
-                                <div class="notice-text">Requires Chrome, Edge, or Opera browser</div>
+                                <div class="notice-text">Requires Chrome, Edge, or Opera</div>
                             </div>
                         </div>
 
                         <div class="action-buttons">
                             <button id="connect-btn" class="btn btn-primary btn-lg w-100 mb-2">
-                                Connect to Arduino
+                                <i class="fas fa-link me-2"></i>Connect to Arduino
                             </button>
 
                             <div class="btn-row">
                                 <button id="request-status-btn" class="btn btn-outline-secondary flex-fill" disabled>
-                                    Request Status
+                                    <i class="fas fa-sync-alt me-1"></i>Request Status
                                 </button>
                                 <button id="reconnect-btn" class="btn btn-warning flex-fill" style="display: none;">
-                                    Reconnect
+                                    <i class="fas fa-redo me-1"></i>Reconnect
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
 
-                            <button id="refresh-ports-btn" class="btn btn-link btn-sm w-100 mt-2 text-muted">
-                                Connection Help
+                <!-- Quick Actions Panel -->
+                <div class="control-panel mb-4">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-bolt me-2"></i>Quick Actions</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div class="motor-controls mb-3">
+                            <button id="motor-toggle-btn" class="btn btn-success btn-lg w-100 mb-2">
+                                <i class="fas fa-play me-2"></i>Enable Motor
                             </button>
                         </div>
+                        
+                        <button id="auto-tune-btn" class="btn btn-auto-tune btn-lg w-100 mb-2" disabled>
+                            <i class="fas fa-magic me-2"></i>One-Click Auto-Tune
+                        </button>
+                        
+                        <div id="tune-progress-container" style="display: none;">
+                            <div class="progress mb-2">
+                                <div id="tune-progress" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <div id="tune-status" class="tune-status-text">Starting...</div>
+                        </div>
+                        
+                        <button id="reset-btn" class="btn btn-outline-secondary w-100">
+                            <i class="fas fa-undo me-2"></i>Reset Controller
+                        </button>
                     </div>
                 </div>
 
                 <!-- PID Tuning Panel -->
                 <div class="control-panel mb-4">
                     <div class="panel-header">
-                        <h3>PID Tuning</h3>
+                        <h3><i class="fas fa-sliders-h me-2"></i>PID Parameters</h3>
                     </div>
                     <div class="panel-body">
                         <!-- Target RPM -->
@@ -106,59 +148,50 @@
                             <div class="control-group mb-3">
                                 <div class="gain-header">
                                     <span class="gain-label">Kp (Proportional)</span>
-                                    <span class="gain-value" id="kp-value">0.250</span>
+                                    <span class="gain-value" id="kp-value">0.300</span>
                                 </div>
-                                <input type="range" id="kp-slider" class="gain-slider" min="0" max="5" step="0.01" value="0.25">
+                                <input type="range" id="kp-slider" class="gain-slider" min="0" max="2" step="0.01" value="0.30">
                             </div>
 
                             <div class="control-group mb-3">
                                 <div class="gain-header">
                                     <span class="gain-label">Ki (Integral)</span>
-                                    <span class="gain-value" id="ki-value">0.015</span>
+                                    <span class="gain-value" id="ki-value">0.0200</span>
                                 </div>
-                                <input type="range" id="ki-slider" class="gain-slider" min="0" max="1" step="0.001" value="0.015">
+                                <input type="range" id="ki-slider" class="gain-slider" min="0" max="0.2" step="0.001" value="0.02">
                             </div>
 
                             <div class="control-group mb-3">
                                 <div class="gain-header">
                                     <span class="gain-label">Kd (Derivative)</span>
-                                    <span class="gain-value" id="kd-value">0.003</span>
+                                    <span class="gain-value" id="kd-value">0.0200</span>
                                 </div>
-                                <input type="range" id="kd-slider" class="gain-slider" min="0" max="0.1" step="0.0001" value="0.003">
+                                <input type="range" id="kd-slider" class="gain-slider" min="0" max="0.1" step="0.001" value="0.02">
                             </div>
                         </div>
 
                         <!-- Encoder Settings -->
                         <div class="control-group">
-                            <label class="control-label">Encoder</label>
+                            <label class="control-label">Pulses Per Revolution</label>
                             <div class="input-with-unit">
-                                <input type="number" id="ppr" class="form-control" min="1" max="100" value="18">
+                                <input type="number" id="ppr" class="form-control" min="1" max="100" value="4">
                                 <span class="unit">PPR</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Motor Control Panel -->
+                <!-- Tuning History Panel -->
                 <div class="control-panel mb-4">
                     <div class="panel-header">
-                        <h3>Motor Control</h3>
+                        <h3><i class="fas fa-history me-2"></i>Tuning History</h3>
                     </div>
                     <div class="panel-body">
-                        <div class="motor-status mb-3">
-                            <div class="status-indicator-large">
-                                <div id="motor-indicator" class="motor-dot disabled"></div>
-                                <span id="motor-state-text" class="motor-text">Motor Disabled</span>
+                        <div id="tuning-history" class="tuning-history">
+                            <div class="history-placeholder">
+                                <i class="fas fa-clock"></i>
+                                <span>No tuning results yet</span>
                             </div>
-                        </div>
-
-                        <div class="control-buttons">
-                            <button id="motor-toggle-btn" class="btn btn-danger btn-lg w-100 mb-2">
-                                Enable Motor
-                            </button>
-                            <button id="reset-btn" class="btn btn-outline-secondary w-100">
-                                Reset Controller
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -166,40 +199,37 @@
                 <!-- Data Management Panel -->
                 <div class="control-panel">
                     <div class="panel-header">
-                        <h3>Data Management</h3>
+                        <h3><i class="fas fa-database me-2"></i>Data Management</h3>
                     </div>
                     <div class="panel-body">
                         <div class="data-actions">
                             <button id="save-params-btn" class="btn btn-outline-primary w-100 mb-2">
-                                Save Settings
+                                <i class="fas fa-save me-2"></i>Save Settings
                             </button>
                             <button id="load-params-btn" class="btn btn-outline-secondary w-100 mb-2">
-                                Load Settings
+                                <i class="fas fa-folder-open me-2"></i>Load Settings
                             </button>
                             <button id="export-data-btn" class="btn btn-success w-100">
-                                Export Data
+                                <i class="fas fa-download me-2"></i>Export Data (CSV)
                             </button>
-                        </div>
-                        <div class="mt-2 small text-muted">
-                            Settings saved to browser storage
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- Charts Panel -->
-            <div class="col-lg-8 col-md-7">
+            <div class="col-lg-8">
                 <!-- Motor Speed Chart -->
                 <div class="chart-panel mb-4">
                     <div class="chart-header">
-                        <h3>Motor Speed</h3>
-                        <div class="chart-controls">
-                            <button class="btn-icon" title="Reset Zoom">
-                                <i class="fas fa-expand"></i>
-                            </button>
+                        <h3><i class="fas fa-tachometer-alt me-2"></i>Motor Speed</h3>
+                        <div class="chart-legend">
+                            <span class="legend-item"><span class="legend-dot target"></span>Target</span>
+                            <span class="legend-item"><span class="legend-dot raw"></span>Raw</span>
+                            <span class="legend-item"><span class="legend-dot filtered"></span>Filtered (Kalman)</span>
                         </div>
                     </div>
-                    <div class="chart-body">
+                    <div class="chart-body chart-large">
                         <canvas id="speed-chart"></canvas>
                     </div>
                 </div>
@@ -209,7 +239,7 @@
                     <div class="col-md-6">
                         <div class="chart-panel">
                             <div class="chart-header">
-                                <h4>Control Error</h4>
+                                <h4><i class="fas fa-exclamation-triangle me-2"></i>Control Error</h4>
                             </div>
                             <div class="chart-body">
                                 <canvas id="error-chart"></canvas>
@@ -219,36 +249,31 @@
                     <div class="col-md-6">
                         <div class="chart-panel">
                             <div class="chart-header">
-                                <h4>PID Output</h4>
+                                <h4><i class="fas fa-chart-line me-2"></i>Stability Score</h4>
                             </div>
                             <div class="chart-body">
-                                <canvas id="output-chart"></canvas>
+                                <canvas id="stability-chart"></canvas>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- PID Gains Chart -->
+                <!-- Analysis Panel -->
                 <div class="chart-panel">
                     <div class="chart-header">
-                        <h3>PID Gains</h3>
-                        <div class="gain-legend">
-                            <div class="legend-item">
-                                <div class="legend-color kp"></div>
-                                <span>Kp</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color ki"></div>
-                                <span>Ki</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color kd"></div>
-                                <span>Kd</span>
-                            </div>
-                        </div>
+                        <h3><i class="fas fa-microscope me-2"></i>Real-Time Analysis</h3>
+                        <button id="analyze-btn" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-search me-1"></i>Analyze & Suggest
+                        </button>
                     </div>
                     <div class="chart-body">
-                        <canvas id="gains-chart"></canvas>
+                        <div id="analysis-output" class="analysis-output">
+                            <div class="analysis-placeholder">
+                                <i class="fas fa-info-circle"></i>
+                                <p>Connect to Arduino and enable motor to begin analysis.</p>
+                                <p class="text-muted small">The system will automatically detect hunting, calculate overshoot, and suggest tuning improvements.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -260,33 +285,28 @@
 
     <!-- About Modal -->
     <div class="modal fade" id="about-modal" tabindex="-1">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">
-                        <i class="fas fa-info-circle"></i> About BLDC PID Controller
+                        <i class="fas fa-info-circle me-2"></i>BLDC PID Controller - PC-Powered Auto-Tune
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <h6>Direct Web Serial Control</h6>
-                            <p>This version connects directly to your Arduino using the Web Serial API - no backend server required!</p>
-
-                            <h6>Key Features</h6>
+                            <h6><i class="fas fa-laptop-code me-2"></i>PC-Powered Features</h6>
                             <ul>
-                                <li>Direct serial communication</li>
-                                <li>Real-time hardware data</li>
-                                <li>Live PID parameter control</li>
-                                <li>Actual motor speed control</li>
-                                <li>Browser-based storage</li>
-                                <li>Cross-device compatibility</li>
+                                <li><strong>Kalman Filtering:</strong> Smooth, noise-free RPM readings</li>
+                                <li><strong>One-Click Auto-Tune:</strong> Automatic PID optimization</li>
+                                <li><strong>Hunting Detection:</strong> Real-time oscillation alerts</li>
+                                <li><strong>Stability Scoring:</strong> 0-100% system health metric</li>
+                                <li><strong>Web Serial API:</strong> Direct browser-to-Arduino connection</li>
                             </ul>
 
-                            <h6>Browser Support</h6>
+                            <h6 class="mt-4"><i class="fab fa-chrome me-2"></i>Browser Support</h6>
                             <div class="browser-requirements">
-                                <strong>Requires:</strong>
                                 <ul class="mb-0">
                                     <li>Chrome 89+</li>
                                     <li>Edge 89+</li>
@@ -295,34 +315,29 @@
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <h6>Technology</h6>
-                            <ul>
-                                <li><strong>Hardware:</strong> Arduino + BLDC Motor</li>
-                                <li><strong>API:</strong> Web Serial API (Native)</li>
-                                <li><strong>Frontend:</strong> HTML/CSS/JS + Chart.js</li>
-                                <li><strong>Communication:</strong> Direct Serial Port</li>
-                                <li><strong>UI:</strong> Bootstrap 5</li>
-                            </ul>
-
-                            <h6>Setup Steps</h6>
+                            <h6><i class="fas fa-magic me-2"></i>Auto-Tune Process</h6>
                             <ol>
-                                <li>Upload Arduino firmware</li>
-                                <li>Open this page in supported browser</li>
-                                <li>Click "Connect to Arduino"</li>
-                                <li>Grant serial port permission</li>
-                                <li>Control your motor in real-time!</li>
+                                <li>Click "One-Click Auto-Tune"</li>
+                                <li>System starts motor with conservative gains</li>
+                                <li>Gradually increases Kp until oscillation</li>
+                                <li>Calculates optimal PID using Ziegler-Nichols</li>
+                                <li>Applies tuned parameters automatically</li>
                             </ol>
+
+                            <h6 class="mt-4"><i class="fas fa-chart-line me-2"></i>Status Indicators</h6>
+                            <ul>
+                                <li><span class="status-badge stable">STABLE</span> System well-tuned</li>
+                                <li><span class="status-badge settling">SETTLING</span> Adjusting to target</li>
+                                <li><span class="status-badge hunting">HUNTING</span> Oscillation detected</li>
+                            </ul>
                         </div>
                     </div>
 
                     <hr>
                     <div class="text-center">
-                        <p><strong>Author:</strong> azzar persona (AI assistant)<br>
-                        <strong>Version:</strong> Web Serial API Direct Connection<br>
+                        <p><strong>Version:</strong> 2.0 (PC-Powered Auto-Tune)<br>
+                        <strong>Authors:</strong> azzar budiyanto & azzar persona (AI assistant)<br>
                         <strong>Date:</strong> December 2025</p>
-                        <div class="zero-backend-notice">
-                            <strong>Zero Backend!</strong> Pure browser-to-hardware control.
-                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">

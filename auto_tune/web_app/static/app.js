@@ -1,37 +1,277 @@
-// BLDC Motor PID Controller - Web Serial API Interface
+// BLDC Motor PID Controller - PC-Powered Auto-Tune Web Interface
+// Uses PC's computational power for Kalman filtering, stability analysis, and auto-tuning
 
+/**
+ * Kalman Filter for RPM smoothing
+ * Provides superior noise rejection using PC's processing power
+ */
+class KalmanFilter {
+    constructor(processVariance = 1e-4, measurementVariance = 0.5) {
+        this.Q = processVariance;  // Process noise
+        this.R = measurementVariance;  // Measurement noise
+        this.estimate = 0;
+        this.errorEstimate = 1;
+        this.initialized = false;
+    }
+
+    update(measurement) {
+        if (!this.initialized) {
+            this.estimate = measurement;
+            this.initialized = true;
+            return this.estimate;
+        }
+
+        // Prediction step
+        const prediction = this.estimate;
+        const predictionError = this.errorEstimate + this.Q;
+
+        // Update step
+        const kalmanGain = predictionError / (predictionError + this.R);
+        this.estimate = prediction + kalmanGain * (measurement - prediction);
+        this.errorEstimate = (1 - kalmanGain) * predictionError;
+
+        return this.estimate;
+    }
+
+    reset() {
+        this.estimate = 0;
+        this.errorEstimate = 1;
+        this.initialized = false;
+    }
+}
+
+/**
+ * Stability Analyzer for real-time motor control analysis
+ */
+class StabilityAnalyzer {
+    constructor(windowSize = 100) {
+        this.windowSize = windowSize;
+        this.rpmHistory = [];
+        this.errorHistory = [];
+        this.timeHistory = [];
+        this.targetRpm = 0;
+    }
+
+    addSample(rpm, target, timestamp) {
+        this.rpmHistory.push(rpm);
+        this.errorHistory.push(target - rpm);
+        this.timeHistory.push(timestamp);
+        this.targetRpm = target;
+
+        // Limit history size
+        if (this.rpmHistory.length > this.windowSize) {
+            this.rpmHistory.shift();
+            this.errorHistory.shift();
+            this.timeHistory.shift();
+        }
+    }
+
+    calculateMetrics() {
+        const metrics = {
+            currentRpm: 0,
+            targetRpm: this.targetRpm,
+            error: 0,
+            rpmFiltered: 0,
+            overshootPercent: 0,
+            oscillationFrequencyHz: 0,
+            stabilityScore: 100,
+            isHunting: false,
+            isStable: true
+        };
+
+        if (this.rpmHistory.length < 10) {
+            return metrics;
+        }
+
+        const rpmArray = this.rpmHistory;
+        const errorArray = this.errorHistory;
+
+        metrics.currentRpm = rpmArray[rpmArray.length - 1];
+        metrics.error = errorArray[errorArray.length - 1];
+
+        // Calculate filtered RPM (last 5 samples average)
+        const last5 = rpmArray.slice(-5);
+        metrics.rpmFiltered = last5.reduce((a, b) => a + b, 0) / last5.length;
+
+        // Calculate overshoot
+        if (this.targetRpm > 0) {
+            const maxRpm = Math.max(...rpmArray);
+            if (maxRpm > this.targetRpm) {
+                metrics.overshootPercent = ((maxRpm - this.targetRpm) / this.targetRpm) * 100;
+            }
+        }
+
+        // Detect oscillation using zero-crossing analysis
+        if (errorArray.length >= 20) {
+            let zeroCrossings = 0;
+            for (let i = 1; i < errorArray.length; i++) {
+                if ((errorArray[i] > 0 && errorArray[i - 1] < 0) ||
+                    (errorArray[i] < 0 && errorArray[i - 1] > 0)) {
+                    zeroCrossings++;
+                }
+            }
+
+            if (zeroCrossings >= 4 && this.timeHistory.length >= 2) {
+                const duration = (this.timeHistory[this.timeHistory.length - 1] - this.timeHistory[0]) / 1000;
+                if (duration > 0) {
+                    metrics.oscillationFrequencyHz = zeroCrossings / (2 * duration);
+                    metrics.isHunting = metrics.oscillationFrequencyHz > 0.5 && metrics.oscillationFrequencyHz < 10;
+                }
+            }
+        }
+
+        // Calculate stability score
+        const recentErrors = errorArray.slice(-10);
+        const meanError = Math.abs(recentErrors.reduce((a, b) => a + b, 0) / recentErrors.length);
+        const recentRpm = rpmArray.slice(-20);
+        const variance = this.calculateVariance(recentRpm);
+        const stdDev = Math.sqrt(variance);
+
+        const errorScore = Math.max(0, 100 - (meanError / (this.targetRpm + 1)) * 500);
+        const varianceScore = Math.max(0, 100 - (stdDev / (this.targetRpm + 1)) * 200);
+        const oscillationPenalty = metrics.isHunting ? 30 : 0;
+
+        metrics.stabilityScore = Math.max(0, Math.min(100, (errorScore + varianceScore) / 2 - oscillationPenalty));
+        metrics.isStable = metrics.stabilityScore > 70 && !metrics.isHunting;
+
+        return metrics;
+    }
+
+    calculateVariance(arr) {
+        const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+        return arr.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / arr.length;
+    }
+
+    getSuggestions(metrics) {
+        const suggestions = [];
+
+        if (metrics.isHunting) {
+            suggestions.push({
+                type: 'danger',
+                title: '⚠️ Hunting Detected',
+                text: 'System is oscillating. Reduce Kp by 20-30% and/or increase Kd for more damping.'
+            });
+        }
+
+        if (metrics.overshootPercent > 20) {
+            suggestions.push({
+                type: 'warning',
+                title: '⚠️ High Overshoot',
+                text: `Overshoot is ${metrics.overshootPercent.toFixed(1)}%. Reduce Kp by 15-20% or increase Kd.`
+            });
+        }
+
+        if (metrics.stabilityScore < 70 && !metrics.isHunting) {
+            suggestions.push({
+                type: 'warning',
+                title: '⚠️ Low Stability',
+                text: 'Check mechanical issues, verify PPR setting, or try reducing Kp slightly.'
+            });
+        }
+
+        if (Math.abs(metrics.error) > 50 && metrics.isStable) {
+            suggestions.push({
+                type: 'info',
+                title: 'ℹ️ Steady-State Error',
+                text: `Error of ${metrics.error.toFixed(1)} RPM. Consider increasing Ki slightly.`
+            });
+        }
+
+        if (metrics.isStable && metrics.stabilityScore > 80 && suggestions.length === 0) {
+            suggestions.push({
+                type: 'success',
+                title: '✓ System Well-Tuned',
+                text: `Stability score: ${metrics.stabilityScore.toFixed(0)}%. Fine-tuning tips: increase Kp for faster response, increase Kd for less oscillation.`
+            });
+        }
+
+        return suggestions;
+    }
+
+    clear() {
+        this.rpmHistory = [];
+        this.errorHistory = [];
+        this.timeHistory = [];
+    }
+}
+
+/**
+ * Auto-Tuner using Ziegler-Nichols method
+ */
+class AutoTuner {
+    static zieglerNicholsNoOvershoot(ku, tu) {
+        return {
+            kp: 0.2 * ku,
+            ki: (2 * 0.2 * ku) / tu,
+            kd: (0.2 * ku * tu) / 3,
+            method: 'Ziegler-Nichols (No Overshoot)',
+            notes: `Ku=${ku.toFixed(4)}, Tu=${tu.toFixed(4)}s`
+        };
+    }
+
+    static zieglerNicholsClassic(ku, tu) {
+        return {
+            kp: 0.6 * ku,
+            ki: (2 * 0.6 * ku) / tu,
+            kd: (0.6 * ku * tu) / 8,
+            method: 'Ziegler-Nichols (Classic)',
+            notes: `Ku=${ku.toFixed(4)}, Tu=${tu.toFixed(4)}s`
+        };
+    }
+}
+
+/**
+ * Main BLDC Controller Class
+ */
 class BLDCController {
     constructor() {
         this.port = null;
         this.reader = null;
         this.isConnected = false;
         this.charts = {};
+        
+        // PC-powered components
+        this.kalmanFilter = new KalmanFilter();
+        this.stabilityAnalyzer = new StabilityAnalyzer(100);
+        
+        // Current data and parameters
         this.currentData = {
             connected: false,
             parameters: {
                 target_rpm: 1440,
-                kp: 0.25,
-                ki: 0.015,
-                kd: 0.003,
-                pulses_per_rev: 18,
-                motor_enabled: true
+                kp: 0.30,
+                ki: 0.02,
+                kd: 0.02,
+                pulses_per_rev: 4,
+                motor_enabled: false
             },
             plot_data: {
                 time: [],
                 target_rpm: [],
                 current_rpm: [],
+                filtered_rpm: [],
                 error: [],
                 pid_output: [],
-                kp: [],
-                ki: [],
-                kd: []
+                stability_score: []
             }
         };
 
+        // Auto-tuning state
+        this.autoTuning = {
+            active: false,
+            phase: 0,
+            testKp: 0,
+            ultimateGain: 0,
+            ultimatePeriod: 0,
+            timer: null
+        };
+
+        // Tuning history
+        this.tuningHistory = [];
+
         // Connection monitoring
         this.lastDataTime = 0;
-        this.connectionTimeout = 5000; // 5 seconds timeout
-        this.connecting = false; // Flag to prevent multiple connection attempts
+        this.connectionTimeout = 5000;
 
         this.init();
     }
@@ -41,77 +281,22 @@ class BLDCController {
         this.setupEventListeners();
         this.setupCharts();
         this.updateUI();
-
-        // Start connection monitoring
         this.startConnectionMonitoring();
-    }
-
-    startConnectionMonitoring() {
-        setInterval(() => {
-            if (this.isConnected && this.lastDataTime > 0) {
-                const timeSinceLastData = Date.now() - this.lastDataTime;
-                if (timeSinceLastData > this.connectionTimeout) {
-                    console.warn('No data received for', timeSinceLastData, 'ms');
-                    this.updateConnectionStatus(false, 'No Data');
-                    this.showAlert('No data received from Arduino. Check connection.', 'warning');
-                }
-            }
-        }, 1000); // Check every second
-    }
-
-    showConnectionInfo() {
-        const info = `
-Web Serial API Connection Info:
-
-• This interface connects directly to your Arduino
-• No backend server required
-• Requires Chrome, Edge, or Opera browser
-• Works on localhost without HTTPS
-• Requires user permission for serial access
-
-IMPORTANT: Arduino may reset when serial connection opens!
-   This is normal - wait 2-3 seconds for it to reboot.
-
-Steps to connect:
-1. Upload Arduino firmware from code/ directory
-2. Connect Arduino to computer via USB
-3. Click "Connect to Arduino" button
-4. Grant permission when prompted
-5. Select your Arduino serial port
-6. Wait for Arduino to reboot (2-3 seconds)
-7. Real-time control begins!
-
-Troubleshooting:
-• If "Device Lost" appears: Arduino reset - click "Reconnect"
-• If "No Data": Click "Request Status" manually
-• Check Arduino power and USB connection
-• Verify firmware is uploaded correctly
-• Try different USB port
-• Check browser console for detailed logs
-
-Console logs show:
-• "Serial port connected" = USB connection established
-• "STATUS data processed" = Arduino is sending data
-• "Sent command to Arduino" = Commands being transmitted
-        `;
-
-        alert(info);
     }
 
     checkWebSerialSupport() {
         if (!('serial' in navigator)) {
-            this.showAlert('Web Serial API not supported in this browser. Please use Chrome, Edge, or Opera.', 'danger');
+            this.showAlert('Web Serial API not supported. Please use Chrome, Edge, or Opera.', 'danger');
             document.getElementById('connect-btn').disabled = true;
-            document.getElementById('connect-btn').innerHTML = 'Not Supported';
+            document.getElementById('connect-btn').innerHTML = '<i class="fas fa-times me-2"></i>Not Supported';
         }
     }
 
     setupEventListeners() {
-        // Serial connection
+        // Connection
         document.getElementById('connect-btn').addEventListener('click', () => this.toggleConnection());
         document.getElementById('request-status-btn').addEventListener('click', () => this.requestStatus());
         document.getElementById('reconnect-btn').addEventListener('click', () => this.attemptReconnection());
-        document.getElementById('refresh-ports-btn').addEventListener('click', () => this.showConnectionInfo());
 
         // PID parameters
         document.getElementById('target-rpm').addEventListener('change', (e) => this.updateTargetRPM(e.target.value));
@@ -123,76 +308,96 @@ Console logs show:
         // Motor control
         document.getElementById('motor-toggle-btn').addEventListener('click', () => this.toggleMotor());
         document.getElementById('reset-btn').addEventListener('click', () => this.resetController());
+        
+        // Auto-tune
+        document.getElementById('auto-tune-btn').addEventListener('click', () => this.startAutoTune());
+        
+        // Analysis
+        document.getElementById('analyze-btn').addEventListener('click', () => this.analyzeSystem());
 
         // File operations
         document.getElementById('save-params-btn').addEventListener('click', () => this.saveParameters());
         document.getElementById('load-params-btn').addEventListener('click', () => this.loadParameters());
         document.getElementById('export-data-btn').addEventListener('click', () => this.exportData());
-
-        // About modal
-        document.getElementById('about-btn').addEventListener('click', () => this.showAbout());
-
-        // File input
         document.getElementById('file-input').addEventListener('change', (e) => this.handleFileLoad(e));
+
+        // About
+        document.getElementById('about-btn').addEventListener('click', () => this.showAbout());
     }
 
     setupCharts() {
+        const darkTheme = {
+            backgroundColor: '#1e1e2e',
+            gridColor: 'rgba(205, 214, 244, 0.1)',
+            textColor: '#a6adc8',
+            titleColor: '#cdd6f4'
+        };
+
         const chartConfig = {
             responsive: true,
             maintainAspectRatio: false,
-            animation: {
-                duration: 0 // Disable animations for real-time updates
-            },
+            animation: { duration: 0 },
             plugins: {
                 legend: {
-                    display: true,
-                    position: 'top'
+                    display: false
                 }
             },
             scales: {
                 x: {
                     type: 'linear',
                     position: 'bottom',
-                    title: {
-                        display: true,
-                        text: 'Time (s)'
-                    }
+                    title: { display: true, text: 'Time (s)', color: darkTheme.textColor },
+                    grid: { color: darkTheme.gridColor },
+                    ticks: { color: darkTheme.textColor }
+                },
+                y: {
+                    grid: { color: darkTheme.gridColor },
+                    ticks: { color: darkTheme.textColor }
                 }
             }
         };
 
-        // Speed chart
+        // Speed chart with three lines
         this.charts.speed = new Chart(document.getElementById('speed-chart'), {
             type: 'line',
             data: {
-                datasets: [{
-                    label: 'Target RPM',
-                    data: [],
-                    borderColor: 'rgb(255, 99, 132)',
-                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                    borderWidth: 2,
-                    fill: false,
-                    tension: 0.1
-                }, {
-                    label: 'Current RPM',
-                    data: [],
-                    borderColor: 'rgb(54, 162, 235)',
-                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                    borderWidth: 2,
-                    fill: false,
-                    tension: 0.1
-                }]
+                datasets: [
+                    {
+                        label: 'Target RPM',
+                        data: [],
+                        borderColor: '#f5c2e7',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.1,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Raw RPM',
+                        data: [],
+                        borderColor: '#74c7ec',
+                        borderWidth: 1,
+                        fill: false,
+                        tension: 0.1,
+                        pointRadius: 0,
+                        backgroundColor: 'rgba(116, 199, 236, 0.2)'
+                    },
+                    {
+                        label: 'Filtered RPM',
+                        data: [],
+                        borderColor: '#89b4fa',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }
+                ]
             },
             options: {
                 ...chartConfig,
                 scales: {
                     ...chartConfig.scales,
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'RPM'
-                        }
-                    }
+                    y: { ...chartConfig.scales.y, title: { display: true, text: 'RPM', color: darkTheme.textColor } }
                 }
             }
         });
@@ -204,106 +409,67 @@ Console logs show:
                 datasets: [{
                     label: 'Error',
                     data: [],
-                    borderColor: 'rgb(255, 159, 64)',
-                    backgroundColor: 'rgba(255, 159, 64, 0.1)',
-                    borderWidth: 2,
-                    fill: false,
-                    tension: 0.1
+                    borderColor: '#f38ba8',
+                    backgroundColor: 'rgba(243, 139, 168, 0.2)',
+                    borderWidth: 1.5,
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: 0
                 }]
             },
             options: {
                 ...chartConfig,
                 scales: {
                     ...chartConfig.scales,
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'RPM'
-                        }
-                    }
+                    y: { ...chartConfig.scales.y, title: { display: true, text: 'Error (RPM)', color: darkTheme.textColor } }
                 }
             }
         });
 
-        // PID output chart
-        this.charts.output = new Chart(document.getElementById('output-chart'), {
+        // Stability chart
+        this.charts.stability = new Chart(document.getElementById('stability-chart'), {
             type: 'line',
             data: {
                 datasets: [{
-                    label: 'PID Output',
+                    label: 'Stability Score',
                     data: [],
-                    borderColor: 'rgb(153, 102, 255)',
-                    backgroundColor: 'rgba(153, 102, 255, 0.1)',
+                    borderColor: '#a6e3a1',
+                    backgroundColor: 'rgba(166, 227, 161, 0.2)',
                     borderWidth: 2,
-                    fill: false,
-                    tension: 0.1
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 0
                 }]
             },
             options: {
                 ...chartConfig,
                 scales: {
                     ...chartConfig.scales,
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'Output Value'
-                        }
-                    }
-                }
-            }
-        });
-
-        // PID gains chart
-        this.charts.gains = new Chart(document.getElementById('gains-chart'), {
-            type: 'line',
-            data: {
-                datasets: [{
-                    label: 'Kp',
-                    data: [],
-                    borderColor: 'rgb(255, 99, 132)',
-                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                    borderWidth: 1,
-                    fill: false,
-                    tension: 0.1
-                }, {
-                    label: 'Ki',
-                    data: [],
-                    borderColor: 'rgb(54, 162, 235)',
-                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                    borderWidth: 1,
-                    fill: false,
-                    tension: 0.1
-                }, {
-                    label: 'Kd',
-                    data: [],
-                    borderColor: 'rgb(255, 205, 86)',
-                    backgroundColor: 'rgba(255, 205, 86, 0.1)',
-                    borderWidth: 1,
-                    fill: false,
-                    tension: 0.1
-                }]
-            },
-            options: {
-                ...chartConfig,
-                scales: {
-                    ...chartConfig.scales,
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'Gain Value'
-                        }
+                    y: { 
+                        ...chartConfig.scales.y, 
+                        title: { display: true, text: 'Score (%)', color: darkTheme.textColor },
+                        min: 0,
+                        max: 100
                     }
                 }
             }
         });
     }
 
+    startConnectionMonitoring() {
+        setInterval(() => {
+            if (this.isConnected && this.lastDataTime > 0) {
+                const timeSinceLastData = Date.now() - this.lastDataTime;
+                if (timeSinceLastData > this.connectionTimeout) {
+                    this.updateConnectionStatus(false, 'No Data');
+                }
+            }
+        }, 1000);
+    }
+
     async connectSerial() {
         try {
-            // Request a port
             this.port = await navigator.serial.requestPort();
-
-            // Open the port
             await this.port.open({
                 baudRate: 115200,
                 dataBits: 8,
@@ -311,181 +477,93 @@ Console logs show:
                 parity: 'none'
             });
 
-            console.log('Serial port connected');
             this.isConnected = true;
-            this.lastDataTime = Date.now(); // Initialize data timer
+            this.lastDataTime = Date.now();
+            this.kalmanFilter.reset();
+            this.stabilityAnalyzer.clear();
             this.updateConnectionStatus(true);
 
-            // Enable request status button
             document.getElementById('request-status-btn').disabled = false;
+            document.getElementById('auto-tune-btn').disabled = false;
 
-            // Start reading data
             this.startReading();
 
-            // Arduino often resets when serial connection opens
-            // Send multiple status requests with increasing delays
-            console.log('Waiting for Arduino to reboot and be ready...');
-            setTimeout(() => {
-                console.log('Sending first status request...');
-                this.sendCommand("GET_STATUS");
-            }, 2000);
-            setTimeout(() => {
-                console.log('Sending second status request...');
-                this.sendCommand("GET_STATUS");
-            }, 4000);
-            setTimeout(() => {
-                console.log('Sending third status request...');
-                this.sendCommand("GET_STATUS");
-            }, 6000);
+            // Request status after Arduino reboots
+            setTimeout(() => this.sendCommand("GET_STATUS"), 2000);
+            setTimeout(() => this.sendCommand("GET_STATUS"), 4000);
 
         } catch (error) {
-            console.error('Failed to connect serial port:', error);
+            console.error('Connection failed:', error);
             this.updateConnectionStatus(false, 'Error');
-            if (error.name === 'NotFoundError') {
-                this.showAlert('No serial port selected. Please connect your Arduino and try again.', 'warning');
-            } else if (error.name === 'NotAllowedError') {
-                this.showAlert('Serial port access denied. Please grant permission and try again.', 'warning');
-            } else {
-                this.showAlert(`Serial connection failed: ${error.message}`, 'danger');
-            }
+            this.showAlert(`Connection failed: ${error.message}`, 'danger');
         }
     }
 
     async disconnectSerial() {
-        try {
-            this.isConnected = false; // Set flag first
-
-            if (this.reader) {
-                try {
-                    await this.reader.cancel();
-                } catch (e) {
-                    console.warn('Error cancelling reader:', e);
-                }
-                this.reader = null;
-            }
-
-            if (this.port) {
-                try {
-                    await this.port.close();
-                } catch (e) {
-                    console.warn('Error closing port:', e);
-                }
-                this.port = null;
-            }
-
-            this.updateConnectionStatus(false);
-
-            // Disable request status button and hide reconnect
-            document.getElementById('request-status-btn').disabled = true;
-            document.getElementById('reconnect-btn').style.display = 'none';
-
-            console.log('Serial port disconnected');
-        } catch (error) {
-            console.error('Error disconnecting:', error);
-            this.updateConnectionStatus(false, 'Disconnect Error');
+        this.isConnected = false;
+        
+        if (this.reader) {
+            try { await this.reader.cancel(); } catch (e) {}
+            this.reader = null;
         }
+        
+        if (this.port) {
+            try { await this.port.close(); } catch (e) {}
+            this.port = null;
+        }
+        
+        this.updateConnectionStatus(false);
+        document.getElementById('request-status-btn').disabled = true;
+        document.getElementById('auto-tune-btn').disabled = true;
     }
 
     async startReading() {
         try {
             const decoder = new TextDecoder();
             let buffer = '';
-
-            // Create reader once for the connection
             this.reader = this.port.readable.getReader();
 
-            try {
-                while (true) {
-                    const { value, done } = await this.reader.read();
-                    if (done) break;
+            while (true) {
+                const { value, done } = await this.reader.read();
+                if (done) break;
 
-                    // Decode the received data
-                    const chunk = decoder.decode(value, { stream: true });
-                    buffer += chunk;
+                buffer += decoder.decode(value, { stream: true });
 
-                    // Process complete lines (split by newline)
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop(); // Keep incomplete line in buffer
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
 
-                    // Process each complete line
-                    for (const line of lines) {
-                        const trimmedLine = line.trim();
-                        if (trimmedLine) {
-                            this.processSerialLine(trimmedLine);
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Reader error:', error);
-                // Don't treat all reader errors as fatal - might be temporary
-                if (!this.isConnected) {
-                    throw error; // Re-throw if we're disconnecting
-                }
-            } finally {
-                // Only release if we still have a reader
-                if (this.reader) {
-                    try {
-                        this.reader.releaseLock();
-                    } catch (e) {
-                        console.warn('Error releasing reader:', e);
-                    }
-                    this.reader = null;
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (trimmed) this.processSerialLine(trimmed);
                 }
             }
         } catch (error) {
-            console.error('Error in serial reading:', error);
-
-            // Handle device lost error (Arduino reset)
-            if (error.name === 'NetworkError' && error.message.includes('device has been lost')) {
-                console.log('Arduino reset detected - this is normal!');
-                this.showAlert('Arduino reset detected (normal). Waiting for reboot...', 'info');
-                this.updateConnectionStatus(false, 'Device Lost');
-
-                // Wait for Arduino to reboot, then show reconnect option
-                setTimeout(() => {
-                    if (!this.isConnected) {
-                        console.log('Arduino should be ready now - click Reconnect');
-                        this.showAlert('Arduino should be rebooted. Click "Reconnect" to continue.', 'success');
-                    }
-                }, 3000);
-            } else if (this.isConnected) {
+            console.error('Read error:', error);
+            if (this.isConnected) {
                 this.updateConnectionStatus(false, 'Read Error');
+                document.getElementById('reconnect-btn').style.display = 'block';
+            }
+        } finally {
+            if (this.reader) {
+                try { this.reader.releaseLock(); } catch (e) {}
+                this.reader = null;
             }
         }
     }
 
-    async attemptReconnection() {
-        // Only attempt if not already connected and not already attempting
-        if (this.isConnected || this.connecting) return;
-
-        this.connecting = true;
-        console.log('Attempting manual reconnection to Arduino...');
-
-        try {
-            await this.connectSerial();
-        } catch (error) {
-            console.error('Reconnection failed:', error);
-            this.showAlert('Reconnection failed. Try connecting manually.', 'warning');
-        } finally {
-            this.connecting = false;
+    processSerialLine(line) {
+        if (line.startsWith("STATUS:")) {
+            this.parseStatusData(line);
+        } else if (line.includes("ERROR")) {
+            this.showAlert(`Arduino: ${line}`, 'warning');
         }
     }
 
     parseStatusData(data) {
         try {
-            if (!data.startsWith("STATUS:")) {
-                return;
-            }
-
-            console.log('Processing STATUS data:', data);
-
             const parts = data.substring(7).split(',');
-            if (parts.length !== 11) {
-                console.warn('Invalid status data format, expected 11 parts, got', parts.length, ':', data);
-                return;
-            }
+            if (parts.length !== 11) return;
 
-            // Parse data
             const timestamp = parseFloat(parts[0]);
             const target_rpm = parseFloat(parts[1]);
             const current_rpm = parseFloat(parts[2]);
@@ -494,149 +572,134 @@ Console logs show:
             const kp = parseFloat(parts[5]);
             const ki = parseFloat(parts[6]);
             const kd = parseFloat(parts[7]);
-            const last_pwm_value = parseInt(parts[8]);
             const ppr = parseInt(parts[9]);
             const motor_enabled = parseInt(parts[10]);
 
-            // Update last data time
             this.lastDataTime = Date.now();
 
+            // Apply Kalman filter
+            const filtered_rpm = this.kalmanFilter.update(current_rpm);
+
+            // Update stability analyzer
+            this.stabilityAnalyzer.addSample(filtered_rpm, target_rpm, timestamp);
+            const metrics = this.stabilityAnalyzer.calculateMetrics();
+
             // Update current data
-            this.currentData.parameters.target_rpm = target_rpm;
-            this.currentData.parameters.kp = kp;
-            this.currentData.parameters.ki = ki;
-            this.currentData.parameters.kd = kd;
-            this.currentData.parameters.pulses_per_rev = ppr;
-            this.currentData.parameters.motor_enabled = motor_enabled;
+            this.currentData.parameters = {
+                target_rpm, kp, ki, kd,
+                pulses_per_rev: ppr,
+                motor_enabled: motor_enabled === 1
+            };
 
             // Add to plot data
-            this.currentData.plot_data.time.push(timestamp);
-            this.currentData.plot_data.target_rpm.push(target_rpm);
-            this.currentData.plot_data.current_rpm.push(current_rpm);
-            this.currentData.plot_data.error.push(error);
-            this.currentData.plot_data.pid_output.push(pid_output);
-            this.currentData.plot_data.kp.push(kp);
-            this.currentData.plot_data.ki.push(ki);
-            this.currentData.plot_data.kd.push(kd);
+            const plotData = this.currentData.plot_data;
+            plotData.time.push(timestamp);
+            plotData.target_rpm.push(target_rpm);
+            plotData.current_rpm.push(current_rpm);
+            plotData.filtered_rpm.push(filtered_rpm);
+            plotData.error.push(error);
+            plotData.pid_output.push(pid_output);
+            plotData.stability_score.push(metrics.stabilityScore);
 
             // Limit data points
-            const maxPoints = 25;
-            if (this.currentData.plot_data.time.length > maxPoints) {
-                this.currentData.plot_data.time.shift();
-                this.currentData.plot_data.target_rpm.shift();
-                this.currentData.plot_data.current_rpm.shift();
-                this.currentData.plot_data.error.shift();
-                this.currentData.plot_data.pid_output.shift();
-                this.currentData.plot_data.kp.shift();
-                this.currentData.plot_data.ki.shift();
-                this.currentData.plot_data.kd.shift();
+            const maxPoints = 200;
+            if (plotData.time.length > maxPoints) {
+                Object.keys(plotData).forEach(key => plotData[key].shift());
             }
 
-            // Update UI
+            // Update displays
+            this.updateMetricsDisplay(metrics, current_rpm, filtered_rpm, error);
             this.updateUI();
             this.updateCharts();
 
-            console.log('STATUS data processed successfully');
+            // Auto-tuning data collection
+            if (this.autoTuning.active) {
+                this.processAutoTuneData(metrics);
+            }
 
         } catch (error) {
-            console.error('Error parsing status data:', error);
+            console.error('Parse error:', error);
         }
     }
 
-    async sendCommand(command) {
-        if (this.port && this.port.writable) {
-            try {
-                const encoder = new TextEncoder();
-                const writer = this.port.writable.getWriter();
-                const data = encoder.encode(command + '\n');
-                await writer.write(data);
-                writer.releaseLock();
-                console.log('Sent command to Arduino:', command);
-            } catch (error) {
-                console.error('Error sending command:', error);
-                this.showAlert('Failed to send command to Arduino', 'warning');
-            }
+    updateMetricsDisplay(metrics, rawRpm, filteredRpm, error) {
+        document.getElementById('rpm-display').textContent = rawRpm.toFixed(0);
+        document.getElementById('filtered-rpm-display').textContent = filteredRpm.toFixed(0);
+        document.getElementById('error-display').textContent = error.toFixed(1);
+        document.getElementById('stability-display').textContent = metrics.stabilityScore.toFixed(0) + '%';
+
+        const huntingEl = document.getElementById('hunting-status');
+        if (metrics.isHunting) {
+            huntingEl.textContent = 'HUNTING';
+            huntingEl.className = 'status-value status-badge hunting';
+        } else if (metrics.isStable) {
+            huntingEl.textContent = 'STABLE';
+            huntingEl.className = 'status-value status-badge stable';
         } else {
-            console.warn('Serial port not connected - cannot send command:', command);
+            huntingEl.textContent = 'SETTLING';
+            huntingEl.className = 'status-value status-badge settling';
         }
-    }
 
-    processSerialLine(line) {
-        try {
-            // Debug: log all received lines (first few characters)
-            console.log('Serial line received:', line.substring(0, 50) + (line.length > 50 ? '...' : ''));
-
-            if (line.startsWith("STATUS:")) {
-                this.parseStatusData(line);
-            } else if (line.includes("ERROR") || line.includes("set to") || line.includes("ready") || line.includes("BLDC")) {
-                console.log('Arduino message:', line);
-                // Only show important messages as alerts
-                if (line.includes("ERROR")) {
-                    this.showAlert(`Arduino: ${line}`, 'warning');
-                }
-            } else {
-                // Log other lines for debugging
-                console.log('Other serial data:', line);
-            }
-        } catch (error) {
-            console.error('Error processing serial line:', error);
-        }
-    }
-
-    updateUI() {
-        // Update parameter inputs
-        const params = this.currentData.parameters;
-        document.getElementById('target-rpm').value = params.target_rpm;
-        document.getElementById('kp-slider').value = params.kp;
-        document.getElementById('ki-slider').value = params.ki;
-        document.getElementById('kd-slider').value = params.kd;
-        document.getElementById('ppr').value = params.pulses_per_rev;
-
-        // Update slider value displays
-        document.getElementById('kp-value').textContent = params.kp.toFixed(3);
-        document.getElementById('ki-value').textContent = params.ki.toFixed(4);
-        document.getElementById('kd-value').textContent = params.kd.toFixed(4);
-
-        // Update motor button and status
-        const motorBtn = document.getElementById('motor-toggle-btn');
-        if (params.motor_enabled) {
-            motorBtn.className = 'btn btn-danger';
-            motorBtn.textContent = 'Disable Motor';
+        // Color code error
+        const errorEl = document.getElementById('error-display');
+        if (Math.abs(error) < 20) {
+            errorEl.style.color = 'var(--success)';
+        } else if (Math.abs(error) < 100) {
+            errorEl.style.color = 'var(--warning)';
         } else {
-            motorBtn.className = 'btn btn-success';
-            motorBtn.textContent = 'Enable Motor';
+            errorEl.style.color = 'var(--danger)';
         }
-
-        // Update motor status display
-        this.updateMotorStatus();
     }
 
     updateCharts() {
         const plotData = this.currentData.plot_data;
         const timeData = plotData.time;
 
-        // Convert timestamps to relative time
-        const timeRel = timeData.length > 0 ?
-            timeData.map(t => (t - timeData[0]) / 1000) : [];
+        if (timeData.length < 2) return;
 
-        // Update speed chart
-        this.charts.speed.data.datasets[0].data = timeRel.map((t, i) => ({x: t, y: plotData.target_rpm[i]}));
-        this.charts.speed.data.datasets[1].data = timeRel.map((t, i) => ({x: t, y: plotData.current_rpm[i]}));
+        const timeRel = timeData.map(t => (t - timeData[0]) / 1000);
+
+        // Speed chart
+        this.charts.speed.data.datasets[0].data = timeRel.map((t, i) => ({ x: t, y: plotData.target_rpm[i] }));
+        this.charts.speed.data.datasets[1].data = timeRel.map((t, i) => ({ x: t, y: plotData.current_rpm[i] }));
+        this.charts.speed.data.datasets[2].data = timeRel.map((t, i) => ({ x: t, y: plotData.filtered_rpm[i] }));
         this.charts.speed.update('none');
 
-        // Update error chart
-        this.charts.error.data.datasets[0].data = timeRel.map((t, i) => ({x: t, y: plotData.error[i]}));
+        // Error chart
+        this.charts.error.data.datasets[0].data = timeRel.map((t, i) => ({ x: t, y: plotData.error[i] }));
         this.charts.error.update('none');
 
-        // Update output chart
-        this.charts.output.data.datasets[0].data = timeRel.map((t, i) => ({x: t, y: plotData.pid_output[i]}));
-        this.charts.output.update('none');
+        // Stability chart
+        this.charts.stability.data.datasets[0].data = timeRel.map((t, i) => ({ x: t, y: plotData.stability_score[i] }));
+        this.charts.stability.update('none');
+    }
 
-        // Update gains chart
-        this.charts.gains.data.datasets[0].data = timeRel.map((t, i) => ({x: t, y: plotData.kp[i]}));
-        this.charts.gains.data.datasets[1].data = timeRel.map((t, i) => ({x: t, y: plotData.ki[i]}));
-        this.charts.gains.data.datasets[2].data = timeRel.map((t, i) => ({x: t, y: plotData.kd[i]}));
-        this.charts.gains.update('none');
+    updateUI() {
+        const params = this.currentData.parameters;
+        
+        document.getElementById('target-rpm').value = params.target_rpm;
+        document.getElementById('kp-slider').value = params.kp;
+        document.getElementById('ki-slider').value = params.ki;
+        document.getElementById('kd-slider').value = params.kd;
+        document.getElementById('ppr').value = params.pulses_per_rev;
+
+        document.getElementById('kp-value').textContent = params.kp.toFixed(3);
+        document.getElementById('ki-value').textContent = params.ki.toFixed(4);
+        document.getElementById('kd-value').textContent = params.kd.toFixed(4);
+
+        // Motor button
+        const motorBtn = document.getElementById('motor-toggle-btn');
+        if (params.motor_enabled) {
+            motorBtn.className = 'btn btn-danger btn-lg w-100 mb-2';
+            motorBtn.innerHTML = '<i class="fas fa-stop me-2"></i>Disable Motor';
+            document.getElementById('motor-status').textContent = 'Enabled';
+            document.getElementById('motor-status').style.color = 'var(--success)';
+        } else {
+            motorBtn.className = 'btn btn-success btn-lg w-100 mb-2';
+            motorBtn.innerHTML = '<i class="fas fa-play me-2"></i>Enable Motor';
+            document.getElementById('motor-status').textContent = 'Disabled';
+            document.getElementById('motor-status').style.color = 'var(--text-muted)';
+        }
     }
 
     updateConnectionStatus(connected, status = '') {
@@ -644,122 +707,274 @@ Console logs show:
         const connectBtn = document.getElementById('connect-btn');
 
         if (connected) {
-            statusEl.textContent = 'Connected to Arduino - Receiving Data';
+            statusEl.textContent = 'Connected';
             statusEl.style.color = 'var(--success)';
-            connectBtn.className = 'btn btn-danger';
-            connectBtn.textContent = 'Disconnect';
+            connectBtn.className = 'btn btn-danger btn-lg w-100 mb-2';
+            connectBtn.innerHTML = '<i class="fas fa-unlink me-2"></i>Disconnect';
             document.getElementById('reconnect-btn').style.display = 'none';
-            this.currentData.connected = true;
-            console.log('Connection status: Connected');
-        } else if (status === 'Error') {
-            statusEl.textContent = 'Connection Error - Check USB connection';
-            statusEl.style.color = 'var(--danger)';
-            connectBtn.className = 'btn btn-primary';
-            connectBtn.textContent = 'Connect to Arduino';
-            this.currentData.connected = false;
-            console.log('Connection status: Error');
-        } else if (status === 'Read Error') {
-            statusEl.textContent = 'Read Error - Arduino connected but not responding';
-            statusEl.style.color = 'var(--warning)';
-            this.currentData.connected = false;
-            console.log('Connection status: Read Error');
-        } else if (status === 'No Data') {
-            statusEl.textContent = 'No Data - Connected but no STATUS messages';
-            statusEl.style.color = 'var(--warning)';
-            this.isConnected = false;
-            document.getElementById('reconnect-btn').style.display = 'block';
-            console.log('Connection status: No Data');
-        } else if (status === 'Device Lost') {
-            statusEl.textContent = 'Device Lost - Arduino reset detected';
-            statusEl.style.color = 'var(--danger)';
-            document.getElementById('reconnect-btn').style.display = 'block';
-            console.log('Connection status: Device Lost');
         } else {
-            statusEl.textContent = 'Not Connected';
-            statusEl.style.color = 'var(--text-muted)';
-            connectBtn.className = 'btn btn-primary';
-            connectBtn.textContent = 'Connect to Arduino';
-            this.currentData.connected = false;
-            console.log('Connection status: Disconnected');
+            statusEl.textContent = status || 'Not Connected';
+            statusEl.style.color = status === 'Error' ? 'var(--danger)' : 'var(--text-muted)';
+            connectBtn.className = 'btn btn-primary btn-lg w-100 mb-2';
+            connectBtn.innerHTML = '<i class="fas fa-link me-2"></i>Connect to Arduino';
         }
     }
 
-    updateMotorStatus() {
-        const motorStatusEl = document.getElementById('motor-status');
-        const motorIndicator = document.getElementById('motor-indicator');
-        const motorText = document.getElementById('motor-state-text');
-        const rpmDisplay = document.getElementById('rpm-display');
+    async sendCommand(command) {
+        if (this.port && this.port.writable) {
+            try {
+                const writer = this.port.writable.getWriter();
+                await writer.write(new TextEncoder().encode(command + '\n'));
+                writer.releaseLock();
+                console.log('Sent:', command);
+            } catch (error) {
+                console.error('Send error:', error);
+            }
+        }
+    }
 
-        const isEnabled = this.currentData.parameters.motor_enabled;
-        const currentRpm = this.currentData.plot_data.current_rpm[this.currentData.plot_data.current_rpm.length - 1] || 0;
-
-        if (isEnabled) {
-            motorStatusEl.textContent = 'Enabled';
-            motorStatusEl.style.color = 'var(--success)';
-            motorIndicator.className = 'motor-dot enabled';
-            motorText.textContent = 'Motor Enabled';
-        } else {
-            motorStatusEl.textContent = 'Disabled';
-            motorStatusEl.style.color = 'var(--text-muted)';
-            motorIndicator.className = 'motor-dot disabled';
-            motorText.textContent = 'Motor Disabled';
+    // ========== Auto-Tune Functions ==========
+    
+    startAutoTune() {
+        if (!this.isConnected) {
+            this.showAlert('Please connect to Arduino first.', 'warning');
+            return;
         }
 
-        rpmDisplay.textContent = Math.round(currentRpm);
-        rpmDisplay.style.color = isEnabled ? 'var(--success)' : 'var(--text-muted)';
+        if (!confirm('This will automatically tune PID parameters.\n\nThe process will:\n1. Enable the motor\n2. Test increasing Kp values\n3. Detect oscillation point\n4. Calculate optimal PID\n\nContinue?')) {
+            return;
+        }
+
+        this.autoTuning.active = true;
+        this.autoTuning.phase = 1;
+        this.autoTuning.testKp = 0.2;
+        
+        // Show progress
+        document.getElementById('tune-progress-container').style.display = 'block';
+        document.getElementById('auto-tune-btn').disabled = true;
+        this.updateTuneProgress(0, 'Phase 1: Starting motor...');
+
+        // Reset controller and set conservative gains
+        this.sendCommand('RESET_CONTROLLER');
+        this.sendCommand('SET_KP 0.2');
+        this.sendCommand('SET_KI 0');
+        this.sendCommand('SET_KD 0');
+
+        // Enable motor
+        this.sendCommand('ENABLE_MOTOR 1');
+        this.currentData.parameters.motor_enabled = true;
+        this.updateUI();
+
+        // Start phase 2 after delay
+        setTimeout(() => this.autoTunePhase2(), 3000);
     }
 
-    async loadPorts() {
-        // Web Serial API doesn't provide port listing
-        // The user must manually select the port
-        const portSelect = document.getElementById('port-select');
-        portSelect.innerHTML = '<option value="">Click Connect to select port...</option>';
-        this.showAlert('Web Serial: Click "Connect" to choose your Arduino port', 'info');
+    autoTunePhase2() {
+        if (!this.autoTuning.active) return;
+
+        this.autoTuning.phase = 2;
+        this.updateTuneProgress(30, 'Phase 2: Finding oscillation point...');
+
+        // Start testing Kp values
+        this.autoTuning.timer = setInterval(() => this.testNextKp(), 2000);
     }
+
+    testNextKp() {
+        if (!this.autoTuning.active) {
+            clearInterval(this.autoTuning.timer);
+            return;
+        }
+
+        const metrics = this.stabilityAnalyzer.calculateMetrics();
+
+        // Check for sustained oscillation
+        if (metrics.isHunting && metrics.oscillationFrequencyHz > 0.5) {
+            clearInterval(this.autoTuning.timer);
+            this.autoTuning.ultimateGain = this.autoTuning.testKp;
+            this.autoTuning.ultimatePeriod = 1.0 / metrics.oscillationFrequencyHz;
+            this.autoTunePhase3();
+            return;
+        }
+
+        // Increase Kp
+        this.autoTuning.testKp += 0.1;
+        
+        if (this.autoTuning.testKp > 2.0) {
+            // Max reached without oscillation - use estimates
+            clearInterval(this.autoTuning.timer);
+            this.autoTuning.ultimateGain = 1.5;
+            this.autoTuning.ultimatePeriod = 0.5;
+            this.autoTunePhase3();
+            return;
+        }
+
+        this.sendCommand(`SET_KP ${this.autoTuning.testKp.toFixed(3)}`);
+        this.updateTuneProgress(30 + this.autoTuning.testKp * 20, `Testing Kp = ${this.autoTuning.testKp.toFixed(2)}...`);
+    }
+
+    autoTunePhase3() {
+        this.autoTuning.phase = 3;
+        this.updateTuneProgress(80, 'Phase 3: Calculating optimal parameters...');
+
+        // Stop motor briefly
+        this.sendCommand('ENABLE_MOTOR 0');
+
+        // Calculate tuned parameters
+        const result = AutoTuner.zieglerNicholsNoOvershoot(
+            this.autoTuning.ultimateGain,
+            this.autoTuning.ultimatePeriod
+        );
+
+        // Clamp to reasonable values
+        result.kp = Math.max(0.01, Math.min(2.0, result.kp));
+        result.ki = Math.max(0.001, Math.min(0.2, result.ki));
+        result.kd = Math.max(0.001, Math.min(0.1, result.kd));
+
+        // Apply parameters
+        setTimeout(() => {
+            this.sendCommand(`SET_KP ${result.kp.toFixed(4)}`);
+            this.sendCommand(`SET_KI ${result.ki.toFixed(4)}`);
+            this.sendCommand(`SET_KD ${result.kd.toFixed(4)}`);
+            
+            this.currentData.parameters.kp = result.kp;
+            this.currentData.parameters.ki = result.ki;
+            this.currentData.parameters.kd = result.kd;
+            this.updateUI();
+
+            // Re-enable motor
+            this.sendCommand('ENABLE_MOTOR 1');
+
+            // Add to history
+            this.addToHistory(result);
+
+            // Finish
+            this.updateTuneProgress(100, 'Complete!');
+            this.finishAutoTune(result);
+        }, 1000);
+    }
+
+    finishAutoTune(result) {
+        this.autoTuning.active = false;
+        
+        setTimeout(() => {
+            document.getElementById('tune-progress-container').style.display = 'none';
+            document.getElementById('auto-tune-btn').disabled = false;
+            
+            this.showAlert(
+                `Auto-tune complete!\n\nKp = ${result.kp.toFixed(4)}\nKi = ${result.ki.toFixed(4)}\nKd = ${result.kd.toFixed(4)}`,
+                'success'
+            );
+
+            // Update analysis panel
+            this.analyzeSystem();
+        }, 1000);
+    }
+
+    updateTuneProgress(percent, status) {
+        document.getElementById('tune-progress').style.width = percent + '%';
+        document.getElementById('tune-status').textContent = status;
+    }
+
+    addToHistory(result) {
+        this.tuningHistory.unshift({
+            ...result,
+            timestamp: new Date().toLocaleTimeString()
+        });
+
+        // Update history display
+        const historyEl = document.getElementById('tuning-history');
+        historyEl.innerHTML = this.tuningHistory.slice(0, 5).map((item, idx) => `
+            <div class="history-item" onclick="controller.applyHistoryItem(${idx})">
+                <div class="history-method">${item.method}</div>
+                <div class="history-params">
+                    Kp: ${item.kp.toFixed(3)} | Ki: ${item.ki.toFixed(4)} | Kd: ${item.kd.toFixed(4)}
+                </div>
+                <div class="history-time">${item.timestamp}</div>
+            </div>
+        `).join('');
+    }
+
+    applyHistoryItem(index) {
+        const item = this.tuningHistory[index];
+        if (item) {
+            this.sendCommand(`SET_KP ${item.kp.toFixed(4)}`);
+            this.sendCommand(`SET_KI ${item.ki.toFixed(4)}`);
+            this.sendCommand(`SET_KD ${item.kd.toFixed(4)}`);
+            this.showAlert(`Applied ${item.method} parameters`, 'success');
+        }
+    }
+
+    // ========== Analysis Functions ==========
+
+    analyzeSystem() {
+        const metrics = this.stabilityAnalyzer.calculateMetrics();
+        const suggestions = this.stabilityAnalyzer.getSuggestions(metrics);
+
+        let html = `
+            <div class="analysis-section">
+                <h5><i class="fas fa-chart-bar me-2"></i>Current Metrics</h5>
+                <div class="metrics-grid">
+                    <div class="metric-item">
+                        <span class="metric-label">Current RPM</span>
+                        <span class="metric-value">${metrics.currentRpm.toFixed(1)}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Target RPM</span>
+                        <span class="metric-value">${metrics.targetRpm.toFixed(0)}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Error</span>
+                        <span class="metric-value">${metrics.error.toFixed(1)}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Overshoot</span>
+                        <span class="metric-value">${metrics.overshootPercent.toFixed(1)}%</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Stability</span>
+                        <span class="metric-value">${metrics.stabilityScore.toFixed(0)}%</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">Oscillation</span>
+                        <span class="metric-value">${metrics.oscillationFrequencyHz.toFixed(2)} Hz</span>
+                    </div>
+                </div>
+            </div>
+            <div class="analysis-section">
+                <h5><i class="fas fa-lightbulb me-2"></i>Suggestions</h5>
+        `;
+
+        if (suggestions.length === 0) {
+            html += '<p class="text-muted">Enable motor and wait for data to generate suggestions.</p>';
+        } else {
+            suggestions.forEach(s => {
+                html += `
+                    <div class="suggestion-item suggestion-${s.type}">
+                        <div class="suggestion-title">${s.title}</div>
+                        <div class="suggestion-text">${s.text}</div>
+                    </div>
+                `;
+            });
+        }
+
+        html += '</div>';
+        document.getElementById('analysis-output').innerHTML = html;
+    }
+
+    processAutoTuneData(metrics) {
+        // Called during auto-tune to monitor progress
+        // Could add additional logic here
+    }
+
+    // ========== Control Functions ==========
 
     async toggleConnection() {
         if (this.isConnected) {
-            // Disconnect
             await this.disconnectSerial();
-            this.showAlert('Disconnected from Arduino', 'info');
         } else {
-            // Connect - Web Serial API will show port selection dialog
             await this.connectSerial();
         }
     }
-
-    async requestStatus() {
-        console.log('Manually requesting status from Arduino');
-        await this.sendCommand("GET_STATUS");
-        this.showAlert('Status requested from Arduino', 'info');
-    }
-
-    async updateTargetRPM(value) {
-        await this.sendCommand(`SET_TARGET_RPM ${parseFloat(value)}`);
-    }
-
-    async updateKp(value) {
-        const kpValue = parseFloat(value);
-        document.getElementById('kp-value').textContent = kpValue.toFixed(3);
-        await this.sendCommand(`SET_KP ${kpValue}`);
-    }
-
-    async updateKi(value) {
-        const kiValue = parseFloat(value);
-        document.getElementById('ki-value').textContent = kiValue.toFixed(4);
-        await this.sendCommand(`SET_KI ${kiValue}`);
-    }
-
-    async updateKd(value) {
-        const kdValue = parseFloat(value);
-        document.getElementById('kd-value').textContent = kdValue.toFixed(4);
-        await this.sendCommand(`SET_KD ${kdValue}`);
-    }
-
-    async updatePPR(value) {
-        await this.sendCommand(`SET_PULSES_PER_REV ${parseInt(value)}`);
-    }
-
 
     async toggleMotor() {
         const enabled = !this.currentData.parameters.motor_enabled;
@@ -767,73 +982,89 @@ Console logs show:
     }
 
     async resetController() {
-        await this.sendCommand("RESET_CONTROLLER");
+        await this.sendCommand('RESET_CONTROLLER');
+        this.kalmanFilter.reset();
+        this.stabilityAnalyzer.clear();
         this.showAlert('Controller reset', 'info');
     }
 
-    saveParameters() {
-        try {
-            const paramsToSave = {
-                ...this.currentData.parameters,
-                timestamp: new Date().toISOString(),
-                version: '1.0'
-            };
+    async requestStatus() {
+        await this.sendCommand('GET_STATUS');
+    }
 
-            // Save to localStorage
-            localStorage.setItem('bldc_pid_parameters', JSON.stringify(paramsToSave));
-
-            // Also offer download as JSON file
-            const blob = new Blob([JSON.stringify(paramsToSave, null, 2)], { type: 'application/json' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `pid_parameters_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-
-            this.showAlert('Parameters saved to browser storage and downloaded as file', 'success');
-        } catch (error) {
-            console.error('Save error:', error);
-            this.showAlert('Failed to save parameters', 'danger');
+    async attemptReconnection() {
+        if (!this.isConnected) {
+            await this.connectSerial();
         }
     }
 
+    async updateTargetRPM(value) {
+        await this.sendCommand(`SET_TARGET_RPM ${parseFloat(value)}`);
+    }
+
+    async updateKp(value) {
+        document.getElementById('kp-value').textContent = parseFloat(value).toFixed(3);
+        await this.sendCommand(`SET_KP ${parseFloat(value)}`);
+    }
+
+    async updateKi(value) {
+        document.getElementById('ki-value').textContent = parseFloat(value).toFixed(4);
+        await this.sendCommand(`SET_KI ${parseFloat(value)}`);
+    }
+
+    async updateKd(value) {
+        document.getElementById('kd-value').textContent = parseFloat(value).toFixed(4);
+        await this.sendCommand(`SET_KD ${parseFloat(value)}`);
+    }
+
+    async updatePPR(value) {
+        await this.sendCommand(`SET_PULSES_PER_REV ${parseInt(value)}`);
+    }
+
+    // ========== File Operations ==========
+
+    saveParameters() {
+        const data = {
+            params: this.currentData.parameters,
+            history: this.tuningHistory,
+            timestamp: new Date().toISOString()
+        };
+
+        localStorage.setItem('bldc_pid_params_v2', JSON.stringify(data));
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pid_params_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        this.showAlert('Parameters saved', 'success');
+    }
+
     loadParameters() {
-        // Try to load from localStorage first
-        const savedParams = localStorage.getItem('bldc_pid_parameters');
-        if (savedParams) {
+        const saved = localStorage.getItem('bldc_pid_params_v2');
+        if (saved) {
             try {
-                const params = JSON.parse(savedParams);
-                // Apply parameters to current data
-                this.currentData.parameters = {
-                    target_rpm: params.target_rpm || 1440,
-                    kp: params.kp || 0.25,
-                    ki: params.ki || 0.015,
-                    kd: params.kd || 0.003,
-                    pulses_per_rev: params.pulses_per_rev || 18,
-                    motor_enabled: params.motor_enabled || false
-                };
+                const data = JSON.parse(saved);
+                const params = data.params;
+                
+                this.sendCommand(`SET_TARGET_RPM ${params.target_rpm}`);
+                this.sendCommand(`SET_KP ${params.kp}`);
+                this.sendCommand(`SET_KI ${params.ki}`);
+                this.sendCommand(`SET_KD ${params.kd}`);
+                this.sendCommand(`SET_PULSES_PER_REV ${params.pulses_per_rev}`);
 
-                // Update UI
-                this.updateUI();
+                if (data.history) {
+                    this.tuningHistory = data.history;
+                    this.addToHistory(this.tuningHistory[0] || { method: 'Loaded', kp: params.kp, ki: params.ki, kd: params.kd });
+                }
 
-                // Send parameters to Arduino
-                this.sendCommand(`SET_TARGET_RPM ${this.currentData.parameters.target_rpm}`);
-                this.sendCommand(`SET_KP ${this.currentData.parameters.kp}`);
-                this.sendCommand(`SET_KI ${this.currentData.parameters.ki}`);
-                this.sendCommand(`SET_KD ${this.currentData.parameters.kd}`);
-                this.sendCommand(`SET_PULSES_PER_REV ${this.currentData.parameters.pulses_per_rev}`);
-
-                this.showAlert('Parameters loaded from browser storage', 'success');
+                this.showAlert('Parameters loaded', 'success');
                 return;
-            } catch (error) {
-                console.warn('Failed to load from localStorage:', error);
-            }
+            } catch (e) {}
         }
-
-        // Fall back to file loading
         document.getElementById('file-input').click();
     }
 
@@ -843,112 +1074,64 @@ Console logs show:
 
         try {
             const text = await file.text();
-            const params = JSON.parse(text);
+            const data = JSON.parse(text);
+            const params = data.params || data;
 
-            // Apply parameters to current data
-            this.currentData.parameters = {
-                target_rpm: params.target_rpm || 1440,
-                kp: params.kp || 0.25,
-                ki: params.ki || 0.015,
-                kd: params.kd || 0.003,
-                pulses_per_rev: params.pulses_per_rev || 18,
-                motor_enabled: params.motor_enabled || false
-            };
+            this.sendCommand(`SET_TARGET_RPM ${params.target_rpm || 1440}`);
+            this.sendCommand(`SET_KP ${params.kp || 0.3}`);
+            this.sendCommand(`SET_KI ${params.ki || 0.02}`);
+            this.sendCommand(`SET_KD ${params.kd || 0.02}`);
+            this.sendCommand(`SET_PULSES_PER_REV ${params.pulses_per_rev || 4}`);
 
-            // Update UI
-            this.updateUI();
-
-            // Send parameters to Arduino
-            this.sendCommand(`SET_TARGET_RPM ${this.currentData.parameters.target_rpm}`);
-            this.sendCommand(`SET_KP ${this.currentData.parameters.kp}`);
-            this.sendCommand(`SET_KI ${this.currentData.parameters.ki}`);
-            this.sendCommand(`SET_KD ${this.currentData.parameters.kd}`);
-            this.sendCommand(`SET_PULSES_PER_REV ${this.currentData.parameters.pulses_per_rev}`);
-
-            this.showAlert('Parameters loaded from file successfully', 'success');
+            this.showAlert('Parameters loaded from file', 'success');
         } catch (error) {
-            console.error('Load error:', error);
-            this.showAlert('Failed to load parameters from file', 'danger');
+            this.showAlert('Failed to load file', 'danger');
         }
-
-        // Reset file input
         event.target.value = '';
     }
 
     exportData() {
-        try {
-            const plotData = this.currentData.plot_data;
-            const timeData = plotData.time;
-            const maxPoints = timeData.length;
-
-            if (maxPoints === 0) {
-                this.showAlert('No data to export. Connect to Arduino first.', 'warning');
-                return;
-            }
-
-            // Create CSV content
-            let csvContent = 'Time(s),Target_RPM,Current_RPM,Error,PID_Output,Kp,Ki,Kd\n';
-
-            for (let i = 0; i < maxPoints; i++) {
-                const relativeTime = i > 0 ? (timeData[i] - timeData[0]) / 1000 : 0;
-                const row = [
-                    relativeTime.toFixed(3),
-                    plotData.target_rpm[i] || 0,
-                    plotData.current_rpm[i] || 0,
-                    plotData.error[i] || 0,
-                    plotData.pid_output[i] || 0,
-                    plotData.kp[i] || 0,
-                    plotData.ki[i] || 0,
-                    plotData.kd[i] || 0
-                ];
-                csvContent += row.join(',') + '\n';
-            }
-
-            // Create and download CSV file
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `pid_data_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-
-            this.showAlert(`Data exported successfully (${maxPoints} data points)`, 'success');
-        } catch (error) {
-            console.error('Export error:', error);
-            this.showAlert('Failed to export data', 'danger');
+        const plotData = this.currentData.plot_data;
+        if (plotData.time.length === 0) {
+            this.showAlert('No data to export', 'warning');
+            return;
         }
+
+        let csv = 'Time_ms,Target_RPM,Raw_RPM,Filtered_RPM,Error,Stability_Score\n';
+        for (let i = 0; i < plotData.time.length; i++) {
+            csv += `${plotData.time[i]},${plotData.target_rpm[i]},${plotData.current_rpm[i]},${plotData.filtered_rpm[i]},${plotData.error[i]},${plotData.stability_score[i]}\n`;
+        }
+
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `motor_data_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        this.showAlert(`Exported ${plotData.time.length} data points`, 'success');
     }
 
     showAbout() {
-        const modal = new bootstrap.Modal(document.getElementById('about-modal'));
-        modal.show();
+        new bootstrap.Modal(document.getElementById('about-modal')).show();
     }
 
     showAlert(message, type = 'info') {
-        // Create alert element
         const alertEl = document.createElement('div');
         alertEl.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-        alertEl.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        alertEl.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px; max-width: 400px;';
         alertEl.innerHTML = `
-            ${message}
+            ${message.replace(/\n/g, '<br>')}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
-
         document.body.appendChild(alertEl);
-
-        // Auto remove after 5 seconds
-        setTimeout(() => {
-            if (alertEl.parentNode) {
-                alertEl.remove();
-            }
-        }, 5000);
+        setTimeout(() => alertEl.remove(), 5000);
     }
 }
 
-// Initialize the application when DOM is loaded
+// Initialize
+let controller;
 document.addEventListener('DOMContentLoaded', () => {
-    new BLDCController();
+    controller = new BLDCController();
 });

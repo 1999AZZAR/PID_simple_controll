@@ -1,8 +1,10 @@
 /**
- * BLDC Motor PID Controller - Arduino Uno Version (Python Configurable)
+ * BLDC Motor PID Controller - Arduino Uno Version (PC-Powered Auto-Tune)
  *
- * This Arduino sketch implements a PID controller to maintain a BLDC motor
- * at configurable RPM, with all parameters adjustable via Python GUI.
+ * This Arduino sketch works with the PC-Powered Auto-Tune GUI to provide:
+ * - Dual control mode: Arduino PID or PC PID (PC sends PWM directly)
+ * - High-frequency status updates for PC-side Kalman filtering
+ * - Serial communication for real-time configuration
  *
  * Motor Compatibility:
  * - Designed for 3-Hall BLDC motors (such as 42BLF20-22.0223)
@@ -11,14 +13,13 @@
  * - Compatible with standard BLDC motor controllers (ESC)
  *
  * Features:
- * - PID control with anti-windup protection
+ * - PID control with anti-windup protection (Arduino-side)
+ * - PC Control Mode: PC calculates PID, Arduino just applies PWM
  * - Serial communication with Python GUI for real-time configuration
  * - Auto PID tuning support (Python-side calculation)
  * - RPM feedback via Hall sensor (direct motor connection)
  * - PWM output to ESC
- * - Real-time monitoring data output
- * - All parameters controlled by Python GUI (no persistent storage)
- * - Configurable parameters (pulses per revolution, target RPM, etc.)
+ * - High-frequency status data for PC-side filtering
  *
  * Hardware Requirements:
  * - Arduino board (Uno, Mega, or similar)
@@ -74,6 +75,10 @@ unsigned long lastSerialSend = 0;
 bool motorEnabled = false; // Start disabled for safety
 int lastPWMValue = 0; // Last PWM value for monitoring
 
+// PC Control Mode
+bool pcControlMode = false;  // When true, PC sends PWM directly
+int pcPWMValue = 0;          // PWM value from PC
+
 // Soft-start ramping to avoid current surges
 unsigned long softStartStartTime = 0;
 bool softStarting = true;
@@ -105,7 +110,7 @@ void setup() {
     // Brief startup delay
     delay(1000);
 
-    Serial.println(F("BLDC PID Controller Started - Python Configurable"));
+    Serial.println(F("BLDC PID Controller - PC-Powered Auto-Tune"));
     Serial.println(F("Ready for serial commands"));
     Serial.print(F("Target RPM: "));
     Serial.println(targetRPM);
@@ -136,55 +141,62 @@ void loop() {
 
     // Compute PID output if motor is enabled
     if (motorEnabled) {
-        float error = targetRPM - currentRPM;
-
-        // Use standard PID control for all speeds
-        pidOutput = computePID(error);
-
-        // Convert PID output to PWM value with full range for better accuracy
         int pwmValue;
-        static unsigned long emergencyStartTime = 0;
-        static bool emergencyRecoveryMode = false;
-
-        if (abs(error) > 2000 && !emergencyRecoveryMode) {  // If error > 2000 RPM, emergency stop
-            if (emergencyStartTime == 0) {
-                emergencyStartTime = millis();
-                Serial.println("EMERGENCY STOP: Motor out of control!");
-            }
-            pwmValue = 0;  // Cut power completely for 2 seconds
+        
+        if (pcControlMode) {
+            // PC Control Mode: Use PWM value directly from PC
+            pwmValue = pcPWMValue;
         } else {
-            // Convert PID output to PWM value and output to ESC
-            // Use wider PWM range for better control authority: 0-255 full range
-            pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
-            pwmValue = constrain(pwmValue, 0, 255);
+            // Arduino PID Mode: Calculate locally
+            float error = targetRPM - currentRPM;
+
+            // Use standard PID control for all speeds
+            pidOutput = computePID(error);
+
+            // Convert PID output to PWM value with full range for better accuracy
+            static unsigned long emergencyStartTime = 0;
+            static bool emergencyRecoveryMode = false;
+
+            if (abs(error) > 2000 && !emergencyRecoveryMode) {  // If error > 2000 RPM, emergency stop
+                if (emergencyStartTime == 0) {
+                    emergencyStartTime = millis();
+                    Serial.println("EMERGENCY STOP: Motor out of control!");
+                }
+                pwmValue = 0;  // Cut power completely for 2 seconds
+            } else {
+                // Convert PID output to PWM value and output to ESC
+                pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
+                pwmValue = constrain(pwmValue, 0, 255);
+            }
+
+            // Reset emergency timer after 2 seconds regardless of current error state
+            if (emergencyStartTime > 0 && millis() - emergencyStartTime > 2000) {
+                emergencyStartTime = 0;  // Reset emergency after 2 seconds
+                emergencyRecoveryMode = true;  // Allow one recovery cycle before checking emergency again
+            }
+
+            // Clear recovery mode after one cycle to allow emergency checks again
+            if (emergencyRecoveryMode && emergencyStartTime == 0) {
+                emergencyRecoveryMode = false;
+            }
         }
 
-        // Reset emergency timer after 2 seconds regardless of current error state
-        if (emergencyStartTime > 0 && millis() - emergencyStartTime > 2000) {
-            emergencyStartTime = 0;  // Reset emergency after 2 seconds
-            emergencyRecoveryMode = true;  // Allow one recovery cycle before checking emergency again
-        }
-
-        // Clear recovery mode after one cycle to allow emergency checks again
-        if (emergencyRecoveryMode && emergencyStartTime == 0) {
-            emergencyRecoveryMode = false;
-        }
-
-        // Temporarily disable hysteresis for debugging
         lastPWMValue = pwmValue;
         outputToESC(pwmValue);
     } else if (!motorEnabled) {
         // Motor disabled - stop immediately
         analogWrite(PWM_OUTPUT_PIN, 0);
         pidOutput = 0;
+        lastPWMValue = 0;
     }
 
     // Send status data to Python GUI at regular intervals
-    if (currentTime - lastSerialSend >= SERIAL_SEND_INTERVAL) {
+    // Use faster rate in PC control mode for better responsiveness
+    unsigned long sendInterval = pcControlMode ? 50 : SERIAL_SEND_INTERVAL;
+    if (currentTime - lastSerialSend >= sendInterval) {
         sendStatusData();
         lastSerialSend = currentTime;
     }
-
 
     // Control loop timing
     delay(CONTROL_PERIOD_MS);
@@ -288,17 +300,17 @@ void processSerialCommand(String command) {
 
     if (command.startsWith("SET_KP ")) {
         kp = command.substring(7).toFloat();
-        Serial.print(F("✓ Kp set to: "));
+        Serial.print(F("Kp set to: "));
         Serial.println(kp, 4);
 
     } else if (command.startsWith("SET_KI ")) {
         ki = command.substring(7).toFloat();
-        Serial.print(F("✓ Ki set to: "));
+        Serial.print(F("Ki set to: "));
         Serial.println(ki, 4);
 
     } else if (command.startsWith("SET_KD ")) {
         kd = command.substring(7).toFloat();
-        Serial.print(F("✓ Kd set to: "));
+        Serial.print(F("Kd set to: "));
         Serial.println(kd, 4);
 
     } else if (command.startsWith("SET_TARGET_RPM ")) {
@@ -321,8 +333,27 @@ void processSerialCommand(String command) {
             pidOutput = 0;
             integral = 0; // Reset integral when disabling
             previousError = 0; // Reset derivative term
-            // Also reset any auto-tune specific variables
-            }
+            pcPWMValue = 0;
+        }
+
+    } else if (command.startsWith("SET_PWM ")) {
+        // PC Control Mode: Direct PWM control from PC
+        pcPWMValue = constrain(command.substring(8).toInt(), 0, 255);
+        // Auto-enable PC control mode when SET_PWM is used
+        if (!pcControlMode) {
+            pcControlMode = true;
+            Serial.println(F("PC Control Mode enabled"));
+        }
+
+    } else if (command.startsWith("PC_MODE ")) {
+        pcControlMode = (command.substring(8) == "1");
+        Serial.print(F("PC Control Mode "));
+        Serial.println(pcControlMode ? F("enabled") : F("disabled"));
+        if (!pcControlMode) {
+            // Switching back to Arduino PID - reset values
+            integral = 0;
+            previousError = 0;
+        }
 
     } else if (command == "GET_STATUS") {
         sendStatusData();
@@ -334,6 +365,8 @@ void processSerialCommand(String command) {
         pidOutput = 0;
         softStarting = true;
         softStartStartTime = 0;
+        pcPWMValue = 0;
+        pcControlMode = false;
         Serial.println(F("Controller reset"));
 
     } else {
@@ -367,4 +400,3 @@ void sendStatusData() {
     Serial.print(F(","));
     Serial.println(motorEnabled ? 1 : 0);
 }
-

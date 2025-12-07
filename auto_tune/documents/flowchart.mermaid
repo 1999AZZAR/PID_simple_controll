@@ -1,0 +1,362 @@
+---
+config:
+  layout: elk
+---
+flowchart TD
+    %% ==========================================
+    %% BLDC PID Controller - PC-Powered Auto-Tune
+    %% Flowchart showing system architecture
+    %% ==========================================
+
+    %% System Startup Flow
+    subgraph STARTUP["Application Startup"]
+        START(["User runs: python control.py"])
+        A["Import PyQt6, matplotlib, pyserial, numpy, scipy"]
+        B["Create QApplication instance"]
+        C["Initialize PIDControllerGUI"]
+        D["Initialize PC-Powered Components"]
+        D1["KalmanFilter - process_variance=1e-4"]
+        D2["StabilityAnalyzer - window_size=100"]
+        D3["AutoTuner - Ziegler-Nichols methods"]
+        E["Setup default parameters"]
+        E1["target_rpm = 1440.0"]
+        E2["kp=0.3, ki=0.02, kd=0.02"]
+        E3["pulses_per_rev = 4"]
+        F["Create GUI components"]
+        F1["Connection panel with port selection"]
+        F2["Quick Actions - Motor ON, Auto-Tune"]
+        F3["PID sliders and spinboxes"]
+        F4["Real-time metrics display"]
+        F5["4-panel matplotlib plots"]
+        G["Apply Catppuccin dark theme"]
+        H["Start Qt timers"]
+        H1["Data timer - 50ms, 20Hz"]
+        H2["Metrics timer - 250ms, 4Hz"]
+        I["Enter Qt event loop"]
+    end
+
+    %% Serial Connection Flow
+    subgraph CONNECTION["Serial Connection"]
+        J["User selects serial port"]
+        K["User clicks Connect button"]
+        L["Create SerialWorker thread"]
+        L1["Port: selected device"]
+        L2["Baud: 115200"]
+        L3["Exclusive access mode"]
+        M["Open serial connection"]
+        N["Flush input/output buffers"]
+        O["Reset Kalman filter"]
+        P["Clear stability analyzer"]
+        Q["Emit connection_status True"]
+        R["Update GUI: Connected"]
+        S["Enable Auto-Tune button"]
+        T["Send GET_STATUS after 2s delay"]
+    end
+
+    %% Data Reception and Processing
+    subgraph DATAFLOW["Real-Time Data Processing"]
+        U["Arduino sends STATUS message"]
+        U1["FORMAT: STATUS:ts,target,current,error,pid,kp,ki,kd,pwm,ppr,enabled"]
+        V["SerialWorker receives data"]
+        W["Parse complete lines"]
+        X["Validate STATUS prefix"]
+        Y["Split by commas - 11 fields"]
+        Z["Extract numeric values"]
+        Z1["timestamp, target_rpm, current_rpm"]
+        Z2["error, pid_output, kp, ki, kd"]
+        Z3["pwm, ppr, motor_enabled"]
+    end
+
+    %% PC-Side Signal Processing
+    subgraph PCPROCESSING["PC-Side Processing - Kalman Filter"]
+        AA["Receive raw RPM value"]
+        AB["Kalman Filter Update"]
+        AB1["Prediction: estimate = previous"]
+        AB2["Prediction error += process_variance"]
+        AB3["Kalman gain = pred_err / (pred_err + meas_var)"]
+        AB4["New estimate = pred + gain * (meas - pred)"]
+        AB5["Update error estimate"]
+        AC["Output: filtered_rpm"]
+        AD["Pass to Stability Analyzer"]
+    end
+
+    %% Stability Analysis
+    subgraph STABILITY["Stability Analysis"]
+        AE["Add sample to history"]
+        AE1["rpm_history - deque maxlen=100"]
+        AE2["error_history"]
+        AE3["time_history"]
+        AF["Calculate Metrics"]
+        AG["Compute overshoot percentage"]
+        AG1["overshoot = (max_rpm - target) / target * 100"]
+        AH["Detect oscillation via zero-crossing"]
+        AH1["Count sign changes in error"]
+        AH2["Calculate oscillation frequency"]
+        AI["Determine hunting status"]
+        AI1["isHunting = freq > 0.5Hz AND freq < 10Hz"]
+        AJ["Calculate stability score"]
+        AJ1["error_score = 100 - mean_error_penalty"]
+        AJ2["variance_score = 100 - std_dev_penalty"]
+        AJ3["hunting_penalty = 30 if hunting else 0"]
+        AJ4["stability = (error + variance) / 2 - penalty"]
+        AK["Output SystemMetrics"]
+        AK1["current_rpm, filtered_rpm, error"]
+        AK2["overshoot_percent, stability_score"]
+        AK3["is_hunting, is_stable"]
+    end
+
+    %% GUI Update Flow
+    subgraph GUIUPDATE["GUI Updates"]
+        AL["Update metrics display"]
+        AL1["Raw RPM, Filtered RPM, Error"]
+        AL2["Stability score percentage"]
+        AM["Update status indicator"]
+        AM1["STABLE - green, score > 70"]
+        AM2["SETTLING - yellow, adjusting"]
+        AM3["HUNTING - red, oscillating"]
+        AN["Update plot data arrays"]
+        AN1["time_data, target_rpm_data"]
+        AN2["current_rpm_data, filtered_rpm_data"]
+        AN3["error_data, stability_score_data"]
+        AO["Limit to 200 data points"]
+        AP["Refresh matplotlib charts"]
+        AP1["Speed chart: target, raw, filtered"]
+        AP2["Error chart with fill"]
+        AP3["Stability score chart"]
+    end
+
+    %% Auto-Tune Flow
+    subgraph AUTOTUNE["One-Click Auto-Tune"]
+        AQ["User clicks Auto-Tune button"]
+        AR["Confirm dialog shown"]
+        AS["Phase 1: Initialize"]
+        AS1["Set auto_tuning_active = True"]
+        AS2["Clear tuning data"]
+        AS3["Show progress bar"]
+        AT["Reset controller"]
+        AU["Set conservative gains"]
+        AU1["Kp = 0.2, Ki = 0, Kd = 0"]
+        AV["Enable motor"]
+        AW["Wait 3 seconds for settling"]
+
+        AX["Phase 2: Find Oscillation"]
+        AY["Start Kp test timer - 2s interval"]
+        AZ["Check current metrics"]
+        BA{"Is hunting detected?"}
+        BB["Record ultimate gain Ku = test_kp"]
+        BC["Record ultimate period Tu = 1/freq"]
+        BD["Increment test_kp by 0.1"]
+        BE{"test_kp > 2.0?"}
+        BF["Use default estimates"]
+        BF1["Ku = 1.5, Tu = 0.5"]
+
+        BG["Phase 3: Calculate PID"]
+        BH["Stop motor temporarily"]
+        BI["Apply Ziegler-Nichols No Overshoot"]
+        BI1["Kp = 0.2 * Ku"]
+        BI2["Ki = 2 * Kp / Tu"]
+        BI3["Kd = Kp * Tu / 3"]
+        BJ["Clamp to safe ranges"]
+        BJ1["Kp: 0.01 - 2.0"]
+        BJ2["Ki: 0.001 - 0.5"]
+        BJ3["Kd: 0.0001 - 0.1"]
+        BK["Send new parameters to Arduino"]
+        BL["Add result to tuning history"]
+        BM["Re-enable motor"]
+        BN["Show completion message"]
+        BO["Clear progress bar"]
+    end
+
+    %% Manual Parameter Adjustment
+    subgraph MANUAL["Manual Parameter Adjustment"]
+        BP["User adjusts slider or spinbox"]
+        BQ["Update linked control"]
+        BQ1["Slider change updates spinbox"]
+        BQ2["Spinbox change updates slider"]
+        BR["Send command to Arduino"]
+        BR1["SET_KP value"]
+        BR2["SET_KI value"]
+        BR3["SET_KD value"]
+        BS["Arduino updates internal values"]
+        BT["Next STATUS reflects new params"]
+        BU["GUI synchronizes display"]
+    end
+
+    %% Motor Control
+    subgraph MOTOR["Motor Control"]
+        BV["User clicks Motor toggle"]
+        BW["Send ENABLE_MOTOR command"]
+        BX["Arduino enables/disables PWM"]
+        BY["ESC receives signal"]
+        BZ["Motor starts/stops"]
+        CA["Hall sensor detects rotation"]
+        CB["ISR measures pulse interval"]
+        CC["Arduino calculates RPM"]
+        CC1["RPM = 60000000 / interval / ppr"]
+        CD["PID controller computes output"]
+        CE["PWM duty cycle updated"]
+        CF["STATUS sent to GUI"]
+    end
+
+    %% Analysis Features
+    subgraph ANALYSIS["System Analysis"]
+        CG["User clicks Analyze button"]
+        CH["Get current metrics"]
+        CI["Generate suggestions"]
+        CJ{"Is hunting?"}
+        CK["Suggest: Reduce Kp 20-30%"]
+        CL{"Overshoot > 20%?"}
+        CM["Suggest: Reduce Kp, increase Kd"]
+        CN{"Stability < 70%?"}
+        CO["Suggest: Check mechanical issues"]
+        CP{"Large steady-state error?"}
+        CQ["Suggest: Increase Ki"]
+        CR["Display analysis report"]
+    end
+
+    %% Tuning History
+    subgraph HISTORY["Tuning History"]
+        CS["Auto-tune completes"]
+        CT["Create TuningResult"]
+        CT1["method, kp, ki, kd"]
+        CT2["timestamp, notes"]
+        CU["Add to history list"]
+        CV["Update history table"]
+        CW["User clicks history item"]
+        CX["Apply stored parameters"]
+    end
+
+    %% Data Export
+    subgraph EXPORT["Data Management"]
+        CY["User clicks Save Parameters"]
+        CZ["Create JSON with params and history"]
+        DA["Save to file"]
+        DB["User clicks Export Data"]
+        DC["Generate CSV"]
+        DC1["Time, Target, Raw, Filtered, Error, Stability"]
+        DD["Download file"]
+    end
+
+    %% Error Handling
+    subgraph ERRORS["Error Handling"]
+        DE["Connection timeout - 10s no data"]
+        DF["Display warning in status bar"]
+        DG["Serial read error"]
+        DH["Show reconnect button"]
+        DI["User clicks Reconnect"]
+        DJ["Attempt new connection"]
+    end
+
+    %% Shutdown
+    subgraph SHUTDOWN["Application Shutdown"]
+        DK["User closes window"]
+        DL["Stop SerialWorker thread"]
+        DM["Close serial port"]
+        DN["Exit QApplication"]
+    end
+
+    %% Flow Connections - Startup
+    START --> A --> B --> C --> D
+    D --> D1 & D2 & D3
+    D3 --> E --> E1 & E2 & E3
+    E3 --> F --> F1 & F2 & F3 & F4 & F5
+    F5 --> G --> H --> H1 & H2
+    H2 --> I
+
+    %% Flow Connections - Connection
+    I --> J --> K --> L
+    L --> L1 & L2 & L3
+    L3 --> M --> N --> O --> P --> Q --> R --> S --> T
+
+    %% Flow Connections - Data Flow
+    T --> U --> U1
+    U1 --> V --> W --> X --> Y --> Z
+    Z --> Z1 & Z2 & Z3
+
+    %% Flow Connections - PC Processing
+    Z3 --> AA --> AB
+    AB --> AB1 --> AB2 --> AB3 --> AB4 --> AB5
+    AB5 --> AC --> AD
+
+    %% Flow Connections - Stability
+    AD --> AE --> AE1 & AE2 & AE3
+    AE3 --> AF --> AG --> AG1
+    AG1 --> AH --> AH1 --> AH2
+    AH2 --> AI --> AI1
+    AI1 --> AJ --> AJ1 --> AJ2 --> AJ3 --> AJ4
+    AJ4 --> AK --> AK1 & AK2 & AK3
+
+    %% Flow Connections - GUI Update
+    AK3 --> AL --> AL1 & AL2
+    AL2 --> AM --> AM1 & AM2 & AM3
+    AM3 --> AN --> AN1 & AN2 & AN3
+    AN3 --> AO --> AP --> AP1 & AP2 & AP3
+
+    %% Flow Connections - Auto-Tune
+    AP3 --> AQ --> AR --> AS
+    AS --> AS1 & AS2 & AS3
+    AS3 --> AT --> AU --> AU1
+    AU1 --> AV --> AW --> AX --> AY --> AZ --> BA
+    BA -->|Yes| BB --> BC --> BG
+    BA -->|No| BD --> BE
+    BE -->|No| AZ
+    BE -->|Yes| BF --> BF1 --> BG
+    BG --> BH --> BI --> BI1 --> BI2 --> BI3
+    BI3 --> BJ --> BJ1 & BJ2 & BJ3
+    BJ3 --> BK --> BL --> BM --> BN --> BO
+
+    %% Flow Connections - Manual
+    BO --> BP --> BQ --> BQ1 & BQ2
+    BQ2 --> BR --> BR1 & BR2 & BR3
+    BR3 --> BS --> BT --> BU
+
+    %% Flow Connections - Motor
+    BU --> BV --> BW --> BX --> BY --> BZ
+    BZ --> CA --> CB --> CC --> CC1
+    CC1 --> CD --> CE --> CF
+
+    %% Flow Connections - Analysis
+    CF --> CG --> CH --> CI --> CJ
+    CJ -->|Yes| CK
+    CJ -->|No| CL
+    CL -->|Yes| CM
+    CL -->|No| CN
+    CN -->|Yes| CO
+    CN -->|No| CP
+    CP -->|Yes| CQ
+    CP -->|No| CR
+    CK --> CR
+    CM --> CR
+    CO --> CR
+    CQ --> CR
+
+    %% Flow Connections - History
+    CR --> CS --> CT --> CT1 & CT2
+    CT2 --> CU --> CV --> CW --> CX
+
+    %% Flow Connections - Export
+    CX --> CY --> CZ --> DA
+    DA --> DB --> DC --> DC1 --> DD
+
+    %% Flow Connections - Errors
+    DD --> DE --> DF
+    DF --> DG --> DH --> DI --> DJ
+
+    %% Flow Connections - Shutdown
+    DJ --> DK --> DL --> DM --> DN
+
+    %% Styling
+    classDef startEnd fill:#a6e3a1,stroke:#40a02b,stroke-width:2px,color:#1e1e2e
+    classDef process fill:#89b4fa,stroke:#1e66f5,stroke-width:1px,color:#1e1e2e
+    classDef decision fill:#f9e2af,stroke:#df8e1d,stroke-width:2px,color:#1e1e2e
+    classDef pcpower fill:#cba6f7,stroke:#8839ef,stroke-width:2px,color:#1e1e2e
+    classDef user fill:#f5c2e7,stroke:#ea76cb,stroke-width:2px,color:#1e1e2e
+    classDef error fill:#f38ba8,stroke:#d20f39,stroke-width:2px,color:#1e1e2e
+    classDef arduino fill:#fab387,stroke:#fe640b,stroke-width:2px,color:#1e1e2e
+
+    class START,DN startEnd
+    class D,D1,D2,D3,AB,AB1,AB2,AB3,AB4,AB5,AC,AD,AE,AF,AG,AH,AI,AJ,AK pcpower
+    class BA,BE,CJ,CL,CN,CP decision
+    class J,K,AQ,AR,BP,BV,CG,CW,CY,DB,DI,DK user
+    class DE,DF,DG,DH error
+    class U,CC,CD,CE,CF,BS,BX arduino
