@@ -148,7 +148,7 @@ class StabilityAnalyzer {
         if (metrics.isHunting) {
             suggestions.push({
                 type: 'danger',
-                title: '⚠️ Hunting Detected',
+                title: 'WARNING: Hunting Detected',
                 text: 'System is oscillating. Reduce Kp by 20-30% and/or increase Kd for more damping.'
             });
         }
@@ -156,7 +156,7 @@ class StabilityAnalyzer {
         if (metrics.overshootPercent > 20) {
             suggestions.push({
                 type: 'warning',
-                title: '⚠️ High Overshoot',
+                title: 'WARNING: High Overshoot',
                 text: `Overshoot is ${metrics.overshootPercent.toFixed(1)}%. Reduce Kp by 15-20% or increase Kd.`
             });
         }
@@ -164,7 +164,7 @@ class StabilityAnalyzer {
         if (metrics.stabilityScore < 70 && !metrics.isHunting) {
             suggestions.push({
                 type: 'warning',
-                title: '⚠️ Low Stability',
+                title: 'WARNING: Low Stability',
                 text: 'Check mechanical issues, verify PPR setting, or try reducing Kp slightly.'
             });
         }
@@ -172,7 +172,7 @@ class StabilityAnalyzer {
         if (Math.abs(metrics.error) > 50 && metrics.isStable) {
             suggestions.push({
                 type: 'info',
-                title: 'ℹ️ Steady-State Error',
+                title: 'INFO: Steady-State Error',
                 text: `Error of ${metrics.error.toFixed(1)} RPM. Consider increasing Ki slightly.`
             });
         }
@@ -180,7 +180,7 @@ class StabilityAnalyzer {
         if (metrics.isStable && metrics.stabilityScore > 80 && suggestions.length === 0) {
             suggestions.push({
                 type: 'success',
-                title: '✓ System Well-Tuned',
+                title: 'SUCCESS: System Well-Tuned',
                 text: `Stability score: ${metrics.stabilityScore.toFixed(0)}%. Fine-tuning tips: increase Kp for faster response, increase Kd for less oscillation.`
             });
         }

@@ -1,30 +1,30 @@
 # BLDC Motor PID Controller - PC-Powered Web Interface
 
-**Modern browser-based PID tuning with Kalman filtering, auto-tuning, and real-time stability analysis** - No backend server required!
+Modern browser-based PID tuning with Kalman filtering, auto-tuning, and real-time stability analysis - No backend server required!
 
-## 🚀 Key Features
+## Key Features
 
 ### PC-Powered Processing (in your browser!)
-- **Kalman Filtering**: Smooth, noise-free RPM readings computed client-side
-- **One-Click Auto-Tune**: Automatic PID optimization using Ziegler-Nichols method
-- **Hunting Detection**: Real-time oscillation detection and alerts
-- **Stability Scoring**: 0-100% system health metric
+- Kalman Filtering: Smooth, noise-free RPM readings computed client-side
+- One-Click Auto-Tune: Automatic PID optimization using Ziegler-Nichols method
+- Hunting Detection: Real-time oscillation detection and alerts
+- Stability Scoring: 0-100% system health metric
 
 ### Direct Web Serial Connection
 - Connects directly to Arduino via Web Serial API
 - No Python backend needed
 - Works on any compatible browser (Chrome, Edge, Opera)
 
-## 📸 Interface Overview
+## Interface Overview
 
 The web interface provides:
-- **System Status Bar**: Real-time metrics including raw/filtered RPM, error, and stability
-- **Live Charts**: Speed (with Kalman filtering), Error, and Stability Score
-- **One-Click Auto-Tune**: Automatic PID parameter optimization
-- **Tuning History**: Quick access to previous tuning results
-- **Real-Time Analysis**: Suggestions based on system behavior
+- System Status Bar: Real-time metrics including raw/filtered RPM, error, and stability
+- Live Charts: Speed (with Kalman filtering), Error, and Stability Score
+- One-Click Auto-Tune: Automatic PID parameter optimization
+- Tuning History: Quick access to previous tuning results
+- Real-Time Analysis: Suggestions based on system behavior
 
-## 🔧 Quick Start
+## Quick Start
 
 ### 1. Upload Arduino Firmware
 
@@ -48,24 +48,24 @@ npx http-server -p 8000
 ### 3. Open in Browser
 
 Open `http://localhost:8000/static/` in:
-- **Chrome 89+** ✅
-- **Edge 89+** ✅
-- **Opera 75+** ✅
+- Chrome 89+
+- Edge 89+
+- Opera 75+
 
 ### 4. Connect & Control
 
-1. Click **"Connect to Arduino"**
+1. Click "Connect to Arduino"
 2. Grant serial port permission
 3. Select your Arduino port
-4. Set **Pulses Per Revolution** (PPR) for your motor
-5. Click **"Enable Motor"**
+4. Set Pulses Per Revolution (PPR) for your motor
+5. Click "Enable Motor"
 6. Watch the Kalman-filtered data!
 
-## 🎯 One-Click Auto-Tune
+## One-Click Auto-Tune
 
-The auto-tune feature uses the **Ziegler-Nichols** method:
+The auto-tune feature uses the Ziegler-Nichols method:
 
-1. Click **"One-Click Auto-Tune"**
+1. Click "One-Click Auto-Tune"
 2. System automatically:
    - Enables motor with conservative gains
    - Gradually increases Kp
@@ -81,22 +81,22 @@ The auto-tune feature uses the **Ziegler-Nichols** method:
 | Z-N No Overshoot | Motor control (default) |
 | Z-N Classic | Faster response |
 
-## 📊 Understanding the Display
+## Understanding the Display
 
 ### Status Indicators
 
 | Status | Color | Meaning |
 |--------|-------|---------|
-| **STABLE** | 🟢 Green | System well-tuned |
-| **SETTLING** | 🟡 Yellow | Adjusting to target |
-| **HUNTING** | 🔴 Red | Oscillation detected - reduce Kp! |
+| STABLE | Green | System well-tuned |
+| SETTLING | Yellow | Adjusting to target |
+| HUNTING | Red | Oscillation detected - reduce Kp! |
 
 ### Real-Time Metrics
 
-- **Raw RPM**: Direct sensor reading
-- **Filtered RPM**: Kalman-filtered (smoother, more accurate)
-- **Error**: Target - Current RPM
-- **Stability**: 0-100% health score
+- Raw RPM: Direct sensor reading
+- Filtered RPM: Kalman-filtered (smoother, more accurate)
+- Error: Target - Current RPM
+- Stability: 0-100% health score
 
 ### Kalman Filter Benefits
 
@@ -105,9 +105,9 @@ The browser-based Kalman filter provides:
 - Predictive filtering for smoother readings
 - Lower latency than Arduino-based filtering
 
-## 🔬 Analysis Features
+## Analysis Features
 
-Click **"Analyze & Suggest"** to get:
+Click "Analyze & Suggest" to get:
 - Current system metrics
 - Overshoot percentage
 - Oscillation frequency
@@ -115,13 +115,13 @@ Click **"Analyze & Suggest"** to get:
 
 ### Example Suggestions
 
-> ⚠️ **Hunting Detected**
+> WARNING: Hunting Detected
 > System is oscillating. Reduce Kp by 20-30% and/or increase Kd.
 
-> ✓ **System Well-Tuned**
+> SUCCESS: System Well-Tuned
 > Stability score: 85%. Fine-tune with Kp for response, Kd for damping.
 
-## 🛠️ Troubleshooting
+## Troubleshooting
 
 ### Browser Shows "Not Supported"
 - Use Chrome, Edge, or Opera
@@ -129,7 +129,7 @@ Click **"Analyze & Suggest"** to get:
 
 ### No Data After Connecting
 - Arduino resets when serial opens - wait 2-3 seconds
-- Click **"Request Status"** to manually request data
+- Click "Request Status" to manually request data
 - Check Arduino power and USB connection
 
 ### Hunting/Oscillation
@@ -139,10 +139,10 @@ Click **"Analyze & Suggest"** to get:
 
 ### Connection Lost
 - Arduino may have reset
-- Click **"Reconnect"** button
+- Click "Reconnect" button
 - Check USB cable
 
-## 📁 File Structure
+## File Structure
 
 ```
 web_app/
@@ -153,11 +153,11 @@ web_app/
 └── README.md         # This file
 ```
 
-## 🎨 Theme
+## Theme
 
-Uses **Catppuccin Mocha** color palette for a beautiful dark theme that's easy on the eyes during extended tuning sessions.
+Uses Catppuccin Mocha color palette for a beautiful dark theme that's easy on the eyes during extended tuning sessions.
 
-## 🔌 Serial Protocol
+## Serial Protocol
 
 ```
 Browser → Arduino:
@@ -174,26 +174,26 @@ Arduino → Browser:
   STATUS:timestamp,target,current,error,pid_out,kp,ki,kd,pwm,ppr,enabled
 ```
 
-## ✨ Comparison: Web vs Desktop
+## Comparison: Web vs Desktop
 
 | Feature | Web Interface | Desktop (PyQt6) |
 |---------|---------------|-----------------|
 | Installation | None (browser) | pip install |
-| Kalman Filter | ✅ JavaScript | ✅ Python |
-| Auto-Tune | ✅ Client-side | ✅ PC-side |
+| Kalman Filter | JavaScript | Python |
+| Auto-Tune | Client-side | PC-side |
 | Charts | Chart.js | Matplotlib |
 | Platform | Any (Chrome/Edge) | Windows/Mac/Linux |
 | Server | None needed | None needed |
 
-## 📄 License
+## License
 
 MIT License - See LICENSE file in repository root.
 
-## 👥 Authors
+## Authors
 
-- **azzar budiyanto** - Hardware design and testing
-- **azzar persona (AI assistant)** - Software development
+- azzar budiyanto - Hardware design and testing
+- azzar persona (AI assistant) - Software development
 
 ---
 
-**🎉 Zero Backend - All processing in your browser!**
+Zero Backend - All processing in your browser!

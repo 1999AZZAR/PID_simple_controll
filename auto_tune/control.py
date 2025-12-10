@@ -472,8 +472,8 @@ class SerialWorker(QThread):
                 time.sleep(0.005)  # 200Hz polling
 
         except Exception as e:
-            print(f"Serial error: {e}")
-            self.connection_status.emit(False)
+                print(f"Serial error: {e}")
+                self.connection_status.emit(False)
 
     def stop(self):
         self.running = False
@@ -539,8 +539,6 @@ class PlotCanvas(FigureCanvas):
             ax.set_title(title, fontsize=11, fontweight='bold', color=color, pad=8)
             ax.set_ylabel(ylabel, fontsize=9, color='#a0a0a0')
             ax.set_xlabel('Time (s)', fontsize=8, color='#808080')
-
-        self.figure.tight_layout(pad=2.0)
 
     def update_plot(self, time_val, target_rpm, current_rpm, filtered_rpm,
                    error, pid_output, stability_score):
@@ -653,7 +651,7 @@ class PIDControllerGUI(QMainWindow):
         self.control_mode = ControlMode.ARDUINO_PID
         self.pc_pid_integral = 0.0
         self.pc_pid_prev_error = 0.0
-        
+
         # Current parameters
         self.current_params = {
             'target_rpm': 1440.0,
@@ -700,7 +698,7 @@ class PIDControllerGUI(QMainWindow):
         main_layout = QHBoxLayout(central_widget)
         main_layout.setContentsMargins(8, 8, 8, 8)
         main_layout.setSpacing(8)
-        
+
         # Left panel - Controls
         left_panel = self.create_control_panel()
         left_panel.setFixedWidth(380)
@@ -724,22 +722,22 @@ class PIDControllerGUI(QMainWindow):
         layout.setSpacing(8)
         
         # ============ CONNECTION GROUP ============
-        conn_group = QGroupBox("🔌 Connection")
+        conn_group = QGroupBox("Connection")
         conn_layout = QFormLayout()
         conn_layout.setSpacing(6)
         
         self.port_combo = QComboBox()
         self.port_combo.setMinimumWidth(180)
         conn_layout.addRow("Port:", self.port_combo)
-        
+
         self.baud_combo = QComboBox()
         self.baud_combo.addItems(["115200", "57600", "38400", "19200", "9600"])
         conn_layout.addRow("Baud:", self.baud_combo)
-        
+
         conn_buttons = QHBoxLayout()
         self.connect_btn = QPushButton("Connect")
         self.connect_btn.clicked.connect(self.toggle_connection)
-        refresh_btn = QPushButton("🔄")
+        refresh_btn = QPushButton("Refresh")
         refresh_btn.setFixedWidth(40)
         refresh_btn.clicked.connect(self.update_serial_ports)
         conn_buttons.addWidget(self.connect_btn)
@@ -750,13 +748,13 @@ class PIDControllerGUI(QMainWindow):
         layout.addWidget(conn_group)
         
         # ============ QUICK ACTIONS GROUP ============
-        quick_group = QGroupBox("⚡ Quick Actions")
+        quick_group = QGroupBox("Quick Actions")
         quick_layout = QVBoxLayout()
         quick_layout.setSpacing(8)
         
         # Motor control row
         motor_row = QHBoxLayout()
-        self.motor_btn = QPushButton("🔴 Motor OFF")
+        self.motor_btn = QPushButton("Motor OFF")
         self.motor_btn.setCheckable(True)
         self.motor_btn.clicked.connect(self.toggle_motor)
         self.motor_btn.setMinimumHeight(40)
@@ -764,7 +762,7 @@ class PIDControllerGUI(QMainWindow):
         quick_layout.addLayout(motor_row)
         
         # Auto-tune button
-        self.auto_tune_btn = QPushButton("🎯 One-Click Auto-Tune")
+        self.auto_tune_btn = QPushButton("One-Click Auto-Tune")
         self.auto_tune_btn.setMinimumHeight(45)
         self.auto_tune_btn.clicked.connect(self.start_auto_tune)
         self.auto_tune_btn.setStyleSheet("""
@@ -789,10 +787,10 @@ class PIDControllerGUI(QMainWindow):
         layout.addWidget(quick_group)
         
         # ============ PID PARAMETERS GROUP ============
-        pid_group = QGroupBox("🎛️ PID Parameters")
+        pid_group = QGroupBox("PID Parameters")
         pid_layout = QFormLayout()
         pid_layout.setSpacing(6)
-        
+
         # Target RPM
         self.target_rpm_spin = QSpinBox()
         self.target_rpm_spin.setRange(0, 5000)
@@ -800,7 +798,7 @@ class PIDControllerGUI(QMainWindow):
         self.target_rpm_spin.setSingleStep(10)
         self.target_rpm_spin.valueChanged.connect(self.update_target_rpm)
         pid_layout.addRow("Target RPM:", self.target_rpm_spin)
-        
+
         # Kp with slider
         kp_layout = QHBoxLayout()
         self.kp_slider = QSlider(Qt.Orientation.Horizontal)
@@ -816,7 +814,7 @@ class PIDControllerGUI(QMainWindow):
         kp_layout.addWidget(self.kp_slider)
         kp_layout.addWidget(self.kp_spin)
         pid_layout.addRow("Kp:", kp_layout)
-        
+
         # Ki with slider
         ki_layout = QHBoxLayout()
         self.ki_slider = QSlider(Qt.Orientation.Horizontal)
@@ -832,7 +830,7 @@ class PIDControllerGUI(QMainWindow):
         ki_layout.addWidget(self.ki_slider)
         ki_layout.addWidget(self.ki_spin)
         pid_layout.addRow("Ki:", ki_layout)
-        
+
         # Kd with slider
         kd_layout = QHBoxLayout()
         self.kd_slider = QSlider(Qt.Orientation.Horizontal)
@@ -848,19 +846,19 @@ class PIDControllerGUI(QMainWindow):
         kd_layout.addWidget(self.kd_slider)
         kd_layout.addWidget(self.kd_spin)
         pid_layout.addRow("Kd:", kd_layout)
-        
+
         # Pulses per revolution
         self.ppr_spin = QSpinBox()
         self.ppr_spin.setRange(1, 100)
         self.ppr_spin.setValue(self.current_params['pulses_per_rev'])
         self.ppr_spin.valueChanged.connect(self.update_ppr)
         pid_layout.addRow("Pulses/Rev:", self.ppr_spin)
-        
+
         pid_group.setLayout(pid_layout)
         layout.addWidget(pid_group)
-        
+
         # ============ REAL-TIME METRICS GROUP ============
-        metrics_group = QGroupBox("📊 Real-Time Metrics")
+        metrics_group = QGroupBox("Real-Time Metrics")
         metrics_layout = QGridLayout()
         metrics_layout.setSpacing(4)
         
@@ -887,7 +885,7 @@ class PIDControllerGUI(QMainWindow):
         layout.addWidget(metrics_group)
         
         # ============ TUNING HISTORY GROUP ============
-        history_group = QGroupBox("📜 Tuning History")
+        history_group = QGroupBox("Tuning History")
         history_layout = QVBoxLayout()
         
         self.history_table = QTableWidget(0, 4)
@@ -940,7 +938,7 @@ class PIDControllerGUI(QMainWindow):
         toolbar.setStyleSheet("background: #1e1e2e; color: #a0a0a0;")
         plot_layout.addWidget(self.plot_canvas)
         plot_layout.addWidget(toolbar)
-        tabs.addTab(plot_tab, "📈 Live Data")
+        tabs.addTab(plot_tab, "Live Data")
         
         # Analysis tab
         analysis_tab = QWidget()
@@ -964,22 +962,22 @@ class PIDControllerGUI(QMainWindow):
         # Analysis controls
         analysis_controls = QHBoxLayout()
         
-        step_response_btn = QPushButton("📊 Record Step Response")
+        step_response_btn = QPushButton("Record Step Response")
         step_response_btn.clicked.connect(self.start_step_response)
         analysis_controls.addWidget(step_response_btn)
         
-        analyze_btn = QPushButton("🔬 Analyze & Suggest")
+        analyze_btn = QPushButton("Analyze & Suggest")
         analyze_btn.clicked.connect(self.analyze_system)
         analysis_controls.addWidget(analyze_btn)
         
-        export_btn = QPushButton("💾 Export Data")
+        export_btn = QPushButton("Export Data")
         export_btn.clicked.connect(self.export_data)
         analysis_controls.addWidget(export_btn)
         
         analysis_controls.addStretch()
         analysis_layout.addLayout(analysis_controls)
         
-        tabs.addTab(analysis_tab, "🔬 Analysis")
+        tabs.addTab(analysis_tab, "Analysis")
         
         layout.addWidget(tabs)
         return panel
@@ -987,27 +985,27 @@ class PIDControllerGUI(QMainWindow):
     def create_menu_bar(self):
         """Create the menu bar"""
         menubar = self.menuBar()
-        
+
         # File menu
         file_menu = menubar.addMenu('File')
-        
+
         save_action = QAction('Save Parameters', self)
         save_action.triggered.connect(self.save_parameters)
         file_menu.addAction(save_action)
-        
+
         load_action = QAction('Load Parameters', self)
         load_action.triggered.connect(self.load_parameters)
         file_menu.addAction(load_action)
-        
+
         file_menu.addSeparator()
-        
+
         exit_action = QAction('Exit', self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
-        
+
         # Help menu
         help_menu = menubar.addMenu('Help')
-        
+
         about_action = QAction('About', self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
@@ -1019,7 +1017,7 @@ class PIDControllerGUI(QMainWindow):
                 background-color: #1e1e2e;
                 color: #cdd6f4;
             }
-            
+
             QGroupBox {
                 font-weight: bold;
                 border: 1px solid #45475a;
@@ -1028,14 +1026,14 @@ class PIDControllerGUI(QMainWindow):
                 padding-top: 12px;
                 color: #cdd6f4;
             }
-            
+
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 10px;
                 padding: 0 8px;
                 color: #89b4fa;
             }
-            
+
             QPushButton {
                 background-color: #313244;
                 border: 1px solid #45475a;
@@ -1044,34 +1042,34 @@ class PIDControllerGUI(QMainWindow):
                 color: #cdd6f4;
                 font-size: 12px;
             }
-            
+
             QPushButton:hover {
                 background-color: #45475a;
                 border-color: #89b4fa;
             }
-            
+
             QPushButton:pressed {
                 background-color: #585b70;
             }
-            
+
             QPushButton:checked {
                 background-color: #a6e3a1;
                 color: #1e1e2e;
                 border-color: #a6e3a1;
             }
-            
+
             QPushButton:disabled {
                 background-color: #1e1e2e;
                 color: #6c7086;
             }
-            
+
             QSlider::groove:horizontal {
                 border: none;
                 height: 6px;
                 background: #313244;
                 border-radius: 3px;
             }
-            
+
             QSlider::handle:horizontal {
                 background: #89b4fa;
                 border: none;
@@ -1080,11 +1078,11 @@ class PIDControllerGUI(QMainWindow):
                 margin: -5px 0;
                 border-radius: 8px;
             }
-            
+
             QSlider::handle:horizontal:hover {
                 background: #b4befe;
             }
-            
+
             QSpinBox, QDoubleSpinBox, QComboBox {
                 background-color: #313244;
                 border: 1px solid #45475a;
@@ -1093,23 +1091,23 @@ class PIDControllerGUI(QMainWindow):
                 color: #cdd6f4;
                 min-width: 70px;
             }
-            
+
             QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
                 border-color: #89b4fa;
             }
-            
+
             QComboBox::drop-down {
                 border: none;
                 padding-right: 8px;
             }
-            
+
             QComboBox::down-arrow {
                 image: none;
                 border-left: 4px solid transparent;
                 border-right: 4px solid transparent;
                 border-top: 5px solid #89b4fa;
             }
-            
+
             QComboBox QAbstractItemView {
                 background-color: #313244;
                 color: #cdd6f4;
@@ -1158,21 +1156,21 @@ class PIDControllerGUI(QMainWindow):
                 color: #cdd6f4;
                 border-bottom: 1px solid #313244;
             }
-            
+
             QMenuBar::item:selected {
                 background-color: #313244;
             }
-            
+
             QMenu {
                 background-color: #313244;
                 color: #cdd6f4;
                 border: 1px solid #45475a;
             }
-            
+
             QMenu::item:selected {
                 background-color: #45475a;
             }
-            
+
             QStatusBar {
                 background-color: #181825;
                 color: #a6adc8;
@@ -1188,24 +1186,24 @@ class PIDControllerGUI(QMainWindow):
         """Update the list of available serial ports"""
         self.port_combo.clear()
         ports = serial.tools.list_ports.comports()
-        
+
         arduino_ports = []
         other_ports = []
-        
+
         for port in ports:
             port_name = port.device.lower()
             description = port.description.lower() if port.description else ""
-            
+
             if ('acm' in port_name or 'usb' in port_name or
                 'arduino' in description or 'uno' in description):
                 arduino_ports.append(port)
             elif not port_name.startswith('/dev/ttys'):
                 other_ports.append(port)
-        
+
         for port in arduino_ports:
-            self.port_combo.addItem(f"🔌 {port.device}", port.device)
+            self.port_combo.addItem(f"USB {port.device}", port.device)
         for port in other_ports:
-            self.port_combo.addItem(f"📡 {port.device}", port.device)
+            self.port_combo.addItem(f"SERIAL {port.device}", port.device)
 
     def toggle_connection(self):
         """Connect or disconnect from serial port"""
@@ -1219,7 +1217,7 @@ class PIDControllerGUI(QMainWindow):
             if not port:
                 QMessageBox.warning(self, "Error", "No serial port selected")
                 return
-            
+
             baud = int(self.baud_combo.currentText())
             self.serial_worker = SerialWorker(port, baud)
             self.serial_worker.data_received.connect(self.on_data_received)
@@ -1232,13 +1230,13 @@ class PIDControllerGUI(QMainWindow):
         """Handle connection status changes"""
         if connected:
             self.connect_btn.setText("Disconnect")
-            self.statusBar().showMessage(f"✅ Connected to {self.port_combo.currentData()}")
+            self.statusBar().showMessage(f"Connected to {self.port_combo.currentData()}")
             self.last_data_time = time.time()
             self.kalman_filter.reset()
             QTimer.singleShot(500, lambda: self.send_command("GET_STATUS"))
         else:
             self.connect_btn.setText("Connect")
-            self.statusBar().showMessage("❌ Connection failed")
+            self.statusBar().showMessage("Connection failed")
 
     def on_data_received(self, data):
         """Handle incoming serial data"""
@@ -1294,11 +1292,11 @@ class PIDControllerGUI(QMainWindow):
                     self.parse_status_data(line)
                 elif "ERROR" in line or "set to" in line:
                     self.statusBar().showMessage(f"Arduino: {line}")
-            
+
             # Check for connection timeout
             if self.serial_worker and self.serial_worker.isRunning():
                 if time.time() - self.last_data_time > self.connection_timeout:
-                    self.statusBar().showMessage("⚠️ No data from Arduino")
+                    self.statusBar().showMessage("Warning: No data from Arduino")
         except:
             pass
 
@@ -1307,11 +1305,11 @@ class PIDControllerGUI(QMainWindow):
         try:
             if not data.startswith("STATUS:"):
                 return
-            
+
             parts = data[7:].split(',')
             if len(parts) < 10:
                 return
-            
+
             timestamp = float(parts[0])
             target_rpm = float(parts[1])
             current_rpm = float(parts[2])
@@ -1335,7 +1333,7 @@ class PIDControllerGUI(QMainWindow):
                     error, pid_output, metrics.stability_score
                 )
                 self.plot_update_counter = 0
-            
+
             # Update metric labels
             self.metric_labels['current_rpm'].setText(f"{current_rpm:.1f}")
             self.metric_labels['filtered_rpm'].setText(f"{filtered_rpm:.1f}")
@@ -1345,13 +1343,13 @@ class PIDControllerGUI(QMainWindow):
             
             # Status indicator
             if metrics.is_hunting:
-                self.metric_labels['status'].setText("🔴 HUNTING")
+                self.metric_labels['status'].setText("HUNTING")
                 self.metric_labels['status'].setStyleSheet("color: #f38ba8; font-weight: bold;")
             elif metrics.is_stable:
-                self.metric_labels['status'].setText("🟢 STABLE")
+                self.metric_labels['status'].setText("STABLE")
                 self.metric_labels['status'].setStyleSheet("color: #a6e3a1; font-weight: bold;")
             else:
-                self.metric_labels['status'].setText("🟡 SETTLING")
+                self.metric_labels['status'].setText("SETTLING")
                 self.metric_labels['status'].setStyleSheet("color: #f9e2af; font-weight: bold;")
             
             # Collect data during auto-tuning
@@ -1379,10 +1377,10 @@ class PIDControllerGUI(QMainWindow):
         """Toggle motor enable/disable"""
         self.current_params['motor_enabled'] = checked
         if checked:
-            self.motor_btn.setText("🟢 Motor ON")
+            self.motor_btn.setText("Motor ON")
             self.send_command("ENABLE_MOTOR 1")
         else:
-            self.motor_btn.setText("🔴 Motor OFF")
+            self.motor_btn.setText("Motor OFF")
             self.send_command("ENABLE_MOTOR 0")
             self.pc_pid_integral = 0.0
             self.pc_pid_prev_error = 0.0
@@ -1698,7 +1696,7 @@ CURRENT METRICS
   Target RPM:         {metrics.target_rpm:.1f}
   Error:              {metrics.error:.1f} RPM
   Stability Score:    {metrics.stability_score:.0f}%
-  Hunting Detected:   {'YES ⚠️' if metrics.is_hunting else 'No ✓'}
+  Hunting Detected:   {'YES - WARNING' if metrics.is_hunting else 'No'}
   Oscillation Freq:   {metrics.oscillation_frequency_hz:.2f} Hz
 
 STEP RESPONSE ANALYSIS
@@ -1721,7 +1719,7 @@ TUNING SUGGESTIONS
 """
         
         if metrics.is_hunting:
-            analysis += """  ⚠️ HUNTING DETECTED - System is oscillating
+            analysis += """  WARNING: HUNTING DETECTED - System is oscillating
   
   Recommended actions:
   1. REDUCE Kp by 20-30% (currently the main cause)
@@ -1729,7 +1727,7 @@ TUNING SUGGESTIONS
   3. REDUCE Ki if steady-state error is acceptable
 """
         elif metrics.overshoot_percent > 20:
-            analysis += f"""  ⚠️ HIGH OVERSHOOT ({metrics.overshoot_percent:.1f}%)
+            analysis += f"""  WARNING: HIGH OVERSHOOT ({metrics.overshoot_percent:.1f}%)
   
   Recommended actions:
   1. REDUCE Kp by 15-20%
@@ -1737,7 +1735,7 @@ TUNING SUGGESTIONS
   3. Ki can stay the same
 """
         elif metrics.stability_score < 70:
-            analysis += """  ⚠️ LOW STABILITY SCORE
+            analysis += """  WARNING: LOW STABILITY SCORE
   
   Recommended actions:
   1. Check for mechanical issues or load variations
@@ -1745,7 +1743,7 @@ TUNING SUGGESTIONS
   3. Try reducing Kp slightly
 """
         else:
-            analysis += """  ✓ System appears well-tuned!
+            analysis += """  SUCCESS: System appears well-tuned!
   
   Fine-tuning tips:
   - If response is sluggish: increase Kp slightly
@@ -1795,19 +1793,19 @@ TUNING SUGGESTIONS
             if filename:
                 with open(filename, 'r') as f:
                     data = json.load(f)
-                
+
                 params = data.get('params', {})
                 for key, value in params.items():
                     if key in self.current_params:
                         self.current_params[key] = value
-                
+
                 # Update GUI
                 self.target_rpm_spin.setValue(int(self.current_params['target_rpm']))
                 self.kp_spin.setValue(self.current_params['kp'])
                 self.ki_spin.setValue(self.current_params['ki'])
                 self.kd_spin.setValue(self.current_params['kd'])
                 self.ppr_spin.setValue(self.current_params['pulses_per_rev'])
-                
+
                 self.statusBar().showMessage(f"Loaded from {filename}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load: {e}")
@@ -1864,10 +1862,10 @@ def main():
     app.setApplicationName("BLDC PID Controller")
     app.setApplicationVersion("2.0")
     app.setOrganizationName("azzar")
-    
+
     window = PIDControllerGUI()
     window.show()
-    
+
     sys.exit(app.exec())
 
 
