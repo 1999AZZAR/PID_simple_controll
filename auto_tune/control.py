@@ -387,7 +387,7 @@ class AutoTuner:
         
         # Clamp to reasonable values
         result.kp = max(0.01, min(2.0, result.kp))
-        result.ki = max(0.001, min(0.5, result.ki))
+        result.ki = max(0.001, min(1.0, result.ki))
         result.kd = max(0.0001, min(0.1, result.kd))
         
         result.notes = f"Rise time: {rise_time:.3f}s, Overshoot: {overshoot:.1f}%"
@@ -530,19 +530,38 @@ class PlotCanvas(FigureCanvas):
         self.stability_score_data = []
 
     def setup_plots(self):
-        """Setup plot titles and labels with dark theme"""
+        """Setup plot titles, labels, and line objects with dark theme"""
         titles = ['Motor Speed', 'Control Error', 'PID Output', 'Stability Score']
         ylabels = ['RPM', 'Error (RPM)', 'Output', 'Score (%)']
         colors = ['#89b4fa', '#f38ba8', '#a6e3a1', '#fab387']
         
-        for ax, title, ylabel, color in zip(self.axes, titles, ylabels, colors):
+        self.lines = {}
+        
+        for i, (ax, title, ylabel, color) in enumerate(zip(self.axes, titles, ylabels, colors)):
             ax.set_title(title, fontsize=11, fontweight='bold', color=color, pad=8)
             ax.set_ylabel(ylabel, fontsize=9, color='#a0a0a0')
             ax.set_xlabel('Time (s)', fontsize=8, color='#808080')
+            
+            # specific setup for each plot
+            if i == 0: # Motor Speed
+                self.lines['target'], = ax.plot([], [], color='#f5c2e7', linestyle='--', label='Target', linewidth=2)
+                self.lines['raw'], = ax.plot([], [], color='#74c7ec', alpha=0.4, label='Raw', linewidth=1)
+                self.lines['filtered'], = ax.plot([], [], color='#89b4fa', label='Filtered', linewidth=2)
+                ax.legend(fontsize=8, loc='upper right', facecolor='#2d2d3d', 
+                           edgecolor='#404050', labelcolor='#a0a0a0')
+            elif i == 1: # Error
+                self.lines['error'], = ax.plot([], [], color='#f38ba8', linewidth=1.5)
+                ax.axhline(y=0, color='#45475a', linestyle='-', linewidth=1)
+            elif i == 2: # PID Output
+                self.lines['pid'], = ax.plot([], [], color='#a6e3a1', linewidth=1.5)
+            elif i == 3: # Stability
+                self.lines['stability'], = ax.plot([], [], color='#fab387', linewidth=2)
+                ax.set_ylim(0, 100)
+                ax.axhline(y=70, color='#f38ba8', linestyle='--', linewidth=1, alpha=0.5)
 
-    def update_plot(self, time_val, target_rpm, current_rpm, filtered_rpm,
+    def add_data(self, time_val, target_rpm, current_rpm, filtered_rpm,
                    error, pid_output, stability_score):
-        """Update plot data with Kalman-filtered values"""
+        """Add new data point to buffers (no redraw)"""
         self.time_data.append(time_val)
         self.target_rpm_data.append(target_rpm)
         self.current_rpm_data.append(current_rpm)
@@ -553,73 +572,43 @@ class PlotCanvas(FigureCanvas):
 
         # Limit data points
         if len(self.time_data) > self.max_points:
-            for data_list in [self.time_data, self.target_rpm_data, self.current_rpm_data,
-                             self.filtered_rpm_data, self.error_data, self.pid_output_data,
-                             self.stability_score_data]:
-                data_list.pop(0)
+            cutoff = len(self.time_data) - self.max_points
+            del self.time_data[:cutoff]
+            del self.target_rpm_data[:cutoff]
+            del self.current_rpm_data[:cutoff]
+            del self.filtered_rpm_data[:cutoff]
+            del self.error_data[:cutoff]
+            del self.pid_output_data[:cutoff]
+            del self.stability_score_data[:cutoff]
 
-        min_len = min(len(self.time_data), len(self.target_rpm_data))
-        if min_len < 2:
+    def refresh_plot(self):
+        """Efficiently redraw plots with latest data"""
+        if len(self.time_data) < 2:
             return
 
         # Convert to relative time
-        time_rel = [(t - self.time_data[0]) / 1000 for t in self.time_data[:min_len]]
-
-        # Clear and replot
-        for ax in self.axes:
-            ax.cla()
-
-        # RPM plot with raw and filtered
-        self.axes[0].plot(time_rel, self.target_rpm_data[:min_len], 
-                         color='#f5c2e7', linestyle='--', label='Target', linewidth=2)
-        self.axes[0].plot(time_rel, self.current_rpm_data[:min_len], 
-                         color='#74c7ec', alpha=0.4, label='Raw', linewidth=1)
-        self.axes[0].plot(time_rel, self.filtered_rpm_data[:min_len], 
-                         color='#89b4fa', label='Filtered', linewidth=2)
-        self.axes[0].set_title('Motor Speed', fontsize=11, fontweight='bold', color='#89b4fa')
-        self.axes[0].legend(fontsize=8, loc='upper right', facecolor='#2d2d3d', 
-                           edgecolor='#404050', labelcolor='#a0a0a0')
-
-        # Error plot
-        self.axes[1].fill_between(time_rel, self.error_data[:min_len], 0,
-                                  color='#f38ba8', alpha=0.3)
-        self.axes[1].plot(time_rel, self.error_data[:min_len], 
-                         color='#f38ba8', linewidth=1.5)
-        self.axes[1].axhline(y=0, color='#45475a', linestyle='-', linewidth=1)
-        self.axes[1].set_title('Control Error', fontsize=11, fontweight='bold', color='#f38ba8')
-
-        # PID output
-        self.axes[2].plot(time_rel, self.pid_output_data[:min_len], 
-                         color='#a6e3a1', linewidth=1.5)
-        self.axes[2].set_title('PID Output', fontsize=11, fontweight='bold', color='#a6e3a1')
-
-        # Stability score
-        self.axes[3].fill_between(time_rel, self.stability_score_data[:min_len], 0,
-                                  color='#fab387', alpha=0.3)
-        self.axes[3].plot(time_rel, self.stability_score_data[:min_len], 
-                         color='#fab387', linewidth=2)
-        self.axes[3].set_ylim(0, 100)
-        self.axes[3].axhline(y=70, color='#f38ba8', linestyle='--', linewidth=1, alpha=0.5)
-        self.axes[3].set_title('Stability Score', fontsize=11, fontweight='bold', color='#fab387')
-
-        # Apply consistent styling
-        for ax in self.axes:
-            ax.set_facecolor('#2d2d3d')
-            ax.tick_params(colors='#a0a0a0', labelsize=8)
-            ax.spines['bottom'].set_color('#404050')
-            ax.spines['top'].set_color('#404050')
-            ax.spines['left'].set_color('#404050')
-            ax.spines['right'].set_color('#404050')
-            ax.grid(True, alpha=0.15, color='#505060')
-            if time_rel:
-                ax.set_xlim(min(time_rel), max(time_rel) + 0.1)
-            ax.set_xlabel('Time (s)', fontsize=8, color='#808080')
-
+        t0 = self.time_data[0]
+        time_rel = [(t - t0) / 1000 for t in self.time_data]
+        
         try:
-            self.figure.subplots_adjust(left=0.08, bottom=0.08, right=0.96, top=0.94, hspace=0.35, wspace=0.25)
+            # Update lines
+            self.lines['target'].set_data(time_rel, self.target_rpm_data)
+            self.lines['raw'].set_data(time_rel, self.current_rpm_data)
+            self.lines['filtered'].set_data(time_rel, self.filtered_rpm_data)
+            self.lines['error'].set_data(time_rel, self.error_data)
+            self.lines['pid'].set_data(time_rel, self.pid_output_data)
+            self.lines['stability'].set_data(time_rel, self.stability_score_data)
+            
+            # Rescale axes
+            for ax in self.axes:
+                ax.relim()
+                ax.autoscale_view()
+                # Keep x-axis strictly to data range
+                ax.set_xlim(min(time_rel), max(time_rel) + 0.1)
+
             self.draw()
         except Exception as e:
-            print(f"Plot error: {e}")
+            print(f"Plot refresh error: {e}")
 
     def clear_data(self):
         """Clear all plot data"""
@@ -630,6 +619,11 @@ class PlotCanvas(FigureCanvas):
         self.error_data.clear()
         self.pid_output_data.clear()
         self.stability_score_data.clear()
+        
+        # Clear lines
+        for line in self.lines.values():
+            line.set_data([], [])
+        self.draw()
 
 
 class PIDControllerGUI(QMainWindow):
@@ -690,6 +684,10 @@ class PIDControllerGUI(QMainWindow):
         self.metrics_timer = QTimer()
         self.metrics_timer.timeout.connect(self.update_metrics_display)
         self.metrics_timer.start(250)  # 4Hz metrics update
+
+        self.plot_timer = QTimer()
+        self.plot_timer.timeout.connect(self.plot_canvas.refresh_plot)
+        self.plot_timer.start(100) # 10Hz plot refresh
 
     def init_ui(self):
         """Initialize the user interface"""
@@ -818,11 +816,11 @@ class PIDControllerGUI(QMainWindow):
         # Ki with slider
         ki_layout = QHBoxLayout()
         self.ki_slider = QSlider(Qt.Orientation.Horizontal)
-        self.ki_slider.setRange(0, 200)
+        self.ki_slider.setRange(0, 1000)
         self.ki_slider.setValue(int(self.current_params['ki'] * 1000))
         self.ki_slider.valueChanged.connect(self.update_ki_from_slider)
         self.ki_spin = QDoubleSpinBox()
-        self.ki_spin.setRange(0, 0.2)
+        self.ki_spin.setRange(0, 1.0)
         self.ki_spin.setValue(self.current_params['ki'])
         self.ki_spin.setSingleStep(0.001)
         self.ki_spin.setDecimals(4)
@@ -1319,20 +1317,17 @@ class PIDControllerGUI(QMainWindow):
             ki = float(parts[6])
             kd = float(parts[7])
             
-            # Get Kalman-filtered RPM
-            filtered_rpm = self.kalman_filter.update(current_rpm)
+            # Get Kalman-filtered RPM (already updated in on_raw_rpm)
+            filtered_rpm = self.kalman_filter.estimate
             
             # Calculate stability metrics
             metrics = self.stability_analyzer.calculate_metrics()
             
-            # Update plot
-            self.plot_update_counter += 1
-            if self.plot_update_counter >= self.plot_update_interval:
-                self.plot_canvas.update_plot(
-                    timestamp, target_rpm, current_rpm, filtered_rpm,
-                    error, pid_output, metrics.stability_score
-                )
-                self.plot_update_counter = 0
+            # Add data to plot buffer (no redraw)
+            self.plot_canvas.add_data(
+                timestamp, target_rpm, current_rpm, filtered_rpm,
+                error, pid_output, metrics.stability_score
+            )
 
             # Update metric labels
             self.metric_labels['current_rpm'].setText(f"{current_rpm:.1f}")

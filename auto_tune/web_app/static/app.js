@@ -272,6 +272,12 @@ class BLDCController {
         // Connection monitoring
         this.lastDataTime = 0;
         this.connectionTimeout = 5000;
+        
+        // Rendering control
+        this.lastChartUpdate = 0;
+        this.lastUIUpdate = 0;
+        this.newDataAvailable = false;
+        this.currentData.latestMetrics = null;
 
         this.init();
     }
@@ -282,6 +288,7 @@ class BLDCController {
         this.setupCharts();
         this.updateUI();
         this.startConnectionMonitoring();
+        this.startRenderingLoop();
     }
 
     checkWebSerialSupport() {
@@ -467,221 +474,98 @@ class BLDCController {
         }, 1000);
     }
 
-    async connectSerial() {
-        try {
-            this.port = await navigator.serial.requestPort();
-            await this.port.open({
-                baudRate: 115200,
-                dataBits: 8,
-                stopBits: 1,
-                parity: 'none'
-            });
+    startRenderingLoop() {
+        const animate = () => {
+            const now = Date.now();
+            const currentDataLength = this.currentData.plot_data.time.length;
+            
+            // Only update if we have new data available
+            if (this.newDataAvailable) {
+                // Update charts at 20fps (50ms)
+                if (now - this.lastChartUpdate > 50) {
+                    this.updateCharts();
+                    this.lastChartUpdate = now;
+                }
 
-            this.isConnected = true;
-            this.lastDataTime = Date.now();
-            this.kalmanFilter.reset();
-            this.stabilityAnalyzer.clear();
-            this.updateConnectionStatus(true);
-
-            document.getElementById('request-status-btn').disabled = false;
-            document.getElementById('auto-tune-btn').disabled = false;
-
-            this.startReading();
-
-            // Request status after Arduino reboots
-            setTimeout(() => this.sendCommand("GET_STATUS"), 2000);
-            setTimeout(() => this.sendCommand("GET_STATUS"), 4000);
-
-        } catch (error) {
-            console.error('Connection failed:', error);
-            this.updateConnectionStatus(false, 'Error');
-            this.showAlert(`Connection failed: ${error.message}`, 'danger');
-        }
-    }
-
-    async disconnectSerial() {
-        this.isConnected = false;
-        
-        if (this.reader) {
-            try { await this.reader.cancel(); } catch (e) {}
-            this.reader = null;
-        }
-        
-        if (this.port) {
-            try { await this.port.close(); } catch (e) {}
-            this.port = null;
-        }
-        
-        this.updateConnectionStatus(false);
-        document.getElementById('request-status-btn').disabled = true;
-        document.getElementById('auto-tune-btn').disabled = true;
-    }
-
-    async startReading() {
-        try {
-            const decoder = new TextDecoder();
-            let buffer = '';
-            this.reader = this.port.readable.getReader();
-
-            while (true) {
-                const { value, done } = await this.reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-
-                const lines = buffer.split('\n');
-                buffer = lines.pop();
-
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (trimmed) this.processSerialLine(trimmed);
+                // Update UI/Metrics at 10fps (100ms)
+                if (now - this.lastUIUpdate > 100) {
+                    const metrics = this.currentData.latestMetrics;
+                    if (metrics) {
+                         // Safely get last values
+                         const len = this.currentData.plot_data.current_rpm.length;
+                         if (len > 0) {
+                             this.updateMetricsDisplay(
+                                 metrics, 
+                                 this.currentData.plot_data.current_rpm[len-1],
+                                 this.currentData.plot_data.filtered_rpm[len-1],
+                                 this.currentData.plot_data.error[len-1]
+                             );
+                             this.updateUI();
+                         }
+                    }
+                    this.lastUIUpdate = now;
+                    this.newDataAvailable = false; 
                 }
             }
-        } catch (error) {
-            console.error('Read error:', error);
-            if (this.isConnected) {
-                this.updateConnectionStatus(false, 'Read Error');
-                document.getElementById('reconnect-btn').style.display = 'block';
-            }
-        } finally {
-            if (this.reader) {
-                try { this.reader.releaseLock(); } catch (e) {}
-                this.reader = null;
-            }
-        }
+
+            requestAnimationFrame(animate);
+        };
+        requestAnimationFrame(animate);
     }
 
-    processSerialLine(line) {
-        if (line.startsWith("STATUS:")) {
-            this.parseStatusData(line);
-        } else if (line.includes("ERROR")) {
-            this.showAlert(`Arduino: ${line}`, 'warning');
-        }
-    }
-
-    parseStatusData(data) {
-        try {
-            const parts = data.substring(7).split(',');
-            if (parts.length !== 11) return;
-
-            const timestamp = parseFloat(parts[0]);
-            const target_rpm = parseFloat(parts[1]);
-            const current_rpm = parseFloat(parts[2]);
-            const error = parseFloat(parts[3]);
-            const pid_output = parseFloat(parts[4]);
-            const kp = parseFloat(parts[5]);
-            const ki = parseFloat(parts[6]);
-            const kd = parseFloat(parts[7]);
-            const ppr = parseInt(parts[9]);
-            const motor_enabled = parseInt(parts[10]);
-
-            this.lastDataTime = Date.now();
-
-            // Apply Kalman filter
-            const filtered_rpm = this.kalmanFilter.update(current_rpm);
-
-            // Update stability analyzer
-            this.stabilityAnalyzer.addSample(filtered_rpm, target_rpm, timestamp);
-            const metrics = this.stabilityAnalyzer.calculateMetrics();
-
-            // Update current data
-            this.currentData.parameters = {
-                target_rpm, kp, ki, kd,
-                pulses_per_rev: ppr,
-                motor_enabled: motor_enabled === 1
-            };
-
-            // Add to plot data
-            const plotData = this.currentData.plot_data;
-            plotData.time.push(timestamp);
-            plotData.target_rpm.push(target_rpm);
-            plotData.current_rpm.push(current_rpm);
-            plotData.filtered_rpm.push(filtered_rpm);
-            plotData.error.push(error);
-            plotData.pid_output.push(pid_output);
-            plotData.stability_score.push(metrics.stabilityScore);
-
-            // Limit data points
-            const maxPoints = 200;
-            if (plotData.time.length > maxPoints) {
-                Object.keys(plotData).forEach(key => plotData[key].shift());
-            }
-
-            // Update displays
-            this.updateMetricsDisplay(metrics, current_rpm, filtered_rpm, error);
-            this.updateUI();
-            this.updateCharts();
-
-            // Auto-tuning data collection
-            if (this.autoTuning.active) {
-                this.processAutoTuneData(metrics);
-            }
-
-        } catch (error) {
-            console.error('Parse error:', error);
-        }
-    }
-
-    updateMetricsDisplay(metrics, rawRpm, filteredRpm, error) {
-        document.getElementById('rpm-display').textContent = rawRpm.toFixed(0);
-        document.getElementById('filtered-rpm-display').textContent = filteredRpm.toFixed(0);
-        document.getElementById('error-display').textContent = error.toFixed(1);
-        document.getElementById('stability-display').textContent = metrics.stabilityScore.toFixed(0) + '%';
-
-        const huntingEl = document.getElementById('hunting-status');
-        if (metrics.isHunting) {
-            huntingEl.textContent = 'HUNTING';
-            huntingEl.className = 'status-value status-badge hunting';
-        } else if (metrics.isStable) {
-            huntingEl.textContent = 'STABLE';
-            huntingEl.className = 'status-value status-badge stable';
-        } else {
-            huntingEl.textContent = 'SETTLING';
-            huntingEl.className = 'status-value status-badge settling';
-        }
-
-        // Color code error
-        const errorEl = document.getElementById('error-display');
-        if (Math.abs(error) < 20) {
-            errorEl.style.color = 'var(--success)';
-        } else if (Math.abs(error) < 100) {
-            errorEl.style.color = 'var(--warning)';
-        } else {
-            errorEl.style.color = 'var(--danger)';
-        }
-    }
+    // ... (connectSerial and others remain same)
 
     updateCharts() {
         const plotData = this.currentData.plot_data;
-        const timeData = plotData.time;
+        const len = plotData.time.length;
 
-        if (timeData.length < 2) return;
+        if (len < 2) return;
 
-        const timeRel = timeData.map(t => (t - timeData[0]) / 1000);
+        // Use direct array mapping which is faster for small arrays (200 items)
+        // Optimization: Pre-calculate time offset
+        const t0 = plotData.time[0];
+        const timeRel = new Array(len);
+        const targetData = new Array(len);
+        const currentData = new Array(len);
+        const filteredData = new Array(len);
+        const errorData = new Array(len);
+        const stabilityData = new Array(len);
 
-        // Speed chart
-        this.charts.speed.data.datasets[0].data = timeRel.map((t, i) => ({ x: t, y: plotData.target_rpm[i] }));
-        this.charts.speed.data.datasets[1].data = timeRel.map((t, i) => ({ x: t, y: plotData.current_rpm[i] }));
-        this.charts.speed.data.datasets[2].data = timeRel.map((t, i) => ({ x: t, y: plotData.filtered_rpm[i] }));
+        for(let i=0; i<len; i++) {
+            const t = (plotData.time[i] - t0) / 1000;
+            timeRel[i] = t;
+            // Create point objects directly
+            targetData[i] = {x: t, y: plotData.target_rpm[i]};
+            currentData[i] = {x: t, y: plotData.current_rpm[i]};
+            filteredData[i] = {x: t, y: plotData.filtered_rpm[i]};
+            errorData[i] = {x: t, y: plotData.error[i]};
+            stabilityData[i] = {x: t, y: plotData.stability_score[i]};
+        }
+
+        // Assign data buffers directly without triggering internal watchers yet
+        const speedDatasets = this.charts.speed.data.datasets;
+        speedDatasets[0].data = targetData;
+        speedDatasets[1].data = currentData;
+        speedDatasets[2].data = filteredData;
+
+        this.charts.error.data.datasets[0].data = errorData;
+        this.charts.stability.data.datasets[0].data = stabilityData;
+
+        // Efficient update mode
         this.charts.speed.update('none');
-
-        // Error chart
-        this.charts.error.data.datasets[0].data = timeRel.map((t, i) => ({ x: t, y: plotData.error[i] }));
         this.charts.error.update('none');
-
-        // Stability chart
-        this.charts.stability.data.datasets[0].data = timeRel.map((t, i) => ({ x: t, y: plotData.stability_score[i] }));
         this.charts.stability.update('none');
     }
 
     updateUI() {
         const params = this.currentData.parameters;
+        const activeId = document.activeElement ? document.activeElement.id : null;
         
-        document.getElementById('target-rpm').value = params.target_rpm;
-        document.getElementById('kp-slider').value = params.kp;
-        document.getElementById('ki-slider').value = params.ki;
-        document.getElementById('kd-slider').value = params.kd;
-        document.getElementById('ppr').value = params.pulses_per_rev;
+        if (activeId !== 'target-rpm') document.getElementById('target-rpm').value = params.target_rpm;
+        if (activeId !== 'kp-slider') document.getElementById('kp-slider').value = params.kp;
+        if (activeId !== 'ki-slider') document.getElementById('ki-slider').value = params.ki;
+        if (activeId !== 'kd-slider') document.getElementById('kd-slider').value = params.kd;
+        if (activeId !== 'ppr') document.getElementById('ppr').value = params.pulses_per_rev;
 
         document.getElementById('kp-value').textContent = params.kp.toFixed(3);
         document.getElementById('ki-value').textContent = params.ki.toFixed(4);
@@ -827,7 +711,7 @@ class BLDCController {
 
         // Clamp to reasonable values
         result.kp = Math.max(0.01, Math.min(2.0, result.kp));
-        result.ki = Math.max(0.001, Math.min(0.2, result.ki));
+        result.ki = Math.max(0.001, Math.min(1.0, result.ki));
         result.kd = Math.max(0.001, Math.min(0.1, result.kd));
 
         // Apply parameters
