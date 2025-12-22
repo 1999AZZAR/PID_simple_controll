@@ -2,41 +2,46 @@
 
 A modern, powerful PID tuning application that leverages your **PC's computational power** for superior motor control stability and easier tuning.
 
-## 🚀 Key Features
+## Key Features
 
 ### One-Click Auto-Tuning
+
 - **Ziegler-Nichols** method with automatic oscillation detection
 - **Multiple tuning variants** for different response characteristics
 - **Step response analysis** for system identification
 - Automatically finds optimal Kp, Ki, Kd parameters
 
 ### PC-Side Signal Processing
+
 - **Kalman filtering** for smooth, noise-free RPM readings
 - Real-time **hunting detection** (oscillation detection)
 - **Stability scoring** (0-100%) with visual feedback
 - Advanced filtering that outperforms Arduino-only solutions
 
 ### Real-Time Analysis
+
 - Live **overshoot** and **settling time** measurement
 - **Step response recording** with analysis
 - Automatic **tuning suggestions** based on system behavior
 - Export data to CSV for further analysis
 
 ### Modern Dark-Theme Interface
+
 - Beautiful Catppuccin-inspired dark theme
 - Real-time 4-panel plotting
 - Slider + spinbox controls for precise adjustment
 - Tuning history with one-click apply
 
-## 📸 Screenshots
+## Screenshots
 
 The GUI provides:
+
 - **Live Data Tab**: Real-time plots of RPM, Error, PID Output, and Stability Score
 - **Analysis Tab**: System analysis report with tuning suggestions
 - **Quick Actions**: One-click motor control and auto-tuning
 - **Real-Time Metrics**: Instant feedback on system performance
 
-## 🔧 Installation
+## Installation
 
 ### 1. Install Python Dependencies
 
@@ -46,6 +51,7 @@ pip install -r requirements.txt
 ```
 
 Required packages:
+
 - PyQt6 (GUI framework)
 - matplotlib (plotting)
 - pyserial (Arduino communication)
@@ -64,7 +70,7 @@ Required packages:
 python control.py
 ```
 
-## 🎯 Quick Start Guide
+## Quick Start Guide
 
 ### First Time Setup
 
@@ -94,24 +100,25 @@ python control.py
 ### Manual Tuning
 
 Use the sliders/spinboxes for:
+
 - **Kp**: Proportional gain (start low: 0.1-0.3)
 - **Ki**: Integral gain (very small: 0.005-0.02)
 - **Kd**: Derivative gain (damping: 0.01-0.05)
 
 Watch the **Stability Score** - aim for >80%
 
-## 📊 Understanding the Display
+## Understanding the Display
 
 ### Real-Time Metrics
 
-| Metric | Description | Good Value |
-|--------|-------------|------------|
-| Current RPM | Raw sensor reading | Close to target |
-| Filtered RPM | Kalman-filtered value | Smoother, more accurate |
-| Error | Target - Current | Near 0 |
-| Overshoot | Peak above target | < 10% |
-| Stability | Overall health score | > 80% |
-| Status | STABLE / SETTLING / HUNTING | STABLE |
+| Metric       | Description                 | Good Value              |
+| ------------ | --------------------------- | ----------------------- |
+| Current RPM  | Raw sensor reading          | Close to target         |
+| Filtered RPM | Kalman-filtered value       | Smoother, more accurate |
+| Error        | Target - Current            | Near 0                  |
+| Overshoot    | Peak above target           | < 10%                   |
+| Stability    | Overall health score        | > 80%                   |
+| Status       | STABLE / SETTLING / HUNTING | STABLE                  |
 
 ### Status Indicators
 
@@ -119,7 +126,7 @@ Watch the **Stability Score** - aim for >80%
 - 🟡 **SETTLING**: System is adjusting (normal after changes)
 - 🔴 **HUNTING**: System is oscillating - reduce Kp!
 
-## 🔬 Advanced Features
+## Advanced Features
 
 ### Step Response Analysis
 
@@ -130,6 +137,7 @@ Watch the **Stability Score** - aim for >80%
 5. Click **🔬 Analyze & Suggest**
 
 The analysis will show:
+
 - Rise time
 - Overshoot percentage
 - Settling time
@@ -142,62 +150,72 @@ Every auto-tune result is saved to the history table. Click any row to instantly
 ### Data Export
 
 Click **💾 Export Data** to save a CSV with:
+
 - Timestamp, Target RPM, Raw RPM, Filtered RPM
 - Error, PID Output, Stability Score
 
-## ⚙️ Configuration Reference
+## Configuration Reference
 
 ### Pulses Per Revolution (PPR)
 
 Common values:
-| Motor Type | PPR |
-|------------|-----|
-| 8-pole (4 pole pairs) | 4 |
-| 6-pole (3 pole pairs) | 3 |
-| 3-Hall with OR gate | 24 |
+
+| Motor Type            | PPR |
+| --------------------- | --- |
+| 8-pole (4 pole pairs) | 4   |
+| 6-pole (3 pole pairs) | 3   |
+| 3-Hall with OR gate   | 24  |
 
 ### PID Parameter Ranges
 
-| Parameter | Typical Range | Effect |
-|-----------|---------------|--------|
-| Kp | 0.1 - 1.0 | Higher = faster response, but can cause oscillation |
-| Ki | 0.001 - 0.05 | Higher = eliminates steady-state error, but slow |
-| Kd | 0.005 - 0.05 | Higher = more damping, reduces overshoot |
+| Parameter | Typical Range | Effect                                              |
+| --------- | ------------- | --------------------------------------------------- |
+| Kp        | 0.1 - 1.0     | Higher = faster response, but can cause oscillation |
+| Ki        | 0.001 - 0.05  | Higher = eliminates steady-state error, but slow    |
+| Kd        | 0.005 - 0.05  | Higher = more damping, reduces overshoot            |
 
-## 🚑 Troubleshooting
+## Troubleshooting
 
 ### Problem: Hunting / Oscillation
+
 **Symptoms**: Motor speed swings up and down, Status shows "HUNTING"
 
 **Solutions**:
+
 1. Reduce Kp by 20-30%
 2. Increase Kd slightly
 3. Try the auto-tune with "No Overshoot" variant
 
 ### Problem: Sluggish Response
+
 **Symptoms**: Takes too long to reach target, Stability shows "SETTLING" for a long time
 
 **Solutions**:
+
 1. Increase Kp slightly
 2. Increase Ki (but be careful!)
 
 ### Problem: Steady-State Error
+
 **Symptoms**: RPM stabilizes but not at target
 
 **Solutions**:
+
 1. Increase Ki slightly
 2. Verify PPR setting matches your motor
 
 ### Problem: No Data Received
+
 **Symptoms**: Plots are empty, "No data from Arduino" warning
 
 **Solutions**:
+
 1. Check USB connection
 2. Verify correct port selected
 3. Check baud rate (should be 115200)
 4. Close Arduino IDE Serial Monitor
 
-## 🏗️ How It Works
+## How It Works
 
 ### PC-Side Processing
 
@@ -233,9 +251,10 @@ Arduino → PC:
   STATUS:timestamp,target,current,error,pid_out,kp,ki,kd,pwm,ppr,enabled
 ```
 
-## 📋 Version History
+## Version History
 
 ### v2.0 (December 2025)
+
 - Complete rewrite with PC-powered processing
 - One-click auto-tuning
 - Kalman filtering
@@ -243,15 +262,16 @@ Arduino → PC:
 - Real-time stability analysis
 
 ### v1.0 (November 2025)
+
 - Initial PyQt6 interface
 - Basic serial communication
 - Manual PID tuning
 
-## 📄 License
+## License
 
 MIT License - See LICENSE file in repository root.
 
-## 👥 Authors
+## Authors
 
 - **azzar budiyanto** - Hardware design and testing
 - **azzar persona (AI assistant)** - Software development
