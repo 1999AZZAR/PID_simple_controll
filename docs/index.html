@@ -73,11 +73,12 @@
                     <div class="panel-body">
                         <div class="compatibility-notice mb-3">
                             <div class="notice-icon">
-                                <i class="fab fa-chrome"></i>
+                                <i class="fas fa-server"></i>
                             </div>
                             <div class="notice-content">
-                                <div class="notice-title">Web Serial API</div>
-                                <div class="notice-text">Requires Chrome, Edge, or Opera</div>
+                                <div class="notice-title">Local Server Required</div>
+                                <div class="notice-text">Run: python3 -m http.server 8000</div>
+                                <div class="notice-text small">Access: http://localhost:8000</div>
                             </div>
                         </div>
 
@@ -304,6 +305,15 @@
                                 <li><strong>Stability Scoring:</strong> 0-100% system health metric</li>
                                 <li><strong>Web Serial API:</strong> Direct browser-to-Arduino connection</li>
                             </ul>
+
+                            <h6><i class="fas fa-server me-2"></i>Hosting Requirements</h6>
+                            <div class="browser-requirements">
+                                <ul class="mb-0">
+                                    <li><strong>Local Server Only</strong> - Cannot be hosted on GitHub Pages</li>
+                                    <li>Run: <code>python3 -m http.server 8000</code></li>
+                                    <li>Access: <code>http://localhost:8000</code></li>
+                                </ul>
+                            </div>
 
                             <h6 class="mt-4"><i class="fab fa-chrome me-2"></i>Browser Support</h6>
                             <div class="browser-requirements">

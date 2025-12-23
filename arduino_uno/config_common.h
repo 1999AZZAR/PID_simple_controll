@@ -21,8 +21,8 @@
 
 // Default PID parameters (can be overridden by each project)
 #define DEFAULT_TARGET_RPM 1440.0   // Default target RPM
-#define DEFAULT_KP         0.5      // Default proportional gain (very conservative)
-#define DEFAULT_KI         0.005    // Default integral gain (very small for stability)
-#define DEFAULT_KD         0.01     // Default derivative gain (strong damping)
+#define DEFAULT_KP         0.900    // Default proportional gain
+#define DEFAULT_KI         1.000    // Default integral gain
+#define DEFAULT_KD         0.0562   // Default derivative gain
 
 #endif // CONFIG_COMMON_H

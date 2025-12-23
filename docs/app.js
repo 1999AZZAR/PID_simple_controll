@@ -142,6 +142,11 @@ class StabilityAnalyzer {
         return arr.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / arr.length;
     }
 
+    calculateStabilityScore() {
+        const metrics = this.calculateMetrics();
+        return metrics.stabilityScore;
+    }
+
     getSuggestions(metrics) {
         const suggestions = [];
 
@@ -292,10 +297,63 @@ class BLDCController {
     }
 
     checkWebSerialSupport() {
+        const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        const isHttps = location.protocol === 'https:';
+        const isSupportedProtocol = isLocalhost || isHttps;
+        const isFileProtocol = location.protocol === 'file:';
+        const isGithubPages = location.hostname.includes('github.io') || location.hostname.includes('githubusercontent.com');
+
+        console.log('Browser detection:', {
+            protocol: location.protocol,
+            hostname: location.hostname,
+            hasSerial: 'serial' in navigator,
+            userAgent: navigator.userAgent,
+            isLocalhost,
+            isHttps,
+            isGithubPages
+        });
+
+        // GitHub Pages hosting won't work - Web Serial API requires local access
+        if (isGithubPages) {
+            this.showAlert('⚠️ GitHub Pages Hosting Limitation: This interface requires direct access to your computer\'s serial ports and can only work when served locally. Please run a local server instead.', 'warning');
+            document.getElementById('connect-btn').disabled = true;
+            document.getElementById('connect-btn').innerHTML = '<i class="fas fa-server me-2"></i>Requires Local Server';
+            return;
+        }
+
+        if (isFileProtocol) {
+            this.showAlert('Please access this page via localhost server: http://localhost:8000 (not file://). Web Serial API requires HTTP/HTTPS.', 'danger');
+            document.getElementById('connect-btn').disabled = true;
+            document.getElementById('connect-btn').innerHTML = '<i class="fas fa-times me-2"></i>Use localhost:8000';
+            return;
+        }
+
         if (!('serial' in navigator)) {
-            this.showAlert('Web Serial API not supported. Please use Chrome, Edge, or Opera.', 'danger');
+            const isChrome = /Chrome/.test(navigator.userAgent) && !/Edg/.test(navigator.userAgent);
+            const isEdge = /Edg/.test(navigator.userAgent);
+            const isOpera = /OPR|Opera/.test(navigator.userAgent);
+
+            let message = 'Web Serial API not supported.';
+            if (!isChrome && !isEdge && !isOpera) {
+                message += ' Please use Chrome, Edge, or Opera browser.';
+            } else {
+                message += ' Please update your browser to a newer version (Chrome 89+, Edge 89+, Opera 75+).';
+            }
+
+            if (!isSupportedProtocol) {
+                message += ' Also requires HTTPS or localhost.';
+            }
+
+            this.showAlert(message, 'danger');
             document.getElementById('connect-btn').disabled = true;
             document.getElementById('connect-btn').innerHTML = '<i class="fas fa-times me-2"></i>Not Supported';
+        } else if (!isSupportedProtocol) {
+            this.showAlert('Web Serial API requires HTTPS or localhost. Please access via http://localhost:8000', 'warning');
+            document.getElementById('connect-btn').disabled = true;
+            document.getElementById('connect-btn').innerHTML = '<i class="fas fa-times me-2"></i>Requires localhost';
+        } else {
+            // All good - Web Serial API is supported and we're on proper protocol
+            console.log('✅ Web Serial API is supported and available');
         }
     }
 
@@ -513,7 +571,224 @@ class BLDCController {
         requestAnimationFrame(animate);
     }
 
-    // ... (connectSerial and others remain same)
+    async connectSerial() {
+        try {
+            // Request a port
+            this.port = await navigator.serial.requestPort();
+
+            // Open the port
+            await this.port.open({
+                baudRate: 115200,
+                dataBits: 8,
+                stopBits: 1,
+                parity: 'none'
+            });
+
+            this.isConnected = true;
+            this.updateConnectionStatus(true);
+
+            // Start reading data
+            this.startReading();
+
+            console.log('✅ Connected to Arduino');
+            this.showAlert('Connected to Arduino successfully!', 'success');
+
+        } catch (error) {
+            console.error('❌ Connection failed:', error);
+            this.showAlert('Failed to connect: ' + error.message, 'danger');
+            this.isConnected = false;
+            this.updateConnectionStatus(false, 'Error');
+        }
+    }
+
+    async disconnectSerial() {
+        try {
+            if (this.reader) {
+                await this.reader.cancel();
+                this.reader = null;
+            }
+
+            if (this.port) {
+                await this.port.close();
+                this.port = null;
+            }
+
+            this.isConnected = false;
+            this.updateConnectionStatus(false);
+            this.showAlert('Disconnected from Arduino', 'info');
+
+        } catch (error) {
+            console.error('❌ Disconnect error:', error);
+        }
+    }
+
+    async startReading() {
+        if (!this.port) return;
+
+        try {
+            while (this.port.readable) {
+                this.reader = this.port.readable.getReader();
+                const decoder = new TextDecoder();
+
+                try {
+                    while (true) {
+                        const { value, done } = await this.reader.read();
+                        if (done) break;
+
+                        const data = decoder.decode(value);
+                        this.processSerialData(data);
+                    }
+                } catch (error) {
+                    console.error('❌ Read error:', error);
+                } finally {
+                    this.reader.releaseLock();
+                }
+            }
+        } catch (error) {
+            console.error('❌ Reading setup error:', error);
+        }
+    }
+
+    processSerialData(data) {
+        // Process incoming serial data from Arduino
+        const lines = data.split('\n');
+        for (const line of lines) {
+            if (line.trim()) {
+                this.parseArduinoData(line.trim());
+            }
+        }
+    }
+
+    parseArduinoData(line) {
+        try {
+            // Parse STATUS data from Arduino (matches Python GUI format)
+            if (line.startsWith("STATUS:")) {
+                // Parse: "STATUS: timestamp,target_rpm,current_rpm,error,pid_output,kp,ki,kd,pulses_per_rev,motor_enabled"
+                const parts = line.substring(7).split(',');
+                if (parts.length >= 10) {
+                    const timestamp = parseFloat(parts[0]);
+                    const target_rpm = parseFloat(parts[1]);
+                    const current_rpm = parseFloat(parts[2]);
+                    const error = parseFloat(parts[3]);
+                    const pid_output = parseFloat(parts[4]);
+                    const kp = parseFloat(parts[5]);
+                    const ki = parseFloat(parts[6]);
+                    const kd = parseFloat(parts[7]);
+                    const pulses_per_rev = parseInt(parts[8]);
+                    const motor_enabled = parseInt(parts[9]) === 1;
+
+                    this.updateStatusData(timestamp, target_rpm, current_rpm, error, pid_output, kp, ki, kd, pulses_per_rev, motor_enabled);
+                }
+            } else if (line.startsWith('Kp set to:')) {
+                console.log('Arduino:', line);
+            } else if (line.startsWith('Ki set to:')) {
+                console.log('Arduino:', line);
+            } else if (line.startsWith('Kd set to:')) {
+                console.log('Arduino:', line);
+            } else if (line.includes('Motor enabled') || line.includes('Motor disabled')) {
+                console.log('Arduino:', line);
+            } else if (line.includes('Target RPM set to:')) {
+                console.log('Arduino:', line);
+            } else {
+                // Other Arduino messages
+                console.log('Arduino:', line);
+            }
+        } catch (error) {
+            console.error('❌ Parse error:', error, 'Line:', line);
+        }
+    }
+
+    updateStatusData(timestamp, target_rpm, current_rpm, error, pid_output, kp, ki, kd, pulses_per_rev, motor_enabled) {
+        // Update current parameters
+        this.currentData.target_rpm = target_rpm;
+        this.currentData.current_rpm = current_rpm;
+        this.currentData.error = error;
+        this.currentData.pid_output = pid_output;
+        this.currentData.parameters.kp = kp;
+        this.currentData.parameters.ki = ki;
+        this.currentData.parameters.kd = kd;
+        this.currentData.parameters.pulses_per_rev = pulses_per_rev;
+        this.currentData.parameters.motor_enabled = motor_enabled;
+
+        // Apply Kalman filter
+        const filteredRPM = this.kalmanFilter.update(current_rpm);
+
+        // Update stability analyzer
+        this.stabilityAnalyzer.addSample(filteredRPM, target_rpm, timestamp);
+
+        // Update charts data
+        this.addDataPoint(timestamp, target_rpm, current_rpm, filteredRPM, error, pid_output);
+
+        // Update UI
+        this.updateRPMDisplays(current_rpm, filteredRPM, error);
+
+        // Calculate stability score
+        const stability = this.stabilityAnalyzer.calculateStabilityScore();
+        this.updateStabilityScore(stability);
+
+        // Update PID parameter displays if they don't match current settings
+        this.updatePIDDisplays(kp, ki, kd);
+    }
+
+    updatePIDDisplays(kp, ki, kd) {
+        // Update the displayed values to match Arduino's current parameters
+        const kpValue = document.getElementById('kp-value');
+        const kiValue = document.getElementById('ki-value');
+        const kdValue = document.getElementById('kd-value');
+
+        if (kpValue) kpValue.textContent = kp.toFixed(3);
+        if (kiValue) kiValue.textContent = ki.toFixed(4);
+        if (kdValue) kdValue.textContent = kd.toFixed(4);
+    }
+
+    addDataPoint(timestamp, target, current, filtered, error, pid_output) {
+        const plotData = this.currentData.plot_data;
+
+        // Limit data points for performance
+        const maxPoints = 200;
+        if (plotData.time.length >= maxPoints) {
+            plotData.time.shift();
+            plotData.target_rpm.shift();
+            plotData.current_rpm.shift();
+            plotData.filtered_rpm.shift();
+            plotData.error.shift();
+            plotData.pid_output.shift();
+            plotData.stability_score.shift();
+        }
+
+        plotData.time.push(timestamp);
+        plotData.target_rpm.push(target);
+        plotData.current_rpm.push(current);
+        plotData.filtered_rpm.push(filtered);
+        plotData.error.push(error);
+        plotData.pid_output.push(pid_output);
+        plotData.stability_score.push(this.stabilityAnalyzer.calculateStabilityScore());
+    }
+
+    updateRPMDisplays(rawRPM, filteredRPM, error) {
+        document.getElementById('rpm-display').textContent = Math.round(rawRPM);
+        document.getElementById('filtered-rpm-display').textContent = Math.round(filteredRPM);
+        document.getElementById('error-display').textContent = error.toFixed(1);
+    }
+
+    updateStabilityScore(score) {
+        const stabilityEl = document.getElementById('stability-display');
+        const statusEl = document.getElementById('hunting-status');
+
+        stabilityEl.textContent = score.toFixed(0) + '%';
+
+        // Update status badge based on stability
+        if (score >= 80) {
+            statusEl.textContent = 'STABLE';
+            statusEl.className = 'status-value status-badge stable';
+        } else if (score >= 60) {
+            statusEl.textContent = 'SETTLING';
+            statusEl.className = 'status-value status-badge settling';
+        } else {
+            statusEl.textContent = 'HUNTING';
+            statusEl.className = 'status-value status-badge hunting';
+        }
+    }
 
     updateCharts() {
         const plotData = this.currentData.plot_data;
