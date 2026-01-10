@@ -1,6 +1,23 @@
 #ifndef CONFIG_COMMON_H
 #define CONFIG_COMMON_H
 
+// ATTiny85 Configuration Selector
+// Uncomment ONE of the following lines to choose your configuration:
+
+#define USE_EXTERNAL_CRYSTAL  // Use 20MHz external crystal (requires hardware)
+//#define USE_INTERNAL_OSCILLATOR  // Use 8MHz internal oscillator (default)
+
+// Include the appropriate configuration based on selection
+#if defined(USE_EXTERNAL_CRYSTAL)
+#include "config_external.h"
+#elif defined(USE_INTERNAL_OSCILLATOR)
+#include "config_internal.h"
+#else
+// Default to internal oscillator if nothing is selected
+#warning "No oscillator type selected, defaulting to internal oscillator"
+#include "config_internal.h"
+#endif
+
 // Shared configuration constants used across all BLDC motor controller projects
 
 // RPM calculation parameters (shared)
@@ -14,10 +31,6 @@
 #define PID_OUTPUT_MAX      1000    // Maximum PID output
 #define INTEGRAL_WINDUP_MIN -200    // Anti-windup integral minimum
 #define INTEGRAL_WINDUP_MAX 200     // Anti-windup integral maximum
-
-// Control loop timing (shared)
-#define CONTROL_LOOP_HZ     200     // Control loop frequency (200 Hz)
-#define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
 // Default PID parameters (can be overridden by each project)
 #define DEFAULT_TARGET_RPM 1440.0   // Default target RPM

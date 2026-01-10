@@ -4,6 +4,14 @@
  * Production-ready PID controller for ATtiny85 microcontroller
  * Maintains exact 1440 RPM using pre-tuned PID gains with enhanced safety features
  *
+ * Two versions available:
+ * 1. Internal Oscillator (8MHz): Use config.h - Basic performance, no external components
+ * 2. External Crystal (20MHz): Use config_external.h - 2.5x faster, requires crystal + capacitors
+ *
+ * To switch versions:
+ * - For 8MHz internal: #include "config_external.h"
+ * - For 20MHz external crystal: #include "config_external.h"
+ *
  * Motor Compatibility:
  * - Designed for 3-Hall BLDC motors (such as 42BLF20-22.0223)
  * - Works with any BLDC motor that has 3 built-in Hall effect sensors
@@ -14,7 +22,8 @@
  * Physical Pin | Function
  *     1        | VCC (Power - 5V for Hall sensor compatibility)
  *     2        | BLDC Hall Sensor (any Hall wire A/B/C from motor, interrupt input)
- *     3        | Not Connected
+ *              | [External Crystal: Also connects 16MHz crystal + 22pF caps to pin 3]
+ *     3        | Not Connected / Crystal (XTAL2 for external crystal version)
  *     4        | GND (Ground - common with motor Hall sensors)
  *     5        | PWM to ESC (motor control output)
  *     6        | Not Connected
@@ -32,11 +41,11 @@
  *
  * Author: azzar budiyanto
  * Co-Author: azzar persona (AI assistant)
- * Date: November 2025
+ * Date: January 2026
  */
 
-// Include configuration header
-#include "config.h"
+// Include configuration header (automatically selects internal/external based on config_common.h)
+#include "config_common.h"
 
 // Include shared common headers
 #include "pid_common.h"
@@ -160,14 +169,28 @@ void setupTimer() {
     // Setup Timer1 for millisecond timing (ATtiny85 Timer1)
     TCCR1 = 0;              // Stop timer
     TCNT1 = 0;              // Reset counter
+
+    // Calculate OCR1A for 1ms interrupt based on F_CPU
+    // Formula: OCR1A = (F_CPU / 1000 / 64) - 1, but adjusted for timer behavior
+#if F_CPU == 20000000UL
+    OCR1A = 312;            // Compare value for 1ms at 20MHz (20MHz/64 = 312.5kHz, 312.5kHz/1000 = 312.5)
+#elif F_CPU == 8000000UL
     OCR1A = 125;            // Compare value for 1ms at 8MHz (8MHz/64 = 125kHz, 125kHz/1000 = 125)
+#endif
+
     TCCR1 |= (1 << CTC1);   // Clear timer on compare match
     TCCR1 |= (1 << CS12) | (1 << CS11) | (1 << CS10); // Prescaler 64
     TIMSK |= (1 << OCIE1A); // Enable compare interrupt
 
     // Setup Timer0 for PWM (default 8-bit fast PWM)
     TCCR0A = (1 << COM0A1) | (1 << WGM01) | (1 << WGM00); // Fast PWM, non-inverting
-    TCCR0B = (1 << CS01); // Prescaler 8, ~1kHz PWM frequency
+
+    // Set prescaler based on F_CPU for ~1kHz PWM frequency
+#if F_CPU == 20000000UL
+    TCCR0B = (1 << CS02); // Prescaler 256, ~1.2kHz PWM frequency at 20MHz
+#elif F_CPU == 8000000UL
+    TCCR0B = (1 << CS01); // Prescaler 8, ~1kHz PWM frequency at 8MHz
+#endif
 }
 
 
