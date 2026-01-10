@@ -10,10 +10,15 @@
 #define RPM_FILTER_SIZE     5       // Moving average filter size (increased for stability)
 
 // PID control parameters (shared)
-#define PID_OUTPUT_MIN      -1000   // Minimum PID output
-#define PID_OUTPUT_MAX      1000    // Maximum PID output
-#define INTEGRAL_WINDUP_MIN -200    // Anti-windup integral minimum
-#define INTEGRAL_WINDUP_MAX 200     // Anti-windup integral maximum
+#define PID_OUTPUT_MIN      -5000   // Minimum PID output (increased range for better resolution)
+#define PID_OUTPUT_MAX      5000    // Maximum PID output (increased range for better resolution)
+#define INTEGRAL_WINDUP_MIN -1000   // Anti-windup integral minimum (increased for more integral accumulation)
+#define INTEGRAL_WINDUP_MAX 1000    // Anti-windup integral maximum (increased for more integral accumulation)
+
+// PWM output parameters (shared)
+#define PWM_MIN_VALUE       0       // Minimum PWM value (0 = motor stopped)
+#define PWM_MAX_VALUE       255     // Maximum PWM value (255 = full speed)
+#define PWM_MIN_THRESHOLD   20      // Minimum PWM threshold for motor torque (~8% of full range)
 
 // Control loop timing (shared)
 #define CONTROL_LOOP_HZ     200     // Control loop frequency (200 Hz)
@@ -21,8 +26,8 @@
 
 // Default PID parameters (can be overridden by each project)
 #define DEFAULT_TARGET_RPM 1440.0   // Default target RPM
-#define DEFAULT_KP         0.900    // Default proportional gain
-#define DEFAULT_KI         1.000    // Default integral gain
-#define DEFAULT_KD         0.0562   // Default derivative gain
+#define DEFAULT_KP         0.150    // Default proportional gain (reduced for stability)
+#define DEFAULT_KI         0.080    // Default integral gain (reduced for stability)
+#define DEFAULT_KD         0.015    // Default derivative gain (reduced for stability)
 
 #endif // CONFIG_COMMON_H

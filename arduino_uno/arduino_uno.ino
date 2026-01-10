@@ -36,7 +36,7 @@
  *
  * Author: azzar budiyanto
  * Co-Author: azzar persona (AI assistant)
- * Date: November 2025
+ * Date: January 2026
  */
 
 // Include configuration header (contains all pin definitions, constants, and settings)
@@ -113,7 +113,7 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(RPM_SENSOR_PIN), rpmSensorISR, RISING);
 
     // Initialize PWM output to stopped position
-    analogWrite(PWM_OUTPUT_PIN, 0);
+    analogWrite(PWM_OUTPUT_PIN, PWM_MIN_VALUE);
 
     // Brief startup delay
     delay(1000);
@@ -180,9 +180,9 @@ void loop() {
         pwmValue = 0;  // Cut power completely for 2 seconds
     } else {
         // Convert PID output to PWM value and output to ESC
-        // Use wider PWM range for better control authority: 0-255 full range
-        pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
-        pwmValue = constrain(pwmValue, 0, 255);
+        // Map PID output range to PWM range with minimum threshold for torque
+        pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
+        pwmValue = constrain(pwmValue, PWM_MIN_THRESHOLD, PWM_MAX_VALUE);  // Minimum threshold for motor torque
     }
 
     // Reset emergency timer after 2 seconds regardless of current error state
