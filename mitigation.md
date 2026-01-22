@@ -615,9 +615,9 @@ Pin 5 (PB0) → ESC PWM input
 **Mitigation**:
 ```cpp
 // Production defaults (conservative tuning)
-#define DEFAULT_KP 3.25
-#define DEFAULT_KI 0.0320
-#define DEFAULT_KD 0.001
+#define DEFAULT_KP 0.150
+#define DEFAULT_KI 0.080
+#define DEFAULT_KD 0.015
 
 // Tuning procedure:
 // 1. Start with KI=0, KD=0, increase KP until oscillation
@@ -637,13 +637,98 @@ Pin 5 (PB0) → ESC PWM input
 **Mitigation**:
 ```cpp
 // Anti-windup protection
-#define INTEGRAL_WINDUP_MIN -100
-#define INTEGRAL_WINDUP_MAX 100
+#define INTEGRAL_WINDUP_MIN -1000
+#define INTEGRAL_WINDUP_MAX 1000
 
-// In PID computation:
-integral += ki * error;
+// Enhanced: Conditional integral scaling reduces accumulation when error > 500 RPM
+if (abs(error) > 500.0) {
+    integralScale = 500.0 / abs(error);
+}
+integral += ki * error * integralScale;
 integral = constrain(integral, INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX);
 ```
+
+#### Cause 3: Initial Spike / Overshoot at Startup
+**Description**: Large initial error causes aggressive PID response.
+
+**Symptoms**:
+- Motor overshoots target RPM at startup
+- Initial PWM spike causes mechanical stress
+- Unstable behavior during first few seconds
+
+**Mitigation**:
+```cpp
+// Setpoint ramping - gradually increase target RPM
+#define SETPOINT_RAMP_ENABLED   true
+#define SETPOINT_RAMP_RATE      50.0   // RPM per iteration (reduce for smoother startup)
+
+// If still overshooting, try:
+#define SETPOINT_RAMP_RATE      25.0   // Slower ramp
+```
+
+#### Cause 4: Derivative Kick
+**Description**: Derivative term spikes when setpoint changes.
+
+**Symptoms**:
+- Sharp PWM spikes when target RPM changes
+- Mechanical stress on motor/coupling
+- Audible clicking or jerking motion
+
+**Mitigation**:
+```cpp
+// Use derivative-on-measurement instead of derivative-on-error
+// This is implemented in computePID_float_enhanced()
+derivative = -kd * (measurement - previousMeasurement);  // Note negative sign
+
+// The enhanced PID function uses this automatically
+```
+
+#### Cause 5: Noisy Derivative Term
+**Description**: High-frequency noise amplified by derivative calculation.
+
+**Symptoms**:
+- PWM output fluctuates rapidly
+- Motor vibrates or produces noise
+- Unstable control at steady state
+
+**Mitigation**:
+```cpp
+// Apply low-pass filter to derivative term
+#define DERIVATIVE_FILTER_ALPHA 0.2  // Lower = smoother (try 0.1 for very noisy systems)
+
+// Exponential Moving Average (EMA) filter
+filteredDerivative = alpha * rawDerivative + (1 - alpha) * filteredDerivative;
+```
+
+#### Cause 6: Sudden PWM Changes
+**Description**: Large PID output changes cause mechanical or electrical stress.
+
+**Symptoms**:
+- Motor jerks during operation
+- ESC protection triggers
+- Electrical noise on power supply
+
+**Mitigation**:
+```cpp
+// Output slew rate limiting
+#define OUTPUT_SLEW_RATE 80.0  // Max output change per iteration (reduce for smoother)
+
+// Limits how fast output can change
+if (outputChange > OUTPUT_SLEW_RATE) {
+    output = previousOutput + OUTPUT_SLEW_RATE;
+}
+```
+
+### Spike Dampening Tuning Guide
+
+| Issue | Parameter to Adjust | Direction |
+|-------|---------------------|-----------|
+| Overshoot at startup | `SETPOINT_RAMP_RATE` | Decrease (try 25) |
+| Jerky motion | `OUTPUT_SLEW_RATE` | Decrease (try 50) |
+| Noisy/vibrating | `DERIVATIVE_FILTER_ALPHA` | Decrease (try 0.1) |
+| Slow response | `OUTPUT_SLEW_RATE` | Increase (try 120) |
+| Sluggish tracking | `DERIVATIVE_FILTER_ALPHA` | Increase (try 0.3) |
+| Slow startup | `SETPOINT_RAMP_RATE` | Increase (try 100) |
 
 ### Safety System Issues
 

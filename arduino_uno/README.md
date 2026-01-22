@@ -27,6 +27,8 @@ The Arduino Uno version provides a streamlined PID controller for BLDC motors wi
 - **Modular Configuration**: All settings centralized in `config.h`
 - **Two Operating Modes**: Production (fixed parameters) and Potentiometer Tuning
 - **Simplified Design**: No serial commands or EEPROM storage for maximum reliability
+- **Enhanced PID with Spike Dampening**: Derivative-on-measurement, derivative filtering, output slew rate limiting
+- **Setpoint Ramping**: Smooth startup transitions to prevent initial overshoot
 
 ## Quick Start
 
@@ -115,10 +117,19 @@ All Arduino Uno settings are centralized in `config.h`:
 ### Control Parameters
 ```cpp
 #define DEFAULT_TARGET_RPM     1440.0  // Default target RPM
-#define DEFAULT_KP             3.25    // Default proportional gain
-#define DEFAULT_KI             0.0320  // Default integral gain
-#define DEFAULT_KD             0.001   // Default derivative gain
-#define DEFAULT_PULSES_PER_REV 24      // Default pulses per revolution
+#define DEFAULT_KP             0.150   // Default proportional gain
+#define DEFAULT_KI             0.080   // Default integral gain
+#define DEFAULT_KD             0.015   // Default derivative gain
+#define DEFAULT_PULSES_PER_REV 4       // Default pulses per revolution (8-pole motor)
+```
+
+### Spike Dampening Parameters
+```cpp
+#define DERIVATIVE_FILTER_ALPHA 0.2    // Derivative low-pass filter (0.1=smooth, 0.5=responsive)
+#define OUTPUT_SLEW_RATE        80.0   // Max PID output change per iteration
+#define SETPOINT_RAMP_RATE      50.0   // RPM per iteration for startup ramping
+#define SETPOINT_RAMP_ENABLED   true   // Enable/disable setpoint ramping
+#define SETPOINT_RAMP_THRESHOLD 100.0  // Only ramp when error exceeds this value
 ```
 
 ### Safety Settings
@@ -147,17 +158,81 @@ The Arduino Uno version supports two operating modes selected by the mode switch
 - **Monitoring**: Serial Plotter shows live control response
 - **Use Case**: Initial PID tuning and testing
 
+## Enhanced PID Algorithm
+
+The controller uses an enhanced PID algorithm with multiple spike dampening techniques:
+
+### Derivative-on-Measurement
+
+Standard PID uses derivative of error: `Kd * (error - previousError)`. This causes "derivative kick" when the setpoint changes suddenly. The enhanced algorithm uses derivative-on-measurement instead:
+
+```cpp
+derivative = -Kd * (measurement - previousMeasurement)
+```
+
+This eliminates spikes when target RPM changes while still responding to actual motor speed changes.
+
+### Derivative Low-Pass Filter
+
+Raw derivative calculations amplify high-frequency noise. An exponential moving average (EMA) filter smooths the derivative term:
+
+```cpp
+filteredDerivative = alpha * rawDerivative + (1 - alpha) * filteredDerivative
+```
+
+- `DERIVATIVE_FILTER_ALPHA = 0.2` (default): Smooth response, good noise rejection
+- Higher values (0.3-0.5): Faster response, more noise
+- Lower values (0.1-0.15): Very smooth, slower response
+
+### Output Slew Rate Limiting
+
+Prevents sudden PWM changes that can cause mechanical stress or electrical spikes:
+
+```cpp
+if (outputChange > OUTPUT_SLEW_RATE) {
+    output = previousOutput + OUTPUT_SLEW_RATE;
+}
+```
+
+- `OUTPUT_SLEW_RATE = 80.0` (default): Balanced response
+- Higher values: Faster response, more aggressive
+- Lower values: Smoother transitions, slower response
+
+### Setpoint Ramping
+
+During startup, the target RPM ramps gradually from 0 to `DEFAULT_TARGET_RPM`:
+
+```cpp
+activeSetpoint += SETPOINT_RAMP_RATE;  // Increment each control cycle
+```
+
+This prevents large initial errors that cause integral windup and overshoot.
+
+### Conditional Integral Scaling
+
+When error is large (startup, load changes), integral accumulation is reduced:
+
+```cpp
+if (abs(error) > 500.0) {
+    integralScale = 500.0 / abs(error);  // Proportionally reduce
+}
+```
+
+This prevents integral windup during transient conditions.
+
 ## Serial Plotter Output
 
-The system outputs seven comma-separated values for Serial Plotter visualization:
+The system outputs comma-separated values for Serial Plotter visualization:
 ```
-Target,Current,Error,PID_Output,Kp,Ki,Kd,PPR
+Target,Setpoint,Current,Error,PID_Output,PWM,Kp,Ki,Kd,PPR
 ```
 
-- **Target**: Desired RPM setpoint
+- **Target**: Final desired RPM (1440)
+- **Setpoint**: Active ramped setpoint (ramps from 0 to Target during startup)
 - **Current**: Measured motor RPM
-- **Error**: Difference between target and current
+- **Error**: Difference between Setpoint and Current
 - **PID_Output**: Computed PID control value
+- **PWM**: Actual PWM value sent to ESC
 - **Kp**: Proportional gain
 - **Ki**: Integral gain
 - **Kd**: Derivative gain
@@ -201,11 +276,56 @@ Target,Current,Error,PID_Output,Kp,Ki,Kd,PPR
 - Verify proper motor/ESC grounding
 - Ensure clean power supplies for Arduino and motor
 
+### Initial Spike or Overshoot
+- Reduce `SETPOINT_RAMP_RATE` for slower startup (try 25.0)
+- Lower `OUTPUT_SLEW_RATE` to limit PWM change rate (try 50.0)
+- Decrease `DERIVATIVE_FILTER_ALPHA` for smoother derivative (try 0.1)
+- Verify `SETPOINT_RAMP_ENABLED` is `true`
+
+### Oscillations After Startup
+- Reduce `Kp` gain (proportional term too aggressive)
+- Increase `DERIVATIVE_FILTER_ALPHA` slightly (0.25-0.3)
+- Add small amount of `Kd` to dampen oscillations
+- Check for mechanical issues (loose coupling, bearing wear)
+
+### Slow Response to Load Changes
+- Increase `OUTPUT_SLEW_RATE` (try 100-120)
+- Increase `DERIVATIVE_FILTER_ALPHA` (try 0.3)
+- Slightly increase `Ki` for faster error correction
+- Verify motor/ESC can handle required torque
+
 ## Performance Notes
 
 - **Memory Usage**: ~18% RAM usage (optimized for reliability)
-- **Control Frequency**: 50Hz main loop, 20Hz RPM calculation
-- **PWM Frequency**: ~490Hz (Timer0 with prescaler 8)
+- **Control Frequency**: 200Hz main loop (5ms period)
+- **RPM Calculation**: 100Hz update rate (10ms interval)
+- **PWM Frequency**: ~490Hz (Timer1 with prescaler 64)
 - **Interrupt Response**: Hall sensor debounce filter prevents false triggers
 - **RPM Calculation**: Period measurement provides stable low-speed operation
 - **Simplified Design**: No EEPROM wear or serial command overhead
+
+## Spike Dampening Tuning Guide
+
+### Quick Start Values
+
+| Application | DERIVATIVE_FILTER_ALPHA | OUTPUT_SLEW_RATE | SETPOINT_RAMP_RATE |
+|-------------|-------------------------|------------------|-------------------|
+| Smooth/Quiet | 0.1 | 50 | 25 |
+| Balanced (Default) | 0.2 | 80 | 50 |
+| Responsive | 0.3 | 120 | 100 |
+| Aggressive | 0.5 | 200 | 200 |
+
+### Tuning Procedure
+
+1. **Start with defaults** - Verify system stability
+2. **Adjust setpoint ramp** - If overshoot at startup, reduce `SETPOINT_RAMP_RATE`
+3. **Tune slew rate** - If oscillating, reduce `OUTPUT_SLEW_RATE`
+4. **Fine-tune derivative filter** - If noisy, reduce `DERIVATIVE_FILTER_ALPHA`
+5. **Test under load** - Verify performance with actual operating conditions
+
+### Monitoring Tuning Progress
+
+Use Serial Plotter to observe:
+- **Setpoint vs Current**: Should track smoothly during ramp-up
+- **Error**: Should decrease steadily without large oscillations
+- **PID_Output**: Should change gradually, not jump abruptly

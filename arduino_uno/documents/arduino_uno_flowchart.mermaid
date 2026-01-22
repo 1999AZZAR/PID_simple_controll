@@ -44,14 +44,21 @@ flowchart TB
         W1["kp = PRODUCTION_KP"]
         W2["ki = PRODUCTION_KI"]
         W3["kd = PRODUCTION_KD"]
+        SP["Setpoint Ramping"]
+        SP1{"setpointRampComplete?"}
+        SP2["activeSetpoint += SETPOINT_RAMP_RATE"]
+        SP3["activeSetpoint = targetRPM"]
         X["Calculate Error"]
-        X1["error = targetRPM - currentRPM"]
-        Y["Compute PID Output"]
-        Y1["pidOutput = computePID(error)"]
+        X1["error = activeSetpoint - currentRPM"]
+        Y["Compute Enhanced PID Output"]
+        Y1["pidOutput = computePID_float_enhanced()"]
         Y2{"PID Anti-windup Protection"}
-        Y3{"Clamp integral term"}
-        Y4["Calculate P, I, D terms"]
+        Y3{"Clamp integral with conditional scaling"}
+        Y4["P: proportional = kp * error"]
+        Y4a["I: integral += ki * error * scale"]
+        Y4b["D: derivative-on-measurement with EMA filter"]
         Y5["pidOutput = P + I + D"]
+        Y6["Apply output slew rate limiting"]
         Z["Convert PID to PWM"]
         Z1["pwmValue = map(pidOutput, -255, 255, 0, 255)"]
         Z2["pwmValue = constrain(pwmValue, 0, 255)"]
@@ -123,15 +130,23 @@ flowchart TB
     W --> W1
     W1 --> W2
     W2 --> W3
-    W3 --> X
+    W3 --> SP
+    SP --> SP1
+    SP1 -- No --> SP2
+    SP1 -- Yes --> SP3
+    SP2 --> X
+    SP3 --> X
     X --> X1
     X1 --> Y
     Y --> Y1
     Y1 --> Y2
     Y2 --> Y3
     Y3 --> Y4
-    Y4 --> Y5
-    Y5 --> Z
+    Y4 --> Y4a
+    Y4a --> Y4b
+    Y4b --> Y5
+    Y5 --> Y6
+    Y6 --> Z
     Z --> Z1
     Z1 --> Z2
     Z2 --> AA
@@ -168,7 +183,14 @@ flowchart TB
      R:::decision_class
      S1:::decision_class
      U:::decision_class
+     SP1:::decision_class
+     SP2:::process_class
+     SP3:::process_class
      Y1:::process_class
+     Y4:::process_class
+     Y4a:::process_class
+     Y4b:::process_class
+     Y6:::process_class
      Z1:::process_class
      BB1:::process_class
      CC1:::process_class

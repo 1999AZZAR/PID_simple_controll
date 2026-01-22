@@ -30,4 +30,13 @@
 #define DEFAULT_KI         0.080    // Default integral gain (reduced for stability)
 #define DEFAULT_KD         0.015    // Default derivative gain (reduced for stability)
 
+// Spike dampening and smoothing parameters
+#define DERIVATIVE_FILTER_ALPHA 0.2   // Derivative low-pass filter coefficient (0.1=smooth, 0.5=responsive)
+#define OUTPUT_SLEW_RATE        80.0  // Max PID output change per iteration (limits rate of change)
+#define SETPOINT_RAMP_RATE      50.0  // RPM per iteration for setpoint ramping during startup
+
+// Setpoint ramping configuration
+#define SETPOINT_RAMP_ENABLED   true  // Enable/disable setpoint ramping
+#define SETPOINT_RAMP_THRESHOLD 100.0 // Only ramp when error exceeds this value (RPM)
+
 #endif // CONFIG_COMMON_H

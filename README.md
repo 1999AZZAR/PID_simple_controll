@@ -541,16 +541,45 @@ void outputToESC(int pwmValue) {
 *Figure 2: PID control algorithm flowchart showing error calculation, PID computation, and PWM output generation*
 
 ```
-error = target_RPM - current_RPM              // target_RPM = 1440
-proportional = Kp × error                     // Kp = 0.3 (gentle response)
-integral += Ki × error (with anti-windup clamping)  // Ki = 0.02 (conservative)
-derivative = Kd × (error - previous_error)         // Kd = 0.005 (noise damped)
-output = proportional + integral + derivative     // Range: -1000 to +1000 (4x resolution)
+// Setpoint ramping for smooth startup
+activeSetpoint = ramp_towards(targetRPM, SETPOINT_RAMP_RATE)
+
+// Error calculation
+error = activeSetpoint - current_RPM
+
+// Proportional term
+proportional = Kp × error
+
+// Integral term with conditional scaling (reduces accumulation when error > 500)
+integral += Ki × error × integralScale
+integral = clamp(integral, INTEGRAL_MIN, INTEGRAL_MAX)
+
+// Derivative-on-measurement (eliminates derivative kick)
+rawDerivative = -Kd × (current_RPM - previous_RPM)
+filteredDerivative = EMA_filter(rawDerivative, DERIVATIVE_FILTER_ALPHA)
+
+// Combined output with slew rate limiting
+output = proportional + integral + filteredDerivative
+output = slew_rate_limit(output, OUTPUT_SLEW_RATE)
+output = clamp(output, OUTPUT_MIN, OUTPUT_MAX)
 ```
+
+### Spike Dampening Features
+
+The enhanced PID implementation includes multiple techniques to reduce initial spikes and smooth fluctuations:
+
+| Feature | Purpose | Configuration |
+|---------|---------|---------------|
+| Derivative-on-measurement | Eliminates derivative kick on setpoint changes | Built-in |
+| Derivative low-pass filter | Reduces high-frequency noise amplification | `DERIVATIVE_FILTER_ALPHA` |
+| Output slew rate limiting | Prevents sudden PWM changes | `OUTPUT_SLEW_RATE` |
+| Setpoint ramping | Smooth startup transitions | `SETPOINT_RAMP_RATE` |
+| Conditional integral scaling | Prevents windup during large errors | Built-in |
 
 ### Anti-Windup Protection
 
-- Integral term clamped between -100 and +100
+- Integral term clamped between -1000 and +1000
+- Conditional scaling reduces integral accumulation when error exceeds 500 RPM
 - Prevents runaway during motor stall or maximum load
 - Maintains system stability under adverse conditions
 
@@ -605,37 +634,49 @@ output = proportional + integral + derivative     // Range: -1000 to +1000 (4x r
 ### PID Limits
 
 ```cpp
-#define PID_OUTPUT_MIN      -500    // Minimum PID output
-#define PID_OUTPUT_MAX      500     // Maximum PID output
-#define INTEGRAL_WINDUP_MIN -100    // Anti-windup integral minimum (optimized through testing)
-#define INTEGRAL_WINDUP_MAX 100     // Anti-windup integral maximum (optimized through testing)
+#define PID_OUTPUT_MIN      -5000   // Minimum PID output (increased for better resolution)
+#define PID_OUTPUT_MAX      5000    // Maximum PID output (increased for better resolution)
+#define INTEGRAL_WINDUP_MIN -1000   // Anti-windup integral minimum
+#define INTEGRAL_WINDUP_MAX 1000    // Anti-windup integral maximum
+```
+
+### Spike Dampening Parameters
+
+```cpp
+#define DERIVATIVE_FILTER_ALPHA 0.2   // Derivative low-pass filter (0.1=smooth, 0.5=responsive)
+#define OUTPUT_SLEW_RATE        80.0  // Max PID output change per iteration
+#define SETPOINT_RAMP_RATE      50.0  // RPM per iteration for startup ramping
+#define SETPOINT_RAMP_ENABLED   true  // Enable/disable setpoint ramping
+#define SETPOINT_RAMP_THRESHOLD 100.0 // Only ramp when error exceeds this value
 ```
 
 ### Production Mode Defaults
 
 ```cpp
-#define PRODUCTION_TARGET_RPM 1440.0   // Original target RPM
-#define PRODUCTION_KP         0.3      // Gentler proportional response
-#define PRODUCTION_KI         0.02     // Conservative integral action
-#define PRODUCTION_KD         0.005    // Noise-damped derivative
+#define DEFAULT_TARGET_RPM 1440.0   // Target RPM
+#define DEFAULT_KP         0.150    // Proportional gain
+#define DEFAULT_KI         0.080    // Integral gain
+#define DEFAULT_KD         0.015    // Derivative gain
 ```
 
 <!-- Serial Commands removed from Arduino Uno version -->
 
 ## Serial Plotter Output
 
-The Arduino Uno version outputs seven comma-separated values for comprehensive monitoring:
+The Arduino Uno version outputs comma-separated values for comprehensive monitoring:
 
-- `Target`: Desired RPM setpoint
+- `Target`: Final desired RPM (1440)
+- `Setpoint`: Active ramped setpoint (ramps from 0 to Target during startup)
 - `Current`: Measured motor RPM
-- `Error`: Difference between target and current
+- `Error`: Difference between Setpoint and Current
 - `PID_Output`: Computed PID control value
+- `PWM`: Actual PWM value sent to ESC
 - `Kp`: Current proportional gain
 - `Ki`: Current integral gain
 - `Kd`: Current derivative gain
 - `PPR`: Pulses per revolution setting
 
-Note: Serial Plotter monitoring is available in both operating modes for real-time system observation.
+Note: Serial Plotter monitoring is available in both operating modes for real-time system observation. The `Setpoint` trace shows the ramped value during startup, allowing visualization of the smooth transition.
 
 ## Safety Features
 

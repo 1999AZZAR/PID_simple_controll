@@ -73,6 +73,15 @@ float previousError = 0.0;
 float integral = 0.0;
 float pidOutput = 0.0;
 
+// Enhanced PID state variables for spike dampening
+float previousMeasurement = 0.0;    // For derivative-on-measurement
+float filteredDerivative = 0.0;     // Low-pass filtered derivative term
+float previousPIDOutput = 0.0;      // For output slew rate limiting
+
+// Setpoint ramping variables for smooth startup
+float activeSetpoint = 0.0;         // Ramped setpoint (starts at 0, ramps to targetRPM)
+bool setpointRampComplete = false;  // Flag to indicate ramp completion
+
 // Mode selection
 bool tuningMode = false;
 // Serial tuning removed
@@ -89,7 +98,7 @@ void rpmSensorISR();
 float calculateRPM();
 float readPotentiometer(int pin, float minVal, float maxVal);
 void updatePIDGains();
-float computePID(float error);
+float computePID(float error, float measurement);
 void outputToESC(int pwmValue);
 void printToSerialPlotter();
 // Serial commands removed
@@ -163,9 +172,26 @@ void loop() {
         Serial.println("Mode: Production");
     }
 
-    // Compute PID output
-    float error = targetRPM - currentRPM;
-    pidOutput = computePID(error);
+    // Setpoint ramping: gradually increase setpoint to avoid initial spike
+    #if SETPOINT_RAMP_ENABLED
+    if (!setpointRampComplete) {
+        if (activeSetpoint < targetRPM) {
+            activeSetpoint += SETPOINT_RAMP_RATE;
+            if (activeSetpoint >= targetRPM) {
+                activeSetpoint = targetRPM;
+                setpointRampComplete = true;
+            }
+        }
+    } else {
+        activeSetpoint = targetRPM;  // Normal operation
+    }
+    #else
+    activeSetpoint = targetRPM;
+    #endif
+
+    // Compute PID output using ramped setpoint
+    float error = activeSetpoint - currentRPM;
+    pidOutput = computePID(error, currentRPM);
 
     // Emergency stop if error is extremely large (motor out of control)
     int pwmValue;
@@ -270,11 +296,16 @@ void updatePIDGains() {
     kd = readPotentiometer(POT_KD, 0, 0.1);                         // 0-0.1 Kd range
 }
 
-// Compute PID output using shared function with overflow protection
-float computePID(float error) {
-    return computePID_float(error, integral, previousError, kp, ki, kd,
-                           INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
-                           PID_OUTPUT_MIN, PID_OUTPUT_MAX);
+// Compute PID output using enhanced function with spike dampening
+// Features: derivative-on-measurement, derivative filtering, output slew rate limiting
+float computePID(float error, float measurement) {
+    return computePID_float_enhanced(error, measurement, integral, 
+                                     previousMeasurement, filteredDerivative,
+                                     previousPIDOutput,
+                                     kp, ki, kd,
+                                     INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
+                                     PID_OUTPUT_MIN, PID_OUTPUT_MAX,
+                                     DERIVATIVE_FILTER_ALPHA, OUTPUT_SLEW_RATE);
 }
 
 // Apply soft-start ramping to avoid current surges
@@ -313,11 +344,14 @@ void printToSerialPlotter() {
     Serial.print("Target:");
     Serial.print(targetRPM);
     Serial.print(",");
+    Serial.print("Setpoint:");
+    Serial.print(activeSetpoint);  // Show ramped setpoint
+    Serial.print(",");
     Serial.print("Current:");
     Serial.print(currentRPM);
     Serial.print(",");
     Serial.print("Error:");
-    Serial.print(targetRPM - currentRPM);
+    Serial.print(activeSetpoint - currentRPM);  // Error from active setpoint
     Serial.print(",");
     Serial.print("PID_Output:");
     Serial.print(pidOutput);
