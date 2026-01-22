@@ -60,8 +60,18 @@ flowchart TB
         Y5["pidOutput = P + I + D"]
         Y6["Apply output slew rate limiting"]
         Z["Convert PID to PWM"]
-        Z1["pwmValue = map(pidOutput, -255, 255, 0, 255)"]
-        Z2["pwmValue = constrain(pwmValue, 0, 255)"]
+        Z1["normalPWM = map(pidOutput, PID_MIN, PID_MAX, 0, 255)"]
+        Z2["normalPWM = constrain(normalPWM, PWM_MIN_THRESHOLD, 255)"]
+        EM{"Emergency Check"}
+        EM1["Check overspeed/underspeed"]
+        EM2{"emergencyActive?"}
+        EM3["Enter emergency mode"]
+        EM4["Gradual ramp-down"]
+        EM5["emergencyPWM -= RAMPDOWN_RATE"]
+        EM6{"Recovery conditions met?"}
+        EM7["Exit emergency, restart setpoint ramp"]
+        EM8["pwmValue = emergencyPWM"]
+        EM9["pwmValue = normalPWM"]
         AA["Output to ESC"]
         AA1["analogWrite(PWM_OUTPUT_PIN, pwmValue)"]
         BB["Serial Plotter Output"]
@@ -149,7 +159,20 @@ flowchart TB
     Y6 --> Z
     Z --> Z1
     Z1 --> Z2
-    Z2 --> AA
+    Z2 --> EM
+    EM --> EM1
+    EM1 --> EM2
+    EM2 -- Yes --> EM4
+    EM2 -- No, error large --> EM3
+    EM2 -- No, error normal --> EM9
+    EM3 --> EM4
+    EM4 --> EM5
+    EM5 --> EM6
+    EM6 -- Yes --> EM7
+    EM6 -- No --> EM8
+    EM7 --> EM9
+    EM8 --> AA
+    EM9 --> AA
     AA --> AA1
     AA1 --> BB
     BB --> BB1
@@ -192,6 +215,15 @@ flowchart TB
      Y4b:::process_class
      Y6:::process_class
      Z1:::process_class
+     EM:::decision_class
+     EM2:::decision_class
+     EM6:::decision_class
+     EM3:::process_class
+     EM4:::process_class
+     EM5:::process_class
+     EM7:::process_class
+     EM8:::process_class
+     EM9:::process_class
      BB1:::process_class
      CC1:::process_class
      EE1:::process_class

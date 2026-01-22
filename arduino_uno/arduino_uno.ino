@@ -193,33 +193,63 @@ void loop() {
     float error = activeSetpoint - currentRPM;
     pidOutput = computePID(error, currentRPM);
 
-    // Emergency stop if error is extremely large (motor out of control)
+    // Safe emergency handler with gradual ramp-down (not instant cutoff)
     int pwmValue;
     static unsigned long emergencyStartTime = 0;
-    static bool emergencyRecoveryMode = false;
+    static bool emergencyActive = false;
+    static int emergencyPWM = 0;  // Track PWM during emergency ramp-down
+    
+    // Calculate normal PWM value first
+    int normalPWM = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
+    normalPWM = constrain(normalPWM, PWM_MIN_THRESHOLD, PWM_MAX_VALUE);
 
-    if (abs(error) > 2000 && !emergencyRecoveryMode) {  // If error > 2000 RPM, emergency stop (increased threshold)
-        if (emergencyStartTime == 0) {
-            emergencyStartTime = millis();
-            Serial.println("EMERGENCY STOP: Motor out of control!");
+    // Check for emergency condition (motor runaway)
+    bool isOverspeed = (currentRPM > activeSetpoint + EMERGENCY_ERROR_THRESHOLD);
+    bool isUnderspeed = (currentRPM < activeSetpoint - EMERGENCY_ERROR_THRESHOLD) && (activeSetpoint > 100);
+    
+    if ((isOverspeed || isUnderspeed) && !emergencyActive) {
+        // Enter emergency mode
+        emergencyActive = true;
+        emergencyStartTime = millis();
+        emergencyPWM = lastPWMValue;  // Start from current PWM, not jump to 0
+        
+        if (isOverspeed) {
+            Serial.println("EMERGENCY: Motor overspeed - gradual ramp-down");
+        } else {
+            Serial.println("EMERGENCY: Motor underspeed/stall - gradual ramp-down");
         }
-        pwmValue = 0;  // Cut power completely for 2 seconds
+    }
+    
+    if (emergencyActive) {
+        // Gradual ramp-down instead of instant cutoff
+        int targetEmergencyPWM = EMERGENCY_FULL_STOP ? 0 : EMERGENCY_MIN_PWM;
+        
+        if (emergencyPWM > targetEmergencyPWM) {
+            emergencyPWM -= EMERGENCY_RAMPDOWN_RATE;
+            if (emergencyPWM < targetEmergencyPWM) {
+                emergencyPWM = targetEmergencyPWM;
+            }
+        }
+        
+        pwmValue = emergencyPWM;
+        
+        // Check if we can recover (error back within acceptable range)
+        unsigned long emergencyDuration = millis() - emergencyStartTime;
+        bool errorRecovered = (abs(error) < EMERGENCY_ERROR_THRESHOLD * 0.5);  // 50% hysteresis
+        
+        if (emergencyDuration > EMERGENCY_RECOVERY_TIME_MS && errorRecovered) {
+            // Exit emergency mode with gradual recovery
+            emergencyActive = false;
+            emergencyStartTime = 0;
+            // Reset setpoint ramp for smooth re-acceleration
+            setpointRampComplete = false;
+            activeSetpoint = currentRPM;  // Start from current speed
+            integral = 0;  // Reset integral to prevent windup
+            Serial.println("RECOVERY: Resuming normal operation");
+        }
     } else {
-        // Convert PID output to PWM value and output to ESC
-        // Map PID output range to PWM range with minimum threshold for torque
-        pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
-        pwmValue = constrain(pwmValue, PWM_MIN_THRESHOLD, PWM_MAX_VALUE);  // Minimum threshold for motor torque
-    }
-
-    // Reset emergency timer after 2 seconds regardless of current error state
-    if (emergencyStartTime > 0 && millis() - emergencyStartTime > 2000) {
-        emergencyStartTime = 0;  // Reset emergency after 2 seconds
-        emergencyRecoveryMode = true;  // Allow one recovery cycle before checking emergency again
-    }
-
-    // Clear recovery mode after one cycle to allow emergency checks again
-    if (emergencyRecoveryMode && emergencyStartTime == 0) {
-        emergencyRecoveryMode = false;
+        // Normal operation
+        pwmValue = normalPWM;
     }
 
     // Temporarily disable hysteresis for debugging

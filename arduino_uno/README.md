@@ -136,11 +136,18 @@ All Arduino Uno settings are centralized in `config.h`:
 ```cpp
 #define SOFT_START_DURATION_MS  2000  // Soft-start ramp time
 #define MIN_PULSE_WIDTH_US      100   // Debounce filter threshold
-
-// Safety features (recommended to keep enabled)
-#define WATCHDOG_ENABLED           true   // Hardware watchdog protection (4s timeout)
-// Emergency stop feature removed for simplified operation
 ```
+
+### Emergency Handler Settings (Safe Runaway Protection)
+```cpp
+#define EMERGENCY_ERROR_THRESHOLD  2000.0  // RPM error to trigger emergency
+#define EMERGENCY_RAMPDOWN_RATE    5       // PWM reduction per iteration (gradual)
+#define EMERGENCY_MIN_PWM          30      // Minimum PWM during emergency (maintains control)
+#define EMERGENCY_RECOVERY_TIME_MS 3000    // Time before recovery attempt (ms)
+#define EMERGENCY_FULL_STOP        false   // true = ramp to 0, false = ramp to MIN_PWM
+```
+
+The emergency handler uses **gradual ramp-down** instead of instant power cutoff to prevent mechanical stress.
 
 ## Operating Modes
 
@@ -207,6 +214,54 @@ activeSetpoint += SETPOINT_RAMP_RATE;  // Increment each control cycle
 ```
 
 This prevents large initial errors that cause integral windup and overshoot.
+
+## Safe Emergency Handler
+
+The controller includes a **safe emergency handler** that protects against motor runaway without causing mechanical damage from sudden stops.
+
+### Why Gradual Ramp-Down?
+
+Instant power cutoff (PWM = 0) can cause:
+- Mechanical stress on gearboxes, couplings, and belts
+- Sudden jerk that damages equipment or film
+- Loss of control worse than controlled slowdown
+- ESC protection circuits triggering unexpectedly
+
+### Emergency Detection
+
+The handler detects two conditions:
+
+| Condition | Detection | Action |
+|-----------|-----------|--------|
+| **Overspeed** | `currentRPM > setpoint + threshold` | Gradual ramp-down |
+| **Underspeed/Stall** | `currentRPM < setpoint - threshold` | Gradual ramp-down |
+
+### Gradual Ramp-Down Process
+
+```
+1. Emergency triggered → Start from current PWM (no jump)
+2. Each iteration → Reduce PWM by EMERGENCY_RAMPDOWN_RATE
+3. Continue until → PWM reaches EMERGENCY_MIN_PWM (or 0 if FULL_STOP)
+4. Wait for → EMERGENCY_RECOVERY_TIME_MS
+5. If error recovered → Resume with setpoint ramp from current speed
+```
+
+### Recovery Behavior
+
+When conditions return to normal:
+- Setpoint ramp restarts from current RPM (smooth re-acceleration)
+- Integral term resets to prevent windup
+- Hysteresis prevents oscillating in/out of emergency (50% threshold)
+
+### Configuration Options
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `EMERGENCY_ERROR_THRESHOLD` | 2000 | RPM error to trigger emergency |
+| `EMERGENCY_RAMPDOWN_RATE` | 5 | PWM reduction per cycle |
+| `EMERGENCY_MIN_PWM` | 30 | Minimum PWM (maintains some torque) |
+| `EMERGENCY_RECOVERY_TIME_MS` | 3000 | Wait time before recovery |
+| `EMERGENCY_FULL_STOP` | false | true = stop at 0, false = stop at MIN_PWM |
 
 ### Conditional Integral Scaling
 
@@ -293,6 +348,20 @@ Target,Setpoint,Current,Error,PID_Output,PWM,Kp,Ki,Kd,PPR
 - Increase `DERIVATIVE_FILTER_ALPHA` (try 0.3)
 - Slightly increase `Ki` for faster error correction
 - Verify motor/ESC can handle required torque
+
+### Emergency Handler Triggers Too Often
+- Increase `EMERGENCY_ERROR_THRESHOLD` (try 2500 or 3000)
+- Check for mechanical issues causing speed variations
+- Verify RPM sensor is providing clean signal
+
+### Motor Jerks During Emergency
+- Decrease `EMERGENCY_RAMPDOWN_RATE` (try 2 or 3)
+- Set `EMERGENCY_FULL_STOP` to `false` to maintain minimum control
+- Increase `EMERGENCY_MIN_PWM` if motor stalls during emergency
+
+### Recovery Takes Too Long
+- Decrease `EMERGENCY_RECOVERY_TIME_MS` (try 2000)
+- Check that error threshold hysteresis allows recovery (50% of threshold)
 
 ## Performance Notes
 

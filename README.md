@@ -686,6 +686,9 @@ Note: Serial Plotter monitoring is available in both operating modes for real-ti
 - **Software Protection**: PID output constrained to safe PWM range (0-255)
 - **Integral Windup Protection**: Prevents integrator runaway during stall conditions
 - **Clean Architecture**: Minimal code for reduced complexity and memory usage
+- **Safe Emergency Handler**: Gradual ramp-down instead of instant power cutoff
+- **Overspeed/Underspeed Detection**: Separate handling for different failure modes
+- **Smooth Recovery**: Automatic recovery with setpoint ramping from current speed
 
 ### ATTiny85 Version (Production)
 

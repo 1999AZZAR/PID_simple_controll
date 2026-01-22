@@ -753,6 +753,84 @@ if (outputChange > OUTPUT_SLEW_RATE) {
 // 4. Improve grounding connections
 ```
 
+### Emergency Handler Issues
+
+#### Emergency Triggers Too Frequently
+**Description**: False emergency activations due to normal speed variations.
+
+**Symptoms**:
+- "EMERGENCY: Motor overspeed" messages during normal operation
+- Motor repeatedly enters and exits emergency mode
+- Unstable behavior during load changes
+
+**Mitigation**:
+```cpp
+// Increase error threshold
+#define EMERGENCY_ERROR_THRESHOLD 2500.0  // Increase from 2000 (try 2500-3000)
+
+// Or disable emergency handler temporarily for testing
+// Comment out emergency detection in loop()
+```
+
+#### Motor Jerks During Emergency Ramp-Down
+**Description**: Ramp-down rate too aggressive causing mechanical stress.
+
+**Symptoms**:
+- Audible clicking or jerking during emergency
+- Mechanical coupling shows wear
+- ESC protection triggers
+
+**Mitigation**:
+```cpp
+// Slower ramp-down
+#define EMERGENCY_RAMPDOWN_RATE 2     // Reduce from 5 (try 2-3)
+#define EMERGENCY_MIN_PWM       40    // Increase minimum (try 30-50)
+#define EMERGENCY_FULL_STOP     false // Keep some torque
+```
+
+#### Motor Stalls During Emergency
+**Description**: Minimum PWM too low to maintain motor rotation.
+
+**Symptoms**:
+- Motor stops completely during emergency
+- Cannot recover from emergency state
+- Motor makes noise but doesn't spin
+
+**Mitigation**:
+```cpp
+// Increase minimum emergency PWM
+#define EMERGENCY_MIN_PWM 50  // Increase from 30 (try 40-60)
+
+// Or allow full stop if safe for your application
+#define EMERGENCY_FULL_STOP true
+```
+
+#### Recovery Not Working
+**Description**: System stays in emergency mode even after conditions normalize.
+
+**Symptoms**:
+- "RECOVERY: Resuming normal operation" never appears
+- Motor stays at emergency PWM indefinitely
+- Manual reset required
+
+**Mitigation**:
+```cpp
+// Reduce recovery time and check hysteresis
+#define EMERGENCY_RECOVERY_TIME_MS 2000  // Reduce from 3000
+
+// Check that error is recovering (50% hysteresis built-in)
+// If error never drops below 1000 RPM, recovery won't trigger
+```
+
+### Emergency Handler Configuration Guide
+
+| Scenario | RAMPDOWN_RATE | MIN_PWM | FULL_STOP | RECOVERY_TIME |
+|----------|---------------|---------|-----------|---------------|
+| Film camera (gentle) | 2 | 40 | false | 3000 |
+| General purpose | 5 | 30 | false | 3000 |
+| Industrial (fast) | 10 | 20 | false | 2000 |
+| Safety critical | 3 | 0 | true | 5000 |
+
 ## Troubleshooting Flowchart
 
 ```

@@ -39,4 +39,11 @@
 #define SETPOINT_RAMP_ENABLED   true  // Enable/disable setpoint ramping
 #define SETPOINT_RAMP_THRESHOLD 100.0 // Only ramp when error exceeds this value (RPM)
 
+// Emergency handler configuration (safe runaway protection)
+#define EMERGENCY_ERROR_THRESHOLD  2000.0  // RPM error threshold to trigger emergency
+#define EMERGENCY_RAMPDOWN_RATE    5       // PWM reduction per iteration (gradual, not instant)
+#define EMERGENCY_MIN_PWM          30      // Minimum PWM during emergency (maintains some control)
+#define EMERGENCY_RECOVERY_TIME_MS 3000    // Time before attempting recovery (ms)
+#define EMERGENCY_FULL_STOP        false   // true = ramp to 0, false = ramp to EMERGENCY_MIN_PWM
+
 #endif // CONFIG_COMMON_H
