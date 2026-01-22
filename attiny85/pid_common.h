@@ -56,7 +56,7 @@ inline float computePID_float(float error, float& integral, float& previousError
     return output;
 }
 
-// Fixed-point PID computation with overflow protection
+// Fixed-point PID computation with overflow protection (legacy)
 // Used by attiny85 project
 inline int computePID_fixed(int error_scaled, long& integral_scaled, int& previousError_scaled,
                            int kp_scaled, int ki_scaled, int kd_scaled,
@@ -102,6 +102,77 @@ inline int computePID_fixed(int error_scaled, long& integral_scaled, int& previo
     // Clamp output to safe range
     if (output > output_max) output = output_max;
     if (output < output_min) output = output_min;
+
+    return (int)output;
+}
+
+// Enhanced fixed-point PID with spike dampening (ATTiny85 optimized)
+// Features: derivative-on-measurement, derivative filtering, output slew rate limiting
+inline int computePID_fixed_enhanced(int error_scaled, int measurement_scaled,
+                                     long& integral_scaled, int& previousMeasurement_scaled,
+                                     long& filteredDerivative_scaled, int& previousOutput,
+                                     int kp_scaled, int ki_scaled, int kd_scaled,
+                                     int integral_min, int integral_max,
+                                     int output_min, int output_max,
+                                     int derivativeFilterAlpha, int slewRate) {
+    // Proportional term: kp_scaled * error_scaled / 1000
+    long proportional = 0;
+    if (abs(kp_scaled) < 32767 && abs(error_scaled) < 32767) {
+        proportional = ((long)kp_scaled * error_scaled) / 1000;
+    }
+
+    // Integral term with conditional scaling (reduce when error is large)
+    // Scale down when error > 5000 (500 RPM * 10)
+    int integralScale = 100;  // 100% = full accumulation
+    if (abs(error_scaled) > 5000) {
+        integralScale = (int)(5000L * 100 / abs(error_scaled));  // Proportionally reduce
+        if (integralScale < 10) integralScale = 10;  // Minimum 10%
+    }
+    
+    if (abs(ki_scaled) < 32767 && abs(error_scaled) < 32767) {
+        long temp = ((long)ki_scaled * error_scaled * integralScale) / 10000;  // / 100 for scale, / 100 for ki
+        integral_scaled += temp;
+    }
+
+    // Clamp integral to prevent windup
+    long integral_max_scaled = (long)integral_max * 1000;
+    long integral_min_scaled = (long)integral_min * 1000;
+    if (integral_scaled > integral_max_scaled) integral_scaled = integral_max_scaled;
+    if (integral_scaled < integral_min_scaled) integral_scaled = integral_min_scaled;
+
+    // Derivative-on-measurement (eliminates derivative kick)
+    // Uses negative of measurement change: -kd * (measurement - previousMeasurement)
+    long derivative = 0;
+    long measurement_diff = (long)measurement_scaled - previousMeasurement_scaled;
+    if (abs(kd_scaled) < 32767) {
+        long rawDerivative = -((long)kd_scaled * measurement_diff) / 1000;
+        
+        // Apply EMA low-pass filter: filtered = alpha * raw + (100-alpha) * filtered
+        // Using scaled integer math: alpha is 0-100 (percentage)
+        filteredDerivative_scaled = (derivativeFilterAlpha * rawDerivative + 
+                                    (100 - derivativeFilterAlpha) * filteredDerivative_scaled) / 100;
+        derivative = filteredDerivative_scaled;
+    }
+    previousMeasurement_scaled = measurement_scaled;
+
+    // Calculate total PID output
+    long output = proportional + (integral_scaled / 1000) + derivative;
+
+    // Apply output slew rate limiting
+    if (slewRate > 0) {
+        long outputChange = output - previousOutput;
+        if (outputChange > slewRate) {
+            output = previousOutput + slewRate;
+        } else if (outputChange < -slewRate) {
+            output = previousOutput - slewRate;
+        }
+    }
+
+    // Clamp output to safe range
+    if (output > output_max) output = output_max;
+    if (output < output_min) output = output_min;
+    
+    previousOutput = (int)output;
 
     return (int)output;
 }

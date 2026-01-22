@@ -72,20 +72,29 @@ For 20MHz operation, add these components to your ATTiny85 board:
 - **No External Components**: No potentiometers, switches, or LEDs needed
 - **Direct Operation**: Powers on and maintains `DEFAULT_TARGET_RPM` automatically
 
-### Minimal Production Design
+### Enhanced PID with Spike Dampening
 
-- **Core PID Control Only**: Essential motor control with integer math optimization (77% flash usage)
-- **Minimal Safety**: Watchdog timer only
-- **Direct PWM Output**: Immediate motor control without ramping
-- **2-Pin Operation**: Hall sensor + PWM output (ultra-minimal)
-- **Production Ready**: Fits in ATTiny85's 2KB flash limit
+- **Derivative-on-Measurement**: Eliminates derivative kick on setpoint changes
+- **Derivative Low-Pass Filter**: Reduces high-frequency noise amplification
+- **Output Slew Rate Limiting**: Prevents sudden PWM changes
+- **Setpoint Ramping**: Smooth startup transitions to prevent overshoot
+- **Conditional Integral Scaling**: Reduces windup during large errors
+- **Integer Math Optimization**: All calculations use fixed-point for efficiency
+
+### Safe Emergency Handler
+
+- **Gradual Ramp-Down**: No sudden power cutoff that could damage equipment
+- **Overspeed/Underspeed Detection**: Separate handling for different failure modes
+- **Configurable Recovery**: Automatic recovery with setpoint restart
+- **Mechanical Protection**: Prevents stress on gearboxes and couplings
 
 ### Robust Control
 
 - **Anti-windup Protection**: Prevents integrator runaway
-- **100Hz Control Loop**: Responsive motor control
+- **160Hz Control Loop**: Responsive motor control (8MHz) / 200Hz (20MHz)
 - **Interrupt-based RPM**: Accurate speed measurement using period timing
 - **Production-hardened**: Optimized for reliability
+- **Memory Efficient**: 31% flash, 13% RAM usage
 
 ## Hardware Setup
 
@@ -167,28 +176,50 @@ The ATtiny85 uses a single Hall sensor wire for RPM feedback, but you can enhanc
 
 ### Config File Structure
 
-The ATtiny85 version now uses a modular `config.h` file (similar to Arduino Uno) for easy configuration:
+The ATtiny85 version uses modular configuration files for easy setup:
 
 ```cpp
-// Pin definitions
-#define RPM_SENSOR_PIN     PB3  // Hall sensor input
-#define PWM_OUTPUT_PIN     PB0  // PWM output to ESC
+// Pin definitions (config_internal.h or config_external.h)
+#define RPM_SENSOR_PIN     3    // Arduino pin 3 (PB3), Hall sensor input
+#define PWM_OUTPUT_PIN     0    // Arduino pin 0 (PB0), PWM output to ESC
 
-// Safety parameters
-#define WATCHDOG_ENABLED        true   // Hardware watchdog protection
-// Safety features removed for minimal operation
-
-// Control parameters
+// PID parameters (config_common.h)
 #define DEFAULT_TARGET_RPM    1440.0   // Target RPM
-#define DEFAULT_KP            3.25     // Proportional gain
-#define DEFAULT_KI            0.0320   // Integral gain
-#define DEFAULT_KD            0.001    // Derivative gain
+#define DEFAULT_KP            0.150    // Proportional gain
+#define DEFAULT_KI            0.080    // Integral gain
+#define DEFAULT_KD            0.015    // Derivative gain
 ```
 
-### Safety Feature Configuration
+### Spike Dampening Parameters
 
-- **Watchdog Timer**: Set `WATCHDOG_ENABLED` to `false` to disable (not recommended)
-  // Minimal configuration for production use
+All parameters are scaled for integer math to maximize efficiency:
+
+```cpp
+// Derivative filtering (config_common.h)
+#define DERIVATIVE_FILTER_ALPHA_SCALED 20   // 20% = 0.2 filter coefficient
+#define OUTPUT_SLEW_RATE_SCALED        8    // Max output change per iteration
+
+// Setpoint ramping
+#define SETPOINT_RAMP_RATE_SCALED      50   // RPM*10 per iteration (5.0 RPM actual)
+#define SETPOINT_RAMP_ENABLED          1    // 1 = enabled, 0 = disabled
+
+// Emergency handler
+#define EMERGENCY_ERROR_THRESHOLD_SCALED 20000  // Error threshold (2000 RPM * 10)
+#define EMERGENCY_RAMPDOWN_RATE          5      // PWM reduction per iteration
+#define EMERGENCY_MIN_PWM                30     // Minimum PWM during emergency
+#define EMERGENCY_RECOVERY_TIME_MS       3000   // Recovery wait time (ms)
+#define EMERGENCY_FULL_STOP              0      // 0 = stop at MIN_PWM, 1 = full stop
+```
+
+### Tuning the Spike Dampening
+
+| Parameter | Effect | Adjustment |
+|-----------|--------|------------|
+| `DERIVATIVE_FILTER_ALPHA_SCALED` | Noise reduction | Lower = smoother (10-50) |
+| `OUTPUT_SLEW_RATE_SCALED` | Response speed | Lower = gentler transitions |
+| `SETPOINT_RAMP_RATE_SCALED` | Startup speed | Lower = slower ramp-up |
+| `EMERGENCY_RAMPDOWN_RATE` | Emergency gentleness | Lower = slower ramp-down |
+| `EMERGENCY_MIN_PWM` | Emergency floor | Higher = maintains more torque |
 
 ## Deployment Process
 
@@ -237,20 +268,26 @@ Update these constants in the ATtiny85 code with your Arduino-tuned values:
 ### Timing Accuracy
 
 - Custom Timer1-based millisecond counter
-- 100Hz control loop maintained
+- 160Hz control loop (8MHz) / 200Hz control loop (20MHz)
 - Interrupt-based period measurement for RPM calculation
+- Timer1 prescaler adjusted for each clock speed
 
 ### PWM Output
 
 - 8-bit resolution (0-255)
-- ~1kHz frequency (Timer0 with prescaler 8)
+- ~1kHz frequency (8MHz) / ~1.2kHz frequency (20MHz)
 - May need frequency adjustment for specific ESC
 
 ### Memory Usage
 
-- Optimized variable usage
-- No floating-point operations in interrupts
-- Careful use of stack space
+| Version | Flash | RAM |
+|---------|-------|-----|
+| 20MHz External | 2556 bytes (31%) | 71 bytes (13%) |
+| 8MHz Internal | 2564 bytes (31%) | 71 bytes (13%) |
+
+- All PID calculations use fixed-point integer math
+- No floating-point operations in control loop
+- Enhanced features add minimal overhead (~500 bytes)
 
 ## Troubleshooting
 
@@ -272,8 +309,26 @@ Update these constants in the ATtiny85 code with your Arduino-tuned values:
 
 - **Tuned Values**: Double-check Arduino-tuned gains are correct
 - **Load Changes**: PID should handle load variations automatically
-- **Anti-windup**: Integral limits may need adjustment (±50 might be too low)
-- **Timing**: Control loop should be exactly 100Hz
+- **Anti-windup**: Integral limits may need adjustment
+- **Timing**: Control loop should be 160Hz (8MHz) or 200Hz (20MHz)
+
+### Initial Spike or Overshoot
+
+- **Setpoint Ramp**: Reduce `SETPOINT_RAMP_RATE_SCALED` (try 25)
+- **Slew Rate**: Reduce `OUTPUT_SLEW_RATE_SCALED` (try 4)
+- **Derivative Filter**: Reduce `DERIVATIVE_FILTER_ALPHA_SCALED` (try 10)
+
+### Emergency Handler Triggers Too Often
+
+- **Threshold**: Increase `EMERGENCY_ERROR_THRESHOLD_SCALED` (try 25000)
+- **Noise**: Check Hall sensor signal quality
+- **Mechanical**: Verify no binding or excessive load variation
+
+### Motor Jerks During Emergency
+
+- **Ramp Rate**: Reduce `EMERGENCY_RAMPDOWN_RATE` (try 2)
+- **Minimum PWM**: Increase `EMERGENCY_MIN_PWM` (try 40)
+- **Full Stop**: Set `EMERGENCY_FULL_STOP` to 0 to maintain some torque
 
 ### Programming Issues
 

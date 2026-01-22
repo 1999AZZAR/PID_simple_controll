@@ -114,7 +114,10 @@ These diagrams provide visual reference for:
 
 **Best for**: Production deployment
 
-- Minimal resource usage (77% flash, 38% RAM)
+- Enhanced PID with spike dampening (integer math optimized)
+- Setpoint ramping for smooth startup
+- Safe emergency handler with gradual ramp-down
+- Minimal resource usage (31% flash, 13% RAM)
 
 ### Auto-Tune GUI (`auto_tune/`)
 
@@ -199,26 +202,25 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 
 ## Platform Comparison
 
-| Feature                     | Arduino Uno (Simplified)                        | ATTiny85 (Production)                        |
+| Feature                     | Arduino Uno (Development)                       | ATTiny85 (Production)                        |
 | --------------------------- | ----------------------------------------------- | -------------------------------------------- |
-| **Purpose**           | Clean development and testing                   | Production deployment                        |
+| **Purpose**           | Development and testing                         | Production deployment                        |
 | **Target RPM**        | Fixed at 1440 RPM                               | Fixed at 1440 RPM                            |
-| **Flash Usage**       | 6,968 bytes (21%)                               | 1,586 bytes (77%)                            |
-| **RAM Usage**         | 372 bytes (18%)                                 | 49 bytes (38%)                               |
-| **Efficiency Ratio**  | **4.4x smaller than full-featured**       | **11.7x smaller flash, 7.6x less RAM** |
-| **Total Flash**       | 32,256 bytes                                    | 2,048 bytes                                  |
-| **Total RAM**         | 2,048 bytes                                     | 128 bytes                                    |
-| **Pin Count**         | 7 pins used                                     | **2 pins only**                        |
-| **Cost**              | ~$20                                      | ~$2 |                                              |
+| **Flash Usage**       | 8,706 bytes (26%)                               | 2,556 bytes (31%)                            |
+| **RAM Usage**         | 564 bytes (27%)                                 | 71 bytes (13%)                               |
+| **Total Flash**       | 32,256 bytes                                    | 8,192 bytes                                  |
+| **Total RAM**         | 2,048 bytes                                     | 512 bytes                                    |
+| **Pin Count**         | 7 pins used                                     | **2 pins only**                              |
+| **Cost**              | ~$20                                            | ~$2                                          |
 | **Tuning Interface**  | 4 potentiometers (PPR, Kp, Ki, Kd)              | None (pre-tuned)                             |
-| **Safety Features**   | Anti-windup protection                          | Watchdog timer                               |
-| **EEPROM**            | None                                            | None                                         |
-| **Serial Output**     | 7-parameter monitoring                          | None                                         |
-| **Development Time**  | Quick setup, stable operation                   | Deploy & forget                              |
-| **Power Efficiency**  | Standard                                        | Optimized                                    |
-| **Reliability Focus** | Maximum stability                               | Cost-effective                               |
+| **Spike Dampening**   | Derivative filter, slew rate, setpoint ramp    | Same features (integer math)                 |
+| **Emergency Handler** | Gradual ramp-down, auto recovery                | Same features                                |
+| **Safety Features**   | Anti-windup, emergency handler                  | Anti-windup, emergency handler               |
+| **Serial Output**     | 10-parameter monitoring                         | None                                         |
+| **Control Loop**      | 200Hz                                           | 160Hz (8MHz) / 200Hz (20MHz)                 |
+| **Math Type**         | Floating-point                                  | Fixed-point integer                          |
 
-**Platform Summary**: Arduino Uno provides full development features. ATTiny85 offers minimal production control with cost optimization.
+**Platform Summary**: Both versions now include enhanced PID with spike dampening and safe emergency handling. Arduino Uno uses floating-point math for development flexibility, ATTiny85 uses optimized integer math for production efficiency.
 
 ## Quick Start
 
@@ -692,10 +694,13 @@ Note: Serial Plotter monitoring is available in both operating modes for real-ti
 
 ### ATTiny85 Version (Production)
 
-- **Hardware-Level Protection**: 8-second watchdog timer for hang protection
-- **Anti-Windup Protection**: Prevents integrator runaway during stall conditions
-- **Minimal Footprint**: Core PID control with essential safety features
-- **Production Ready**: Reliable operation in resource-constrained environments
+- **Enhanced PID**: Derivative-on-measurement, derivative filtering, output slew rate limiting
+- **Setpoint Ramping**: Smooth startup transitions using integer math
+- **Safe Emergency Handler**: Gradual ramp-down instead of instant power cutoff
+- **Anti-Windup Protection**: Conditional integral scaling prevents runaway
+- **Overspeed/Underspeed Detection**: Separate handling for different failure modes
+- **Automatic Recovery**: Smooth recovery with setpoint restart from current speed
+- **Production Ready**: All safety features optimized for integer math efficiency
 
 ## Usage Instructions
 

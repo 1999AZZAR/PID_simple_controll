@@ -5,8 +5,10 @@
 
 // Shared RPM calculation functions with period measurement
 
-// Moving average filter for RPM smoothing
+// Moving average filter for RPM smoothing (default value, can be overridden in config)
+#ifndef RPM_FILTER_SIZE
 #define RPM_FILTER_SIZE 5
+#endif
 
 // Timer rollover safe interval calculation
 // Returns the time difference between two timestamps, handling rollover

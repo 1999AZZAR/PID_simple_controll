@@ -45,25 +45,40 @@ flowchart TB
         P3["Calculate RPM from Period Measurement"]
         P4["Integer Math: 600000000UL / (interval * pulsesPerRev)"]
         P5["Update lastRPMCalcTime"]
+        SP["Setpoint Ramping"]
+        SP1{"setpointRampComplete?"}
+        SP2["activeSetpoint_scaled += RAMP_RATE"]
+        SP3["activeSetpoint_scaled = targetRPM_scaled"]
         Q["Calculate Scaled Error"]
-        Q1["error_scaled = targetRPM_scaled - currentRPM"]
-        R["Compute PID Output - Integer Math"]
-        R1["pidOutput = computePID(error_scaled)"]
+        Q1["error_scaled = activeSetpoint_scaled - currentRPM"]
+        R["Compute Enhanced PID - Integer Math"]
+        R1["pidOutput = computePID_fixed_enhanced()"]
         R2["Calculate Proportional Term"]
         R3["P = (kp_scaled * error_scaled) / 1000"]
-        R4["Calculate Integral Term"]
-        R5["I_accumulate = (ki_scaled * error_scaled) / 100"]
+        R4["Integral with Conditional Scaling"]
+        R5["Scale down when error > 5000"]
         R6["Anti-windup Protection"]
         R7{"Clamp integral_scaled to limits"}
         R8["I = integral_scaled / 1000"]
-        R9["Calculate Derivative Term"]
-        RA["D = (kd_scaled * (error_scaled - previousError_scaled)) / 1000"]
-        RB["Update previousError_scaled"]
-        RC["Total PID Output"]
-        RC1["pidOutput = P + I + D"]
+        R9["Derivative-on-Measurement"]
+        RA["rawD = -kd * (measurement - prevMeasurement)"]
+        RB["Apply EMA Low-Pass Filter"]
+        RC["filteredD = alpha*rawD + (1-alpha)*filteredD"]
+        RD["Apply Output Slew Rate Limiting"]
+        RE["Total PID Output with Slew Limit"]
         S["Convert PID to PWM Value"]
-        S1["pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255)"]
-        S2["pwmValue = constrain_value(pwmValue, 0, 255)"]
+        S1["normalPWM = map(pidOutput, MIN, MAX, 0, 255)"]
+        S2["normalPWM = constrain(normalPWM, 20, 255)"]
+        EM["Emergency Handler"]
+        EM1{"Overspeed or Underspeed?"}
+        EM2["Enter Emergency Mode"]
+        EM3["emergencyPWM = lastPWMValue"]
+        EM4["Gradual Ramp-Down"]
+        EM5["emergencyPWM -= RAMPDOWN_RATE"]
+        EM6{"Recovery Conditions Met?"}
+        EM7["Exit Emergency, Reset Setpoint Ramp"]
+        EM8["pwmValue = emergencyPWM"]
+        EM9["pwmValue = normalPWM"]
         T["Output to ESC - Direct Register"]
         T1["OCR0A = pwmValue"]
         U["Small Delay to Prevent Tight Polling"]
@@ -125,7 +140,12 @@ flowchart TB
     P3 --> P4
     P4 --> P5
     P5 --> O
-    O --> Q
+    O --> SP
+    SP --> SP1
+    SP1 -- No --> SP2
+    SP1 -- Yes --> SP3
+    SP2 --> Q
+    SP3 --> Q
     Q --> Q1
     Q1 --> R
     R --> R1
@@ -140,11 +160,25 @@ flowchart TB
     R9 --> RA
     RA --> RB
     RB --> RC
-    RC --> RC1
-    RC1 --> S
+    RC --> RD
+    RD --> RE
+    RE --> S
     S --> S1
     S1 --> S2
-    S2 --> T
+    S2 --> EM
+    EM --> EM1
+    EM1 -- Yes, not in emergency --> EM2
+    EM1 -- Already in emergency --> EM4
+    EM1 -- No, normal --> EM9
+    EM2 --> EM3
+    EM3 --> EM4
+    EM4 --> EM5
+    EM5 --> EM6
+    EM6 -- Yes --> EM7
+    EM6 -- No --> EM8
+    EM7 --> EM9
+    EM8 --> T
+    EM9 --> T
     T --> T1
     T1 --> U
     U --> U1
@@ -175,6 +209,9 @@ flowchart TB
      I:::process_class
      K1:::decision_class
      N1:::decision_class
+     SP1:::decision_class
+     SP2:::process_class
+     SP3:::process_class
      P1:::process_class
      P4:::math_class
      R1:::process_class
@@ -183,7 +220,19 @@ flowchart TB
      R5:::math_class
      R8:::math_class
      RA:::math_class
+     RB:::math_class
+     RC:::math_class
+     RD:::process_class
+     RE:::process_class
      S1:::process_class
+     EM1:::decision_class
+     EM2:::process_class
+     EM4:::process_class
+     EM5:::process_class
+     EM6:::decision_class
+     EM7:::process_class
+     EM8:::process_class
+     EM9:::process_class
      T1:::process_class
      V1:::process_class
      W1:::process_class

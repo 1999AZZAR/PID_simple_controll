@@ -67,30 +67,41 @@ int currentRPM = 0;  // RPM * 10 (fixed point, e.g., 14400 = 1440.0 RPM)
 const int pulsesPerRev = DEFAULT_PULSES_PER_REV; // Runtime variable for consistency
 
 // Moving average filter for RPM smoothing and accuracy (ATtiny85 optimized)
-#define RPM_FILTER_SIZE 3  // Smaller filter for ATtiny85 memory constraints
+// RPM_FILTER_SIZE defined in config_common.h (3 for ATtiny85)
 int rpmHistory[RPM_FILTER_SIZE] = {0};
 int rpmHistoryIndex = 0;
 int rpmFiltered = 0;
 
 // PID variables - Pre-tuned values from Arduino (scaled for integer math)
 const int targetRPM_scaled = (int)(DEFAULT_TARGET_RPM * 10);  // Target RPM * 10
-const int kp_scaled = (int)(DEFAULT_KP * 100);                // Kp * 100
-const int ki_scaled = (int)(DEFAULT_KI * 100);                // Ki * 100
-const int kd_scaled = (int)(DEFAULT_KD * 100);                // Kd * 100
+const int kp_scaled = (int)(DEFAULT_KP * 1000);               // Kp * 1000 (higher precision)
+const int ki_scaled = (int)(DEFAULT_KI * 1000);               // Ki * 1000
+const int kd_scaled = (int)(DEFAULT_KD * 1000);               // Kd * 1000
 int previousError_scaled = 0;  // Previous error * 10
 long integral_scaled = 0;      // Integral * 1000 (higher precision)
-int pidOutput = 0;             // Final output (-255 to 255)
+int pidOutput = 0;             // Final output
 
-// Safety features
+// Enhanced PID state variables for spike dampening
+int previousMeasurement_scaled = 0;   // For derivative-on-measurement
+long filteredDerivative_scaled = 0;   // Low-pass filtered derivative
+int previousPIDOutput = 0;            // For slew rate limiting
 
-// Soft-start ramping to avoid current surges (ATtiny85 version)
+// Setpoint ramping variables
+int activeSetpoint_scaled = 0;        // Ramped setpoint (starts at 0)
+uint8_t setpointRampComplete = 0;     // Flag: 0 = ramping, 1 = complete
+
+// Emergency handler variables
+uint8_t emergencyActive = 0;          // Flag: 0 = normal, 1 = emergency
+unsigned long emergencyStartTime = 0;
+uint8_t emergencyPWM = 0;             // PWM during emergency ramp-down
+uint8_t lastPWMValue = 0;             // Track last PWM for emergency start
 
 // Function prototypes
 void setupPins();
 void setupTimer();
 void rpmSensorISR();
 int calculateRPM();
-int computePID(int error_scaled);
+int computePID(int error_scaled, int measurement_scaled);
 void outputToESC(uint8_t pwmValue);
 int constrain_value(int value, int min, int max);
 long map(long x, long in_min, long in_max, long out_min, long out_max);
@@ -139,15 +150,74 @@ void loop() {
             lastRPMCalcTime = timer_ms;
         }
 
-        // Compute PID output using pre-tuned gains (integer math)
-        int error_scaled = targetRPM_scaled - currentRPM;
-        pidOutput = computePID(error_scaled);
+        // Setpoint ramping: gradually increase setpoint to avoid initial spike
+        #if SETPOINT_RAMP_ENABLED
+        if (!setpointRampComplete) {
+            if (activeSetpoint_scaled < targetRPM_scaled) {
+                activeSetpoint_scaled += SETPOINT_RAMP_RATE_SCALED;
+                if (activeSetpoint_scaled >= targetRPM_scaled) {
+                    activeSetpoint_scaled = targetRPM_scaled;
+                    setpointRampComplete = 1;
+                }
+            }
+        } else {
+            activeSetpoint_scaled = targetRPM_scaled;
+        }
+        #else
+        activeSetpoint_scaled = targetRPM_scaled;
+        #endif
 
-        // Convert PID output to PWM value and output to ESC
-        int pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
-        pwmValue = constrain_value(pwmValue, 0, 255);
+        // Compute PID output using ramped setpoint and enhanced function
+        int error_scaled = activeSetpoint_scaled - currentRPM;
+        pidOutput = computePID(error_scaled, currentRPM);
 
-        // Normal operation - control motor
+        // Calculate normal PWM value
+        int normalPWM = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
+        normalPWM = constrain_value(normalPWM, 20, 255);  // Minimum threshold
+
+        // Safe emergency handler with gradual ramp-down
+        uint8_t pwmValue;
+        uint8_t isOverspeed = (currentRPM > activeSetpoint_scaled + EMERGENCY_ERROR_THRESHOLD_SCALED);
+        uint8_t isUnderspeed = (currentRPM < activeSetpoint_scaled - EMERGENCY_ERROR_THRESHOLD_SCALED) && 
+                               (activeSetpoint_scaled > 1000);  // Only if setpoint > 100 RPM
+        
+        if ((isOverspeed || isUnderspeed) && !emergencyActive) {
+            // Enter emergency mode
+            emergencyActive = 1;
+            emergencyStartTime = timer_ms;
+            emergencyPWM = lastPWMValue;  // Start from current PWM
+        }
+        
+        if (emergencyActive) {
+            // Gradual ramp-down
+            uint8_t targetEmergencyPWM = EMERGENCY_FULL_STOP ? 0 : EMERGENCY_MIN_PWM;
+            
+            if (emergencyPWM > targetEmergencyPWM + EMERGENCY_RAMPDOWN_RATE) {
+                emergencyPWM -= EMERGENCY_RAMPDOWN_RATE;
+            } else if (emergencyPWM > targetEmergencyPWM) {
+                emergencyPWM = targetEmergencyPWM;
+            }
+            
+            pwmValue = emergencyPWM;
+            
+            // Check for recovery
+            unsigned long emergencyDuration = timer_ms - emergencyStartTime;
+            int errorMagnitude = (error_scaled < 0) ? -error_scaled : error_scaled;
+            uint8_t errorRecovered = (errorMagnitude < (EMERGENCY_ERROR_THRESHOLD_SCALED / 2));
+            
+            if (emergencyDuration > EMERGENCY_RECOVERY_TIME_MS && errorRecovered) {
+                // Exit emergency, restart setpoint ramp
+                emergencyActive = 0;
+                emergencyStartTime = 0;
+                setpointRampComplete = 0;
+                activeSetpoint_scaled = currentRPM;  // Start from current speed
+                integral_scaled = 0;  // Reset integral
+            }
+        } else {
+            pwmValue = (uint8_t)normalPWM;
+        }
+        
+        lastPWMValue = pwmValue;
         outputToESC(pwmValue);
     }
 
@@ -171,15 +241,19 @@ void setupTimer() {
     TCNT1 = 0;              // Reset counter
 
     // Calculate OCR1A for 1ms interrupt based on F_CPU
-    // Formula: OCR1A = (F_CPU / 1000 / 64) - 1, but adjusted for timer behavior
+    // OCR1A is 8-bit (0-255), so we need appropriate prescaler
 #if F_CPU == 20000000UL
-    OCR1A = 312;            // Compare value for 1ms at 20MHz (20MHz/64 = 312.5kHz, 312.5kHz/1000 = 312.5)
+    // 20MHz with prescaler 128: 20MHz/128 = 156.25kHz, 156.25kHz/1000Hz = 156.25
+    OCR1A = 155;            // Compare value for ~1ms at 20MHz
+    TCCR1 |= (1 << CTC1);   // Clear timer on compare match
+    TCCR1 |= (1 << CS13);   // Prescaler 128
 #elif F_CPU == 8000000UL
-    OCR1A = 125;            // Compare value for 1ms at 8MHz (8MHz/64 = 125kHz, 125kHz/1000 = 125)
-#endif
-
+    // 8MHz with prescaler 64: 8MHz/64 = 125kHz, 125kHz/1000Hz = 125
+    OCR1A = 124;            // Compare value for 1ms at 8MHz
     TCCR1 |= (1 << CTC1);   // Clear timer on compare match
     TCCR1 |= (1 << CS12) | (1 << CS11) | (1 << CS10); // Prescaler 64
+#endif
+
     TIMSK |= (1 << OCIE1A); // Enable compare interrupt
 
     // Setup Timer0 for PWM (default 8-bit fast PWM)
@@ -231,21 +305,21 @@ int calculateRPM() {
     return rpmFiltered; // Return previous filtered value if not enough time has passed
 }
 
-int computePID(int error_scaled) {
-    return computePID_fixed(error_scaled, integral_scaled, previousError_scaled,
-                           kp_scaled, ki_scaled, kd_scaled,
-                           INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
-                           PID_OUTPUT_MIN, PID_OUTPUT_MAX);
+int computePID(int error_scaled, int measurement_scaled) {
+    return computePID_fixed_enhanced(error_scaled, measurement_scaled,
+                                     integral_scaled, previousMeasurement_scaled,
+                                     filteredDerivative_scaled, previousPIDOutput,
+                                     kp_scaled, ki_scaled, kd_scaled,
+                                     INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
+                                     PID_OUTPUT_MIN, PID_OUTPUT_MAX,
+                                     DERIVATIVE_FILTER_ALPHA_SCALED, OUTPUT_SLEW_RATE_SCALED);
 }
 
 // Soft-start removed for size optimization
 
 void outputToESC(uint8_t pwmValue) {
-    // Clamp PWM value to safe range
-    if (pwmValue > 255) pwmValue = 255;
-    if (pwmValue < 0) pwmValue = 0;
-
-    // Set PWM duty cycle directly (no soft-start for size optimization)
+    // Set PWM duty cycle directly
+    // Note: pwmValue is uint8_t, already constrained to 0-255
     OCR0A = pwmValue;
 }
 
