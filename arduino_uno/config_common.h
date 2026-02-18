@@ -18,7 +18,7 @@
 // PWM output parameters (shared)
 #define PWM_MIN_VALUE       0       // Minimum PWM value (0 = motor stopped)
 #define PWM_MAX_VALUE       255     // Maximum PWM value (255 = full speed)
-#define PWM_MIN_THRESHOLD   20      // Minimum PWM threshold for motor torque (~8% of full range)
+#define PWM_MIN_THRESHOLD   45      // Minimum PWM threshold for motor torque (~18% of full range)
 
 // Control loop timing (shared)
 #define CONTROL_LOOP_HZ     200     // Control loop frequency (200 Hz)

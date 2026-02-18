@@ -59,10 +59,8 @@ const float targetRPM = DEFAULT_TARGET_RPM; // Fixed target RPM for constant spe
 int pulsesPerRev = DEFAULT_PULSES_PER_REV; // Configurable pulses per revolution via potentiometer
 int lastPWMValue = 0; // Last PWM value for hysteresis
 
-// Moving average filter for RPM smoothing and accuracy
-#define RPM_FILTER_SIZE 5
-float rpmHistory[RPM_FILTER_SIZE] = {0};
-int rpmHistoryIndex = 0;
+// Exponential Moving Average (EMA) filter for RPM smoothing
+#define EMA_ALPHA 0.25  // Smoothing factor (0.1 = stable, 1.0 = instant)
 float rpmFiltered = 0.0;
 
 // PID variables
@@ -239,8 +237,12 @@ float calculateRPM() {
             }
         }
 
-        // Apply moving average filter for noise reduction and stability
-        updateMovingAverage(rpmFiltered, rpm, rpmHistory, rpmHistoryIndex, RPM_FILTER_SIZE);
+        // Apply Exponential Moving Average (EMA) filter
+        if (rpmFiltered == 0.0 && rpm > 0.0) {
+            rpmFiltered = rpm; // Initialize with first valid reading to avoid startup lag
+        } else {
+            updateEMA(rpmFiltered, rpm, EMA_ALPHA);
+        }
 
         lastCalcTime = currentTime;
 
@@ -299,7 +301,17 @@ int applySoftStart(int targetPWM) {
     }
 
     // Apply ramped output
-    return (int)(targetPWM * rampProgress);
+    // Boosted ramp: start at PWM_MIN_THRESHOLD and ramp up to targetPWM
+    // Formula: output = min_threshold + (target - min_threshold) * rampProgress
+    // This ensures motor overcomes static friction immediately
+    int kickstartPWM = PWM_MIN_THRESHOLD + (int)((targetPWM - PWM_MIN_THRESHOLD) * rampProgress);
+    
+    // Ensure we don't exceed targetPWM
+    if (kickstartPWM > targetPWM) {
+        return targetPWM;
+    }
+    
+    return kickstartPWM;
 }
 
 // Output PWM value to ESC with soft-start protection

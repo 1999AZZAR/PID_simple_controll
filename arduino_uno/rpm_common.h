@@ -50,4 +50,10 @@ inline void updateMovingAverageInt(int& filteredValue, int newValue,
     filteredValue = (int)(sum / filterSize);
 }
 
+// Exponential Moving Average (EMA) filter update
+// alpha: Smoothing factor between 0 and 1. Lower = smoother but slower response.
+inline void updateEMA(float& filteredValue, float newValue, float alpha) {
+    filteredValue = (alpha * newValue) + ((1.0 - alpha) * filteredValue);
+}
+
 #endif // RPM_COMMON_H

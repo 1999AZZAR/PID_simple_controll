@@ -19,6 +19,11 @@
 #define CONTROL_LOOP_HZ     200     // Control loop frequency (200 Hz)
 #define CONTROL_PERIOD_MS   (1000 / CONTROL_LOOP_HZ)
 
+// PWM output parameters (shared)
+#define PWM_MIN_VALUE       0       // Minimum PWM value (0 = motor stopped)
+#define PWM_MAX_VALUE       255     // Maximum PWM value (255 = full speed)
+#define PWM_MIN_THRESHOLD   45      // Minimum PWM threshold for motor torque (~18% of full range)
+
 // Default PID parameters (can be overridden by each project)
 #define DEFAULT_TARGET_RPM 1440.0   // Default target RPM
 #define DEFAULT_KP         0.900    // Default proportional gain
