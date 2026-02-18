@@ -53,7 +53,7 @@ float targetRPM = DEFAULT_TARGET_RPM;
 int pulsesPerRev = DEFAULT_PULSES_PER_REV;
 
 // Exponential Moving Average (EMA) filter for RPM smoothing
-#define EMA_ALPHA 0.1  // Smoothing factor (0.1 = stable, 1.0 = instant)
+#define EMA_ALPHA 0.25  // Smoothing factor (0.1 = stable, 1.0 = instant)
 float rpmFiltered = 0.0;
 
 // PID variables
