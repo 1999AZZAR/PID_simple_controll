@@ -66,10 +66,9 @@ unsigned long lastRPMCalcTime = 0;
 int currentRPM = 0;  // RPM * 10 (fixed point, e.g., 14400 = 1440.0 RPM)
 const int pulsesPerRev = DEFAULT_PULSES_PER_REV; // Runtime variable for consistency
 
-// Moving average filter for RPM smoothing and accuracy (ATtiny85 optimized)
-#define RPM_FILTER_SIZE 3  // Smaller filter for ATtiny85 memory constraints
-int rpmHistory[RPM_FILTER_SIZE] = {0};
-int rpmHistoryIndex = 0;
+// Exponential Moving Average (EMA) filter for RPM smoothing (Integer optimized)
+// EMA Alpha = 0.25 (same as Arduino Uno), scaled by 100 for integer math -> 25
+#define EMA_ALPHA_SCALED 25 
 int rpmFiltered = 0;
 
 // PID variables - Pre-tuned values from Arduino (scaled for integer math)
@@ -81,9 +80,10 @@ int previousError_scaled = 0;  // Previous error * 10
 long integral_scaled = 0;      // Integral * 1000 (higher precision)
 int pidOutput = 0;             // Final output (-255 to 255)
 
-// Safety features
-
-// Soft-start ramping to avoid current surges (ATtiny85 version)
+// Soft-start ramping parameters
+#define SOFT_START_DURATION_MS  1500  // 1.5 seconds ramp up time
+unsigned long softStartStartTime = 0;
+bool softStarting = true;
 
 // Function prototypes
 void setupPins();
@@ -92,6 +92,7 @@ void rpmSensorISR();
 int calculateRPM();
 int computePID(int error_scaled);
 void outputToESC(uint8_t pwmValue);
+int applySoftStart(int targetPWM); // Added prototype
 int constrain_value(int value, int min, int max);
 long map(long x, long in_min, long in_max, long out_min, long out_max);
 
@@ -144,8 +145,8 @@ void loop() {
         pidOutput = computePID(error_scaled);
 
         // Convert PID output to PWM value and output to ESC
-        int pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, 0, 255);
-        pwmValue = constrain_value(pwmValue, 0, 255);
+        int pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
+        pwmValue = constrain_value(pwmValue, PWM_MIN_THRESHOLD, PWM_MAX_VALUE);
 
         // Normal operation - control motor
         outputToESC(pwmValue);
@@ -220,8 +221,12 @@ int calculateRPM() {
             }
         }
 
-        // Apply moving average filter for noise reduction (ATtiny85 optimized)
-        updateMovingAverageInt(rpmFiltered, rpm_scaled, rpmHistory, rpmHistoryIndex, RPM_FILTER_SIZE);
+        // Apply Exponential Moving Average (EMA) filter (ATtiny85 optimized)
+        if (rpmFiltered == 0 && rpm_scaled > 0) {
+            rpmFiltered = rpm_scaled; // Initialize with first valid reading
+        } else {
+            updateEMAInt(rpmFiltered, rpm_scaled, EMA_ALPHA_SCALED);
+        }
 
         lastCalcTime_us = currentTime_us;
 
@@ -238,15 +243,50 @@ int computePID(int error_scaled) {
                            PID_OUTPUT_MIN, PID_OUTPUT_MAX);
 }
 
-// Soft-start removed for size optimization
+// Apply soft-start ramping to avoid current surges (Boosted Kickstart)
+int applySoftStart(int targetPWM) {
+    if (!softStarting) {
+        return targetPWM;  // Normal operation
+    }
+
+    if (softStartStartTime == 0) {
+        softStartStartTime = timer_ms; // Use timer_ms instead of millis()
+    }
+
+    unsigned long elapsed = timer_ms - softStartStartTime;
+    
+    // Check if soft start is complete
+    if (elapsed >= SOFT_START_DURATION_MS) {
+        softStarting = false;
+        return targetPWM;
+    }
+
+    // Calculate ramp progress (0 to 1024 for fixed point precision)
+    // progress = elapsed / duration
+    long progress_scaled = (elapsed * 1024) / SOFT_START_DURATION_MS;
+
+    // Apply Boosted Ramp: output = min_threshold + (target - min_threshold) * progress
+    // Ensure motor overcomes static friction immediately
+    int kickstartPWM = PWM_MIN_THRESHOLD + (int)(((long)(targetPWM - PWM_MIN_THRESHOLD) * progress_scaled) / 1024);
+    
+    // Ensure we don't exceed targetPWM
+    if (kickstartPWM > targetPWM) {
+        return targetPWM;
+    }
+    
+    return kickstartPWM;
+}
 
 void outputToESC(uint8_t pwmValue) {
     // Clamp PWM value to safe range
     if (pwmValue > 255) pwmValue = 255;
     if (pwmValue < 0) pwmValue = 0;
 
-    // Set PWM duty cycle directly (no soft-start for size optimization)
-    OCR0A = pwmValue;
+    // Apply soft-start with kickstart
+    int safePWM = applySoftStart(pwmValue);
+
+    // Set PWM duty cycle directly
+    OCR0A = safePWM;
 }
 
 // Simple constrain function for ATtiny85

@@ -62,9 +62,30 @@ main() {
 
     # Test internal oscillator (8MHz)
     ./switch_config.sh internal > /dev/null 2>&1
-    if test_compilation "8MHz Internal Oscillator"; then
-        internal_ok=1
+    # Use specific FQBN for ATtiny85 with 8MHz internal clock
+    BOARD_FQBN_INTERNAL="attiny:avr:ATtinyX5:cpu=attiny85,clock=internal8"
+    
+    echo -e "${YELLOW}Testing 8MHz Internal Oscillator...${NC}"
+    if arduino-cli compile \
+        --fqbn "${BOARD_FQBN_INTERNAL}" \
+        --build-path "${BUILD_DIR}" \
+        "${SKETCH_DIR}" > /tmp/compile_output.log 2>&1; then
+        
+        if [ -f "${BUILD_DIR}/${SKETCH_NAME}.hex" ]; then
+            echo -e "${GREEN}✓ 8MHz Internal Oscillator compilation successful${NC}"
+            if grep -q "Sketch uses\|Global variables use" /tmp/compile_output.log; then
+                echo "  Memory usage:"
+                grep "Sketch uses\|Global variables use" /tmp/compile_output.log | head -2 | sed 's/^/    /'
+            fi
+            internal_ok=1
+        else
+            echo -e "${RED}✗ Hex file not found${NC}"
+            internal_ok=0
+        fi
     else
+        echo -e "${RED}✗ 8MHz Internal Oscillator compilation failed${NC}"
+        echo "  Error output:"
+        cat /tmp/compile_output.log | sed 's/^/    /'
         internal_ok=0
     fi
 
@@ -72,9 +93,30 @@ main() {
 
     # Test external crystal (20MHz)
     ./switch_config.sh external > /dev/null 2>&1
-    if test_compilation "20MHz External Crystal"; then
-        external_ok=1
+    # Use specific FQBN for ATtiny85 with 20MHz external clock
+    BOARD_FQBN_EXTERNAL="attiny:avr:ATtinyX5:cpu=attiny85,clock=external20"
+    
+    echo -e "${YELLOW}Testing 20MHz External Crystal...${NC}"
+    if arduino-cli compile \
+        --fqbn "${BOARD_FQBN_EXTERNAL}" \
+        --build-path "${BUILD_DIR}" \
+        "${SKETCH_DIR}" > /tmp/compile_output.log 2>&1; then
+        
+        if [ -f "${BUILD_DIR}/${SKETCH_NAME}.hex" ]; then
+            echo -e "${GREEN}✓ 20MHz External Crystal compilation successful${NC}"
+            if grep -q "Sketch uses\|Global variables use" /tmp/compile_output.log; then
+                echo "  Memory usage:"
+                grep "Sketch uses\|Global variables use" /tmp/compile_output.log | head -2 | sed 's/^/    /'
+            fi
+            external_ok=1
+        else
+            echo -e "${RED}✗ Hex file not found${NC}"
+            external_ok=0
+        fi
     else
+        echo -e "${RED}✗ 20MHz External Crystal compilation failed${NC}"
+        echo "  Error output:"
+        cat /tmp/compile_output.log | sed 's/^/    /'
         external_ok=0
     fi
 

@@ -32,6 +32,11 @@
 #define INTEGRAL_WINDUP_MIN -200    // Anti-windup integral minimum
 #define INTEGRAL_WINDUP_MAX 200     // Anti-windup integral maximum
 
+// PWM output parameters (shared)
+#define PWM_MIN_VALUE       0       // Minimum PWM value (0 = motor stopped)
+#define PWM_MAX_VALUE       255     // Maximum PWM value (255 = full speed)
+#define PWM_MIN_THRESHOLD   45      // Minimum PWM threshold for motor torque (~18% of full range)
+
 // Default PID parameters (can be overridden by each project)
 #define DEFAULT_TARGET_RPM 1440.0   // Default target RPM
 #define DEFAULT_KP         0.900    // Default proportional gain

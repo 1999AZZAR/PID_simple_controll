@@ -50,4 +50,11 @@ inline void updateMovingAverageInt(int& filteredValue, int newValue,
     filteredValue = (int)(sum / filterSize);
 }
 
+// Exponential Moving Average (EMA) filter update for integer values
+// alpha_scaled: Smoothing factor scaled by 100 (e.g. 25 = 0.25)
+inline void updateEMAInt(int& filteredValue, int newValue, int alpha_scaled) {
+    // filtered = (alpha * new) + ((100 - alpha) * old) / 100
+    filteredValue = (int)(((long)alpha_scaled * newValue + (long)(100 - alpha_scaled) * filteredValue) / 100);
+}
+
 #endif // RPM_COMMON_H
