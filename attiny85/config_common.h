@@ -4,8 +4,8 @@
 // ATTiny85 Configuration Selector
 // Uncomment ONE of the following lines to choose your configuration:
 
-#define USE_EXTERNAL_CRYSTAL  // Use 20MHz external crystal (requires hardware)
-//#define USE_INTERNAL_OSCILLATOR  // Use 8MHz internal oscillator (default)
+// #define USE_EXTERNAL_CRYSTAL  // Use 20MHz external crystal (requires hardware)
+#define USE_INTERNAL_OSCILLATOR  // Use 8MHz internal oscillator (default)
 
 // Include the appropriate configuration based on selection
 #if defined(USE_EXTERNAL_CRYSTAL)

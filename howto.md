@@ -445,6 +445,25 @@ Hall Sensor Signal (5V) ────► Resistor 1 (2.2kΩ) ────┬─�
 2. No serial output available for verification
 3. Motor operation indicates successful programming
 
+## Hardware-in-the-Loop (HIL) Simulation (Safe Testing)
+
+Don't want to risk spinning a real propeller yet? You can use a **second ESP32-C3** to simulate the Motor + ESC behavior!
+
+### Setup
+1.  **Board 1 (Controller)**: Flashed with standard `esp32_c3` firmware.
+2.  **Board 2 (Simulator)**: Flashed with `esp32_c3_simulator` firmware.
+
+### Wiring
+Connect them directly (Pin 0 <-> Pin 1 crossed):
+
+| Controller | Simulator | Function |
+| :--- | :--- | :--- |
+| **GND** | **GND** | Common Ground |
+| **GPIO 1** | **GPIO 0** | PWM Output -> PWM Input |
+| **GPIO 0** | **GPIO 1** | RPM Input <- RPM Output |
+
+*This creates a safe, virtual test bench to tune your PID without moving parts.*
+
 ## Initial Testing
 
 ### Safety Precautions
