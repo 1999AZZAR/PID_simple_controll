@@ -7,6 +7,7 @@
 - [Software Prerequisites](#software-prerequisites)
 - [Arduino Uno Version Assembly](#arduino-uno-version-assembly)
 - [ATtiny85 Version Assembly](#attiny85-version-assembly)
+- [ESP32-C3 Version Assembly](#esp32-c3-version-assembly)
 - [Software Installation](#software-installation)
 - [Initial Testing](#initial-testing)
 - [PID Tuning Procedure](#pid-tuning-procedure)
@@ -21,6 +22,7 @@ This guide provides detailed step-by-step instructions for assembling and config
 Two implementation versions are available:
 - **Arduino Uno Version**: Full-featured development and tuning platform
 - **ATtiny85 Version**: Production-optimized microcontroller with minimal hardware requirements
+- **ESP32-C3 Version**: High-performance embedded controller with FreeRTOS and FPU
 
 ## Bill of Materials
 
@@ -365,6 +367,48 @@ When using composite signals, update the pulse configuration:
    - Run motor at low speed first
    - Monitor RPM stability and smoothness
    - Compare performance with single sensor vs composite signal
+
+## ESP32-C3 Version Assembly
+
+### Step 1: Prepare Components
+
+1.  **ESP32-C3 SuperMini** board
+2.  **Voltage Divider Resistors**: 2x 2kΩ (or similar, e.g., 2.2kΩ + 3.3kΩ) to drop 5V to 3.3V.
+3.  **Power**: 5V supply for Vin pin.
+
+### Step 2: Wiring (CRITICAL: 3.3V Logic!)
+
+The ESP32-C3 is a **3.3V device**. The Hall sensors output **5V**. Connecting 5V directly to a GPIO pin may damage the ESP32!
+
+#### RPM Sensor Input (GPIO 0)
+You MUST use a voltage divider or level shifter.
+
+**Voltage Divider Circuit:**
+```
+Hall Sensor Signal (5V) ────► Resistor 1 (2.2kΩ) ────┬────► GPIO 0 (D0)
+                                                     │
+                                                     └────► Resistor 2 (3.3kΩ) ────► GND
+```
+*Note: Resistor values can vary (e.g., 10k/20k), as long as the ratio is roughly 2:3 to get ~3V at the GPIO pin.*
+
+#### PWM Output (GPIO 1)
+1.  Connect **GPIO 1 (D1)** to ESC Signal Input.
+2.  Most 5V ESCs will accept 3.3V logic as HIGH. If not, use a level shifter to boost 3.3V -> 5V.
+
+#### Power Connections
+1.  Connect 5V Power Supply -> **5V** pin on ESP32-C3.
+2.  Connect Ground -> **GND** pin.
+
+### Step 3: Software Installation
+
+1.  **Install ESP32 Core**:
+    *   Arduino IDE -> Boards Manager -> Search "esp32" by Espressif Systems -> Install (v3.0+).
+2.  **Select Board**:
+    *   Tools -> Board -> ESP32C3 Dev Module (or "ESP32-C3 SuperMini" if available).
+    *   Enable **"USB CDC On Boot"** if using USB Serial.
+3.  **Upload Code**:
+    *   Open `esp32_c3/esp32_c3.ino`.
+    *   Click Upload.
 
 ## Software Installation
 

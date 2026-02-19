@@ -8,6 +8,7 @@ A robust PID control system for maintaining a BLDC motor at exactly 1440 RPM, wi
 - [Overview](#overview)
 - [Implementations](#implementations)
   - [Arduino Uno Version](#arduino-uno-version-arduino_uno)
+  - [ESP32-C3 Version](#esp32-c3-version-esp32_c3)
   - [ATTiny85 Version](#attiny85-version-attiny85)
 - [Automated ZIP Creation](#automated-zip-creation)
 - [Quick Start](#quick-start)
@@ -40,6 +41,10 @@ BLDC_PID_Controller/
 │   ├── config.h                 # ATTiny85 configuration
 │   ├── README.md               # ATTiny85 documentation
 │   └── ATTiny85_hardware_schematic.md # ATTiny85 hardware setup
+├── esp32_c3/                    # High-Performance Embedded
+│   ├── esp32_c3.ino            # Main sketch with FreeRTOS
+│   ├── config.h                 # ESP32 configuration
+│   └── pcnt_driver.h           # RPM counter driver
 ├── auto_tune/                   # Advanced PID tuning GUI
 │   ├── code/                    # Arduino sketch folder (IDE compatible)
 │   │   ├── code.ino             # Arduino code with serial communication
@@ -109,6 +114,17 @@ These diagrams provide visual reference for:
 - No EEPROM storage or watchdog timer
 - Optimized memory usage: 21% flash, 18% RAM (highly stable)
 - Clean, maintainable codebase
+
+### ESP32-C3 Version (`esp32_c3/`)
+
+**Best for**: Modern embedded production
+
+- **High Performance**: 160MHz RISC-V core with hardware FPU
+- **Real-Time OS**: FreeRTOS task-based control loop for precision timing
+- **Compact Form Factor**: Fits in small enclosures (SuperMini board)
+- **Advanced Features**: Boosted soft-start (PWM 45 start), EMA filtering (Alpha 0.25)
+- **Future Proof**: WiFi/BLE capable hardware (disabled by default)
+- **3.3V Logic**: Requires voltage divider for 5V sensors
 
 ### ATTiny85 Version (`attiny85/`)
 
@@ -199,26 +215,20 @@ This repository uses GitHub Actions for fully automated compilation and packagin
 
 ## Platform Comparison
 
-| Feature                     | Arduino Uno (Simplified)                        | ATTiny85 (Production)                        |
-| --------------------------- | ----------------------------------------------- | -------------------------------------------- |
-| **Purpose**           | Clean development and testing                   | Production deployment                        |
-| **Target RPM**        | Fixed at 1440 RPM                               | Fixed at 1440 RPM                            |
-| **Flash Usage**       | 6,968 bytes (21%)                               | 1,586 bytes (77%)                            |
-| **RAM Usage**         | 372 bytes (18%)                                 | 49 bytes (38%)                               |
-| **Efficiency Ratio**  | **4.4x smaller than full-featured**       | **11.7x smaller flash, 7.6x less RAM** |
-| **Total Flash**       | 32,256 bytes                                    | 2,048 bytes                                  |
-| **Total RAM**         | 2,048 bytes                                     | 128 bytes                                    |
-| **Pin Count**         | 7 pins used                                     | **2 pins only**                        |
-| **Cost**              | ~$20                                      | ~$2 |                                              |
-| **Tuning Interface**  | 4 potentiometers (PPR, Kp, Ki, Kd)              | None (pre-tuned)                             |
-| **Safety Features**   | Anti-windup protection                          | Watchdog timer                               |
-| **EEPROM**            | None                                            | None                                         |
-| **Serial Output**     | 7-parameter monitoring                          | None                                         |
-| **Development Time**  | Quick setup, stable operation                   | Deploy & forget                              |
-| **Power Efficiency**  | Standard                                        | Optimized                                    |
-| **Reliability Focus** | Maximum stability                               | Cost-effective                               |
+| Feature                     | Arduino Uno (Simplified)                        | ATTiny85 (Production)                        | ESP32-C3 (Modern Embedded)                   |
+| --------------------------- | ----------------------------------------------- | -------------------------------------------- | -------------------------------------------- |
+| **Purpose**           | Clean development and testing                   | Production deployment                        | High-performance embedded                    |
+| **Target RPM**        | Fixed at 1440 RPM                               | Fixed at 1440 RPM                            | Fixed at 1440 RPM                            |
+| **Flash Usage**       | 6,968 bytes (21%)                               | 1,586 bytes (77%)                            | ~280 KB (7%)                                 |
+| **RAM Usage**         | 372 bytes (18%)                                 | 49 bytes (38%)                               | ~12 KB (3%)                                  |
+| **Processor**         | 16MHz AVR (8-bit)                               | 8MHz AVR (8-bit)                             | **160MHz RISC-V (32-bit)**             |
+| **Math**              | Software Float                                  | Software Float                               | **Hardware FPU**                       |
+| **Control Loop**      | Superloop                                       | Superloop                                    | **FreeRTOS Task**                      |
+| **Logic Level**       | 5V                                              | 5V                                           | **3.3V (Needs Divider)**               |
+| **Cost**              | ~$20                                      | ~$2 |                                              | ~$3 (SuperMini)                              |
+| **Safety Features**   | Anti-windup, Boosted Soft-Start                 | Watchdog, Boosted Soft-Start                 | FreeRTOS, Boosted Soft-Start                 |
 
-**Platform Summary**: Arduino Uno provides full development features. ATTiny85 offers minimal production control with cost optimization.
+**Platform Summary**: Arduino Uno provides full development features. ATTiny85 offers minimal production control. ESP32-C3 delivers modern performance and stability.
 
 ## Quick Start
 

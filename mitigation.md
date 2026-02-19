@@ -160,6 +160,33 @@ Option B: Motor Power Supply ────→ Arduino Uno (disconnect USB)
 3. Confirm baud rate is 115200 in Serial Monitor
 4. Try different USB port on computer
 
+### 7. ESP32-C3 Specific Issues (3.3V Logic)
+
+**What it means:** ESP32-C3 pins operate at 3.3V, but most Hall sensors output 5V. Connecting 5V directly will destroy the ESP32 pin!
+
+**Symptoms:**
+- ESP32 gets hot
+- Pin stops working
+- Random resets
+
+**Fix:** Use a Voltage Divider (2 resistors) to drop 5V to ~3.3V.
+```
+Hall Sensor Signal (5V) ──► 2kΩ Resistor ──┬──► ESP32 GPIO 0
+                                           │
+                                           └──► 3.3kΩ Resistor ──► GND
+```
+
+### 8. Motor Stalls at Start ("Kickstart" Issues)
+
+**Symptoms:**
+- Motor hums but won't turn
+- Needs a push to start
+- Spins a little then stops
+
+**Fix:** The firmware now includes a **Boosted Ramp** feature that starts PWM at 45 (18%) instead of 0.
+- Verify `PWM_MIN_THRESHOLD` in `config.h` is at least 45.
+- Ensure power supply can handle the initial current surge.
+
 ## Detailed Troubleshooting (Step-by-Step)
 
 ### RPM Measurement Issues
@@ -338,14 +365,15 @@ Final Drive ──► What you actually want to control
 
 **Mitigation**:
 ```cpp
-// Increase debounce filtering
-#define MIN_PULSE_WIDTH_US 500  // Increase from 100 to 500us
+// 1. Use Exponential Moving Average (EMA) Filter
+// New in v2.0: Replaced simple average with EMA (Alpha 0.25)
+// This reacts faster to real changes while smoothing noise.
 
-// Hardware solutions:
-// 1. Add RC filter (10kΩ + 0.1uF) to Hall sensor input
-// 2. Use shielded cables for Hall sensor connections
-// 3. Separate power supplies for controller and motor if possible
-// 4. Add ferrite beads on power lines
+// 2. Hardware solutions:
+// Add RC filter (10kΩ + 0.1uF) to Hall sensor input
+// Use shielded cables for Hall sensor connections
+// Separate power supplies for controller and motor if possible
+// Add ferrite beads on power lines
 ```
 
 #### Cause 4: Motor Shaft vs Sensor Alignment
