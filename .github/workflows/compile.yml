@@ -27,38 +27,22 @@ jobs:
         arduino-cli config init --overwrite
         
         # Add Board Manager URLs
-        arduino-cli config add board_manager.additional_urls http://drazzy.com/package_drazzy.com_index.json
+        # Switching back to Damellis core because Spence Konde's servers (azduino.com) are unreliable in CI
+        arduino-cli config add board_manager.additional_urls https://raw.githubusercontent.com/damellis/attiny/ide-1.6.x-boards-manager/package_damellis_attiny_index.json
         arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
-
-    - name: Manually Download ATTinyCore Index
-      run: |
-        # Manually download the index file to bypass arduino-cli download issues
-        mkdir -p /home/runner/.arduino15/
         
-        echo "Downloading package_drazzy.com_index.json..."
-        if curl -L -o /home/runner/.arduino15/package_drazzy.com_index.json http://drazzy.com/package_drazzy.com_index.json; then
-          echo "Download successful."
-          ls -l /home/runner/.arduino15/package_drazzy.com_index.json
-        else
-          echo "Download failed from drazzy.com, trying GitHub mirror..."
-          # Fallback to a known working mirror if available, or just fail with debug info
-          curl -L -v -o /home/runner/.arduino15/package_drazzy.com_index.json http://drazzy.com/package_drazzy.com_index.json
-        fi
-
-    - name: Update Index
-      run: |
-        # Verbose update to see what happens
-        arduino-cli core update-index --verbose
+        # Update index
+        arduino-cli core update-index
 
     - name: Install AVR Core
       run: |
         arduino-cli core install arduino:avr
 
-    - name: Install ATTiny Core
+    - name: Install ATTiny Core (Damellis)
       run: |
-        echo "Installing ATTinyCore..."
-        # If manual download worked, this should now find the platform
-        arduino-cli core install ATTinyCore:avr
+        echo "Installing ATTiny Core (Damellis)..."
+        # Installing 'attiny:avr' (Damellis) instead of 'ATTinyCore:avr' (Spence Konde)
+        arduino-cli core install attiny:avr
 
     - name: Install ESP32 Core
       run: |
@@ -73,14 +57,15 @@ jobs:
     - name: Compile ATtiny85 v1 (Production Logic Port)
       run: |
         cd attiny85/v1
-        # FQBN for Spence Konde: ATTinyCore:avr:attinyx5
-        # Options: chip=85, clock=16pll
-        arduino-cli compile --fqbn ATTinyCore:avr:attinyx5:chip=85,clock=16pll v1.ino --output-dir compiled/
+        # FQBN for Damellis: attiny:avr:ATtinyX5
+        # Options: cpu=attiny85, clock=internal16 (16MHz PLL)
+        # Note: 'internal16' is the correct key for Damellis core for 16MHz PLL
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16 v1.ino --output-dir compiled/
 
     - name: Compile ATtiny85 v2 (Advanced Timer)
       run: |
         cd attiny85/v2
-        arduino-cli compile --fqbn ATTinyCore:avr:attinyx5:chip=85,clock=16pll v2.ino --output-dir compiled/
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16 v2.ino --output-dir compiled/
 
     - name: Compile ESP32-C3 Control
       run: |
@@ -106,11 +91,11 @@ jobs:
 
         echo -e "\nATtiny85 v1 compilation results:"
         cd ../attiny85/v1
-        arduino-cli compile --fqbn ATTinyCore:avr:attinyx5:chip=85,clock=16pll v1.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16 v1.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
 
         echo -e "\nATtiny85 v2 compilation results:"
         cd ../../attiny85/v2
-        arduino-cli compile --fqbn ATTinyCore:avr:attinyx5:chip=85,clock=16pll v2.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16 v2.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
 
     - name: Get current date
       id: date
