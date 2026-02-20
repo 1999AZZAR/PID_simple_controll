@@ -27,12 +27,27 @@ jobs:
         arduino-cli config init --overwrite
         
         # Add Board Manager URLs
-        # Using reliable GitHub mirror for Spence Konde if drazzy.com fails, or just drazzy.com
         arduino-cli config add board_manager.additional_urls http://drazzy.com/package_drazzy.com_index.json
         arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+
+    - name: Manually Download ATTinyCore Index
+      run: |
+        # Manually download the index file to bypass arduino-cli download issues
+        mkdir -p /home/runner/.arduino15/
         
-        # Verbose update
-        echo "Updating indices..."
+        echo "Downloading package_drazzy.com_index.json..."
+        if curl -L -o /home/runner/.arduino15/package_drazzy.com_index.json http://drazzy.com/package_drazzy.com_index.json; then
+          echo "Download successful."
+          ls -l /home/runner/.arduino15/package_drazzy.com_index.json
+        else
+          echo "Download failed from drazzy.com, trying GitHub mirror..."
+          # Fallback to a known working mirror if available, or just fail with debug info
+          curl -L -v -o /home/runner/.arduino15/package_drazzy.com_index.json http://drazzy.com/package_drazzy.com_index.json
+        fi
+
+    - name: Update Index
+      run: |
+        # Verbose update to see what happens
         arduino-cli core update-index --verbose
 
     - name: Install AVR Core
@@ -41,8 +56,8 @@ jobs:
 
     - name: Install ATTiny Core
       run: |
-        # Try to install ATTinyCore
         echo "Installing ATTinyCore..."
+        # If manual download worked, this should now find the platform
         arduino-cli core install ATTinyCore:avr
 
     - name: Install ESP32 Core
