@@ -26,8 +26,8 @@ jobs:
 
     - name: Install ATTinyCore (Spence Konde)
       run: |
-        # Using Spence Konde's ATTinyCore for 16MHz PLL support
-        arduino-cli config init --additional-urls http://drazzy.com/package_drazzy.com_index.json
+        # Use config add instead of init to avoid overwriting or path issues
+        arduino-cli config add board_manager.additional_urls http://drazzy.com/package_drazzy.com_index.json
         arduino-cli core update-index
         arduino-cli core install ATTinyCore:avr
 
