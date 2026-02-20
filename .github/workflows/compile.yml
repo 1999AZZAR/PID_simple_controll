@@ -21,20 +21,22 @@ jobs:
     - name: Setup Arduino CLI
       uses: arduino/setup-arduino-cli@v1
 
-    - name: Install Arduino AVR core
-      run: arduino-cli core install arduino:avr
-
-    - name: Install ATTinyCore (Spence Konde)
+    - name: Configure Arduino CLI
       run: |
-        # Use config add instead of init to avoid overwriting or path issues
+        # Initialize config file first
+        arduino-cli config init --overwrite
+        
+        # Add Board Manager URLs
         arduino-cli config add board_manager.additional_urls http://drazzy.com/package_drazzy.com_index.json
-        arduino-cli core update-index
-        arduino-cli core install ATTinyCore:avr
-
-    - name: Install ESP32 core
-      run: |
         arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+        
+        # Update index once for all
         arduino-cli core update-index
+
+    - name: Install Cores
+      run: |
+        arduino-cli core install arduino:avr
+        arduino-cli core install ATTinyCore:avr
         arduino-cli core install esp32:esp32
 
     - name: Compile Arduino Uno sketch
