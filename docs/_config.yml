@@ -1,0 +1,4 @@
+theme: jekyll-theme-primer
+title: BLDC Motor PID Controller
+description: High-precision PID control for BLDC motors on Arduino, ATtiny85, and ESP32.
+show_downloads: true
