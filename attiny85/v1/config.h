@@ -2,8 +2,8 @@
 #define CONFIG_H
 
 // ATtiny85 Hardware Configuration
-// Fixed to Internal Oscillator (8MHz) for simplicity and stability
-#define F_CPU 8000000UL
+// Refined for 16MHz Internal PLL Operation
+#define F_CPU 16000000UL
 
 // Pin Definitions (ATtiny85 Arduino-style pin numbering)
 #define RPM_SENSOR_PIN     3    // Arduino pin 3 (PB3), Hall sensor input
