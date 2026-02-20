@@ -1,0 +1,9 @@
+{
+  "additionalFiles": "../..,../..,../..,../..,../../..,../../..,../..,../..,../..",
+  "compiler.optimization_flags": "",
+  "customBuildProperties": "",
+  "fqbn": "attiny:avr:ATtinyX5:cpu=attiny85,clock=internal8",
+  "hardwareFolders": "/home/azzar/.arduino15/packages",
+  "otherLibrariesFolders": "/home/azzar/Arduino/libraries",
+  "sketchLocation": "/home/azzar/project/microcontrollers/PIDs/PID_simple_controll/attiny85"
+}

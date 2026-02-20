@@ -1,3 +1,4 @@
+#line 1 "/home/azzar/project/microcontrollers/PIDs/PID_simple_controll/attiny85/documents/ATTiny85_hardware_schematic.md"
 # BLDC PID Controller - ATtiny85 Production Version
 
 ## Table of Contents

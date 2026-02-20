@@ -1,3 +1,4 @@
+#line 1 "/home/azzar/project/microcontrollers/PIDs/PID_simple_controll/attiny85/FLASHING_GUIDE.md"
 # ATtiny85 Flashing Guide
 
 Complete guide for flashing the BLDC PID Controller firmware to ATtiny85 microcontroller.
