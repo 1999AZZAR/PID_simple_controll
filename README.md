@@ -4,7 +4,6 @@ A robust PID control system for maintaining a BLDC motor at exactly 1440 RPM, wi
 
 ## Table of Contents
 
-- [Project Structure](#project-structure)
 - [Overview](#overview)
 - [Implementations](#implementations)
   - [Arduino Uno Version](#arduino-uno-version-arduino_uno)
@@ -26,43 +25,6 @@ A robust PID control system for maintaining a BLDC motor at exactly 1440 RPM, wi
 - [Future Enhancements](#future-enhancements)
 - [Contributing](#contributing)
 - [License](#license)
-
-## Project Structure
-
-```
-BLDC_PID_Controller/
-├── arduino_uno/                 # Development implementation
-│   ├── arduino_uno.ino          # Arduino Uno code with serial tuning
-│   ├── config.h                 # Configuration header with all settings
-│   ├── hardware_schematic.md   # Hardware setup guide
-│   └── README.md               # Detailed Arduino Uno documentation
-├── attiny85/                    # Production implementation
-│   ├── attiny85.ino            # Production ATTiny85 code
-│   ├── config.h                 # ATTiny85 configuration
-│   ├── README.md               # ATTiny85 documentation
-│   └── ATTiny85_hardware_schematic.md # ATTiny85 hardware setup
-├── esp32_c3/                    # High-Performance Embedded
-│   ├── esp32_c3.ino            # Main sketch with FreeRTOS
-│   ├── config.h                 # ESP32 configuration
-│   └── pcnt_driver.h           # RPM counter driver
-├── auto_tune/                   # Advanced PID tuning GUI
-│   ├── code/                    # Arduino sketch folder (IDE compatible)
-│   │   ├── code.ino             # Arduino code with serial communication
-│   │   └── config.h             # Configuration header
-│   ├── control.py               # Modern PyQt6 GUI application
-│   ├── requirements.txt         # Python dependencies
-│   └── README.md               # GUI documentation
-├── assets/                      # Documentation assets
-│   ├── 42BLF.pdf               # 42BLF motor datasheet
-│   ├── High-level component diagram.png  # System architecture
-│   ├── Main control flow.png    # Control algorithm flowchart
-│   └── Serial command sequence.png # Serial interface diagram
-├── CONTRIBUTING.md             # Contribution guidelines
-├── howto.md                    # Detailed assembly guide
-├── mitigation.md               # Comprehensive troubleshooting guide
-├── LICENSE                     # MIT License
-└── README.md                   # This overview file
-```
 
 ## Overview
 
