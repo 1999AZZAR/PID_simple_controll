@@ -1,42 +1,35 @@
-# BLDC PID Controller - ATtiny85 Production Version
+# ATtiny85 PID Controller - Version 1
 
----
+## Overview
+Version 1 is the direct production port of the Arduino Uno development code. It runs the exact same logic structure, ensuring that behavior observed during the tuning phase on the Uno is replicated in the final ATtiny85 hardware.
 
-This is the production-ready version of the BLDC PID controller running on ATtiny85.
-It maintains **exact 1440 RPM** using pre-tuned PID gains from the Arduino Uno development phase.
+**Key Update (v1.1)**: Now configured to run at **16MHz** (PLL) for improved precision and stability, matching the Uno's clock speed.
 
-## New Features (v2.0)
-*   **Boosted Kickstart**: Starts motor at PWM 45 (18%) to overcome static friction instantly.
-*   **EMA Filter**: Exponential Moving Average (Alpha 0.25) for stable RPM readings.
-*   **200Hz Control Loop**: Synchronized with the Arduino Uno version for consistent behavior.
-
-## Hardware Setup
-**Minimal Connections (2 Pins Only!)**
-
-| Pin | Function | Connection |
-| :--- | :--- | :--- |
-| **PB3 (Pin 2)** | RPM Input | Hall Sensor Signal (Any wire A/B/C) |
-| **PB0 (Pin 5)** | PWM Output | ESC Signal Input |
-| **VCC (Pin 8)** | Power | 5V Supply |
-| **GND (Pin 4)** | Ground | Common Ground |
+## Features
+*   **Algorithm**: Standard Floating Point PID (Identical to Uno).
+*   **Clock**: 16MHz Internal PLL.
+*   **Safety**: Emergency Stop (Power Cut on persistent error).
+*   **Start-up**: Non-blocking Soft-Start with Kickstart boost.
+*   **Filtering**: Median Filter (Spike Rejection) + EMA (Smoothing).
 
 ## Configuration
-The system uses **Internal 8MHz Oscillator** by default. No external crystal needed.
-Configuration is handled in:
-*   `config_common.h`: PID Constants (Kp, Ki, Kd) - Synced with Arduino Uno.
-*   `config_internal.h`: Pins and Timings.
+All settings are located in `config.h`.
 
-## How to Flash (The Tricky Part)
-1.  **Programmer**: Use an Arduino Uno as ISP (Example: ArduinoISP sketch).
-2.  **Wiring**:
-    *   Uno 10 -> ATtiny 1 (Reset) **(Must have 10uF cap on Uno Reset to GND!)**
-    *   Uno 11 -> ATtiny 5 (MOSI)
-    *   Uno 12 -> ATtiny 6 (MISO)
-    *   Uno 13 -> ATtiny 7 (SCK)
-    *   5V/GND -> 5V/GND
-3.  **Arduino IDE Settings**:
-    *   Board: ATtiny25/45/85
-    *   Processor: ATtiny85
-    *   Clock: **8 MHz (Internal)** -> **Burn Bootloader** first to set fuses!
-    *   Programmer: Arduino as ISP
-4.  **Upload**: Sketch -> Upload Using Programmer.
+### Clock Speed
+Ensure your IDE is set to compile for **16MHz (Internal PLL)**.
+
+### Pinout
+| Function | ATtiny85 Pin | Physical Pin | Description |
+| :--- | :--- | :--- | :--- |
+| **PWM Output** | PB0 | Pin 5 | Signal to ESC |
+| **RPM Input** | PB3 | Pin 2 | Hall Sensor Signal |
+| **VCC** | VCC | Pin 8 | 5V Power |
+| **GND** | GND | Pin 4 | Ground |
+
+## Flashing Instructions
+1.  **Board**: ATtiny25/45/85
+2.  **Processor**: ATtiny85
+3.  **Clock**: **16 MHz (Internal PLL)**
+4.  **Programmer**: Arduino as ISP
+5.  **Burn Bootloader**: Run this *once* to set fuses for 16MHz operation.
+6.  **Upload**: Upload the sketch.

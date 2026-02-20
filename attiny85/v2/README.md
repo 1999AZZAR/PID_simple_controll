@@ -1,43 +1,33 @@
-# ATtiny85 Closed-Loop Motor Control
+# ATtiny85 PID Controller - Version 2 (Advanced)
 
-A Proportional-Integral (PI) controller implementation maintaining a precise motor speed using Hall sensor feedback.
+## Overview
+Version 2 is an optimized implementation that uses **Timer1 Input Capture** for high-precision RPM measurement. Unlike v1 (which measures pulse width via standard interrupts), v2 uses the hardware timer capabilities to measure signal periods with 16µs resolution.
 
-## Description
-This project maintains a DC motor at exactly **1440 RPM** using a closed-loop feedback system.
-*   **Sensor**: Reads pulses from a Hall effect sensor (4 pulses per revolution) on **PB3**.
-*   **Actuator**: Adjusts PWM duty cycle on **PB0** to correct speed deviations.
-*   **Algorithm**: Measures the exact time period between sensor pulses (in microseconds) and uses a PI algorithm to adjust power.
+## Features
+*   **Precision**: Hardware Timer1 measurement (ticks) instead of `micros()`.
+*   **Clock**: 16MHz Internal PLL.
+*   **Efficiency**: Lower CPU overhead for measurement.
+*   **Control**: Integer-based PID for faster execution.
+*   **Stability**: 6-sample Moving Average buffer.
 
-## Hardware Connection
+## Configuration
+Configuration is defined in `Closed-Loop-Motor-Control.ino`.
 
-| Component | ATtiny85 Pin | Physical Pin | Notes |
-|---|---|---|---|
-| **Motor Driver (PWM)** | PB0 | Pin 5 | Connect to MOSFET Gate or Driver Input |
-| **Hall Sensor** | PB3 | Pin 2 | Connect Signal Output (Open Drain + Pull-up) |
-| **Power** | VCC | Pin 8 | 5V (Stable) |
-| **Ground** | GND | Pin 4 | Common Ground |
+### Pinout
+| Function | ATtiny85 Pin | Physical Pin | Description |
+| :--- | :--- | :--- | :--- |
+| **PWM Output** | PB0 | Pin 5 | Signal to ESC |
+| **RPM Input** | PB3 | Pin 2 | Hall Sensor Signal |
+| **VCC** | VCC | Pin 8 | 5V Power |
+| **GND** | GND | Pin 4 | Ground |
 
-## Technical Highlights
+## Flashing Instructions
+1.  **Board**: ATtiny25/45/85
+2.  **Processor**: ATtiny85
+3.  **Clock**: **16 MHz (Internal PLL)**
+4.  **Burn Bootloader**: Required to enable 16MHz PLL.
+5.  **Upload**: Upload the sketch.
 
-### 1. Precision Timing
-Instead of counting pulses over time (which is slow and imprecise at low speeds), this code measures the **period** between pulses using Timer1.
-*   **Clock**: 16MHz (via PLL) for higher resolution.
-*   **Resolution**: 16µs per tick.
-*   **Target**: 1440 RPM = 96 Hz = ~10.4ms period = ~651 ticks.
-
-### 2. Advanced Control Features
-*   **PI Control**: Uses Proportional and Integral terms to maintain exact speed under varying loads.
-*   **Moving Average Filter**: A 4-sample buffer smoothes out sensor jitter and prevents oscillation.
-*   **Adaptive Soft-Start**: Linearly ramps power from 25% to target over 1.5s to prevent mechanical stress. The logic monitors speed during startup and seamlessly hands over to the PID controller as soon as 1440 RPM is reached, preventing overshoot.
-
-## Build and Flash
-
-**Important**: This example runs at 16MHz. You must update the fuses.
-
-```bash
-# 1. Set Fuses for 16MHz PLL
-make fuses
-
-# 2. Compile and Upload
-make flash
-```
+## Difference from v1
+*   **v1**: Logic clone of Arduino Uno (Float PID, `micros()` measurement). Easier to maintain if you are familiar with Arduino.
+*   **v2**: Architecture-specific optimization (Integer PID, Timer1 ticks). Better performance but more complex code.
