@@ -44,13 +44,13 @@ jobs:
       run: |
         cd attiny85/v1
         # Set clock to 16MHz PLL (internal16pll)
-        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16pll attiny85.ino --output-dir compiled/
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16pll v1.ino --output-dir compiled/
 
     - name: Compile ATtiny85 v2 (Advanced Timer)
       run: |
         cd attiny85/v2
         # Set clock to 16MHz PLL (internal16pll)
-        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16pll Closed-Loop-Motor-Control.ino --output-dir compiled/
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16pll v2.ino --output-dir compiled/
 
     - name: Compile ESP32-C3 Control
       run: |
@@ -77,11 +77,11 @@ jobs:
 
         echo -e "\nATtiny85 v1 compilation results:"
         cd ../attiny85/v1
-        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16pll attiny85.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16pll v1.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
 
         echo -e "\nATtiny85 v2 compilation results:"
         cd ../../attiny85/v2
-        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16pll Closed-Loop-Motor-Control.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16pll v2.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
 
     - name: Get current date
       id: date
