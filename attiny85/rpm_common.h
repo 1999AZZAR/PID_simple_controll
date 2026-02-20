@@ -5,49 +5,19 @@
 
 // Shared RPM calculation functions with period measurement
 
-// Moving average filter for RPM smoothing
-#define RPM_FILTER_SIZE 5
-
 // Timer rollover safe interval calculation
-// Returns the time difference between two timestamps, handling rollover
 inline unsigned long safeInterval(unsigned long current, unsigned long previous) {
     if (current >= previous) {
-        // Normal case: no rollover
         return current - previous;
     } else {
-        // Rollover occurred: timer wrapped from 0xFFFFFFFF to 0
         return (0xFFFFFFFFUL - previous) + current + 1;
     }
 }
 
-// Moving average filter update
-inline void updateMovingAverage(float& filteredValue, float newValue,
-                               float history[], int& historyIndex, int filterSize) {
-    // Add new value to history
-    history[historyIndex] = newValue;
-    historyIndex = (historyIndex + 1) % filterSize;
-
-    // Calculate filtered average
-    float sum = 0.0;
-    for(int i = 0; i < filterSize; i++) {
-        sum += history[i];
-    }
-    filteredValue = sum / filterSize;
-}
-
-// Moving average filter update for integer values
-inline void updateMovingAverageInt(int& filteredValue, int newValue,
-                                  int history[], int& historyIndex, int filterSize) {
-    // Add new value to history
-    history[historyIndex] = newValue;
-    historyIndex = (historyIndex + 1) % filterSize;
-
-    // Calculate filtered average
-    long sum = 0;
-    for(int i = 0; i < filterSize; i++) {
-        sum += history[i];
-    }
-    filteredValue = (int)(sum / filterSize);
+// Exponential Moving Average (EMA) filter update (Float)
+// alpha: Smoothing factor between 0 and 1. Lower = smoother but slower response.
+inline void updateEMA(float& filteredValue, float newValue, float alpha) {
+    filteredValue = (alpha * newValue) + ((1.0 - alpha) * filteredValue);
 }
 
 // Exponential Moving Average (EMA) filter update for integer values
@@ -55,6 +25,33 @@ inline void updateMovingAverageInt(int& filteredValue, int newValue,
 inline void updateEMAInt(int& filteredValue, int newValue, int alpha_scaled) {
     // filtered = (alpha * new) + ((100 - alpha) * old) / 100
     filteredValue = (int)(((long)alpha_scaled * newValue + (long)(100 - alpha_scaled) * filteredValue) / 100);
+}
+
+// Median Filter: Eliminates spikes by picking the middle value of recent readings
+// Perfect for removing "shot noise" from interrupt timing jitter
+#define MEDIAN_SIZE 3
+inline float getMedian(float newValue, float history[], int& index) {
+    // Add new value to circular buffer
+    history[index] = newValue;
+    index = (index + 1) % MEDIAN_SIZE;
+    
+    // Copy to temp array for sorting
+    float sorted[MEDIAN_SIZE];
+    for (int i=0; i<MEDIAN_SIZE; i++) sorted[i] = history[i];
+    
+    // Bubble sort (fastest for very small arrays like 5)
+    for (int i=0; i<MEDIAN_SIZE-1; i++) {
+        for (int j=0; j<MEDIAN_SIZE-i-1; j++) {
+            if (sorted[j] > sorted[j+1]) {
+                float temp = sorted[j];
+                sorted[j] = sorted[j+1];
+                sorted[j+1] = temp;
+            }
+        }
+    }
+    
+    // Return the middle element
+    return sorted[MEDIAN_SIZE/2];
 }
 
 #endif // RPM_COMMON_H

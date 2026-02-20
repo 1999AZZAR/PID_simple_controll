@@ -74,8 +74,8 @@ inline int computePID_fixed(int error_scaled, long& integral_scaled, int& previo
     // Integral term with anti-windup and overflow protection: integral_scaled += ki_scaled * error_scaled / 100
     if (abs(ki_scaled) < 32767 && abs(error_scaled) < 32767) {  // Prevent overflow in multiplication
         long temp = (long)ki_scaled * error_scaled;
-        if (temp / 100 < 2147483647L && temp / 100 > -2147483648L) {  // Check division result
-            integral_scaled += temp / 100;
+        if (temp < 2147483647L && temp > -2147483648L) {  // Check division result
+            integral_scaled += temp;
         }
     }
 

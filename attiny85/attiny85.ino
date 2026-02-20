@@ -1,302 +1,155 @@
 /**
- * BLDC Motor PID Controller - ATtiny85 Production Version
+ * BLDC Motor PID Controller - ATtiny85 Production Version (Refined)
  *
- * Production-ready PID controller for ATtiny85 microcontroller
- * Maintains exact 1440 RPM using pre-tuned PID gains with enhanced safety features
+ * Rewritten to behave EXACTLY like the Arduino Uno version:
+ * 1. Uses Floating Point Math (same PID precision)
+ * 2. Uses Standard Arduino Timing (millis/micros)
+ * 3. Uses Standard analogWrite (PWM)
+ * 4. Correct PCINT Interrupt for PB3
  *
- * Two versions available:
- * 1. Internal Oscillator (8MHz): Use config.h - Basic performance, no external components
- * 2. External Crystal (20MHz): Use config_external.h - 2.5x faster, requires crystal + capacitors
- *
- * To switch versions:
- * - For 8MHz internal: #include "config_external.h"
- * - For 20MHz external crystal: #include "config_external.h"
- *
- * Motor Compatibility:
- * - Designed for 3-Hall BLDC motors (such as 42BLF20-22.0223)
- * - Works with any BLDC motor that has 3 built-in Hall effect sensors
- * - Hall sensors provide 6 pulses per electrical revolution
- * - Optimized for production deployment with minimal hardware
- *
- * Hardware Connections (Minimal):
- * Physical Pin | Function
- *     1        | VCC (Power - 5V for Hall sensor compatibility)
- *     2        | BLDC Hall Sensor (any Hall wire A/B/C from motor, interrupt input)
- *              | [External Crystal: Also connects 16MHz crystal + 22pF caps to pin 3]
- *     3        | Not Connected / Crystal (XTAL2 for external crystal version)
- *     4        | GND (Ground - common with motor Hall sensors)
- *     5        | PWM to ESC (motor control output)
- *     6        | Not Connected
- *     7        | Not Connected
- *     8        | Not Connected
- *
- * Production Features:
- * - No potentiometers (uses hardcoded tuned values)
- * - No mode switch (always production mode)
- * - Minimal pin usage for maximum reliability
- * - Optimized for size and power efficiency
- * - Minimal safety: Watchdog timer only
- *
- * Tuned on Arduino, deployed on ATtiny85 for production use
- *
- * Author: azzar budiyanto
- * Co-Author: azzar persona (AI assistant)
- * Date: January 2026
+ * Hardware Connections:
+ * Pin 2 (PB3) -> RPM Sensor (Hall)
+ * Pin 5 (PB0) -> PWM Output (ESC)
  */
 
-// Include configuration header (automatically selects internal/external based on config_common.h)
-#include "config_common.h"
-
-// Include shared common headers
+#include "config.h"
 #include "pid_common.h"
 #include "rpm_common.h"
 #include "isr_common.h"
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <util/delay.h>
-#include <avr/wdt.h>
 
-// Global variables - Production Mode Only (Integer optimized for ATTiny85)
-volatile unsigned long pulseInterval = 0;  // Time interval between pulses in microseconds
-volatile unsigned long timer_ms = 0;
-volatile unsigned long timer_us = 0;  // Microsecond counter for debounce
+// Global Variables (Float - Matching Arduino Uno)
+volatile unsigned long pulseInterval = 0;
 volatile unsigned long lastPulseMicros = 0;
 unsigned long lastRPMCalcTime = 0;
-int currentRPM = 0;  // RPM * 10 (fixed point, e.g., 14400 = 1440.0 RPM)
-const int pulsesPerRev = DEFAULT_PULSES_PER_REV; // Runtime variable for consistency
 
-// Exponential Moving Average (EMA) filter for RPM smoothing (Integer optimized)
-// EMA Alpha = 0.25 (same as Arduino Uno), scaled by 100 for integer math -> 25
-#define EMA_ALPHA_SCALED 25 
-int rpmFiltered = 0;
+float currentRPM = 0.0;
+float targetRPM = DEFAULT_TARGET_RPM; // 1440.0
 
-// PID variables - Pre-tuned values from Arduino (scaled for integer math)
-const int targetRPM_scaled = (int)(DEFAULT_TARGET_RPM * 10);  // Target RPM * 10
-const int kp_scaled = (int)(DEFAULT_KP * 100);                // Kp * 100
-const int ki_scaled = (int)(DEFAULT_KI * 100);                // Ki * 100
-const int kd_scaled = (int)(DEFAULT_KD * 100);                // Kd * 100
-int previousError_scaled = 0;  // Previous error * 10
-long integral_scaled = 0;      // Integral * 1000 (higher precision)
-int pidOutput = 0;             // Final output (-255 to 255)
+// PID State (Float)
+float integral = 0.0;
+float previousError = 0.0;
+float pidOutput = 0.0;
 
-// Soft-start ramping parameters
-#define SOFT_START_DURATION_MS  1500  // 1.5 seconds ramp up time
+// Filter State (Median + EMA)
+// Double filtering for maximum stability on noisy internal clock
+float rpmFiltered = 0.0;
+float rpmMedianBuffer[MEDIAN_SIZE] = {0}; // Buffer for median filter
+int rpmMedianIndex = 0;
+#define EMA_ALPHA 0.40 // Aggressive alpha (0.40) for fast response to match Arduino speed
+
+// Soft Start State
 unsigned long softStartStartTime = 0;
 bool softStarting = true;
 
-// Function prototypes
-void setupPins();
-void setupTimer();
-void rpmSensorISR();
-int calculateRPM();
-int computePID(int error_scaled);
-void outputToESC(uint8_t pwmValue);
-int applySoftStart(int targetPWM); // Added prototype
-int constrain_value(int value, int min, int max);
-long map(long x, long in_min, long in_max, long out_min, long out_max);
-
-// Timer1 interrupt for millisecond and microsecond timing (ATtiny85 Timer1)
-ISR(TIM1_COMPA_vect) {
-    timer_ms++;
-    timer_us += 1000;  // Increment microseconds by 1000 (1ms)
-
-    // No watchdog - minimal operation
-}
-
-// RPM sensor interrupt with debounce filtering
-ISR(INT0_vect) {
-    unsigned long currentMicros = timer_us;
-    rpmSensorISR_common(currentMicros, lastPulseMicros, pulseInterval, MIN_PULSE_WIDTH_US);
+// Pin Change Interrupt Service Routine for PB3
+// Fires on BOTH Rising and Falling edges
+ISR(PCINT0_vect) {
+    // We only care about RISING edge (LOW -> HIGH)
+    if (digitalRead(RPM_SENSOR_PIN) == HIGH) { 
+        unsigned long currentMicros = micros();
+        rpmSensorISR_common(currentMicros, lastPulseMicros, pulseInterval, MIN_PULSE_WIDTH_US);
+    }
 }
 
 void setup() {
-    // Setup watchdog timer first (before disabling it)
-    wdt_disable();  // Ensure watchdog is disabled for minimal operation
+    // 1. Configure Pins
+    pinMode(PWM_OUTPUT_PIN, OUTPUT);
+    pinMode(RPM_SENSOR_PIN, INPUT_PULLUP);
 
-    setupPins();
-    setupTimer();
+    // 2. Enable Pin Change Interrupt on PB3 (Pin 2)
+    GIMSK |= (1 << PCIE);   // Enable Pin Change Interrupts
+    PCMSK |= (1 << PCINT3); // Enable Interrupt on PB3
 
-    // Enable global interrupts
-    sei();
-
-    // Brief startup delay
-    _delay_ms(1000);
-
-    // Initialize PWM to stopped position
-    outputToESC(0);
+    // 3. Initialize Output
+    analogWrite(PWM_OUTPUT_PIN, 0);
+    delay(1000); // Startup delay
 }
 
 void loop() {
-    static unsigned long lastLoopTime = 0;
+    unsigned long currentTime = millis();
 
-    // Control loop timing - Production mode only
-    if (timer_ms - lastLoopTime >= CONTROL_PERIOD_MS) {
-        lastLoopTime = timer_ms;
+    // Calculate RPM at 10ms interval (same as Arduino)
+    if (currentTime - lastRPMCalcTime >= RPM_CALC_INTERVAL) {
+        
+        // 1. Read Interval Atomically
+        noInterrupts();
+        unsigned long interval = pulseInterval;
+        interrupts();
 
-        // Calculate RPM at regular intervals
-        if (timer_ms - lastRPMCalcTime >= RPM_CALC_INTERVAL) {
-            currentRPM = calculateRPM();
-            lastRPMCalcTime = timer_ms;
+        // 2. Calculate Raw RPM
+        float rawRPM = 0.0;
+        // Check for timeout (motor stopped)
+        if (micros() - lastPulseMicros > RPM_TIMEOUT_US) {
+            rawRPM = 0.0;
+        } else if (interval > 0) {
+            // RPM = 60,000,000 / (interval * pulsesPerRev)
+            rawRPM = 60000000.0 / interval / DEFAULT_PULSES_PER_REV;
         }
 
-        // Compute PID output using pre-tuned gains (integer math)
-        int error_scaled = targetRPM_scaled - currentRPM;
-        pidOutput = computePID(error_scaled);
+        // 3. Apply Median + EMA Filter
+        // First, remove spikes with Median Filter
+        float medianRPM = getMedian(rawRPM, rpmMedianBuffer, rpmMedianIndex);
+        
+        // Then, smooth the clean signal with EMA
+        if (rpmFiltered == 0.0 && medianRPM > 0.0) {
+            rpmFiltered = medianRPM; // Instant start for first valid reading
+            // Fill buffer to prevent drag
+            for(int i=0; i<MEDIAN_SIZE; i++) rpmMedianBuffer[i] = medianRPM;
+        } else {
+            updateEMA(rpmFiltered, medianRPM, EMA_ALPHA);
+        }
+        currentRPM = rpmFiltered;
+        
+        lastRPMCalcTime = currentTime;
+    }
 
-        // Convert PID output to PWM value and output to ESC
+    // Control Loop (200Hz)
+    static unsigned long lastControlTime = 0;
+    if (currentTime - lastControlTime >= CONTROL_PERIOD_MS) {
+        lastControlTime = currentTime;
+
+        // 4. Compute PID (Float)
+        float error = targetRPM - currentRPM;
+        
+        // Using common float PID function (same as Arduino)
+        pidOutput = computePID_float(error, integral, previousError,
+                                   DEFAULT_KP, DEFAULT_KI, DEFAULT_KD,
+                                   INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
+                                   PID_OUTPUT_MIN, PID_OUTPUT_MAX);
+
+        // 5. Map to PWM
+        // Map +/- 5000 PID output to 0-255 PWM
         int pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
-        pwmValue = constrain_value(pwmValue, PWM_MIN_THRESHOLD, PWM_MAX_VALUE);
+        pwmValue = constrain(pwmValue, PWM_MIN_THRESHOLD, PWM_MAX_VALUE);
 
-        // Normal operation - control motor
-        outputToESC(pwmValue);
+        // 6. Apply Soft Start
+        pwmValue = applySoftStart(pwmValue);
+
+        // 7. Output
+        analogWrite(PWM_OUTPUT_PIN, pwmValue);
     }
-
-    // Small delay to prevent tight polling
-    _delay_ms(1);
 }
 
-void setupPins() {
-    // Configure pins - Minimal production setup (Arduino-style)
-    pinMode(PWM_OUTPUT_PIN, OUTPUT);   // PWM pin as output
-    pinMode(RPM_SENSOR_PIN, INPUT_PULLUP);  // RPM sensor as input with pull-up
-
-    // Configure external interrupt for RPM sensor
-    MCUCR |= (1 << ISC01);  // Falling edge trigger
-    GIMSK |= (1 << INT0);   // Enable INT0 interrupt
-}
-
-void setupTimer() {
-    // Setup Timer1 for millisecond timing (ATtiny85 Timer1)
-    TCCR1 = 0;              // Stop timer
-    TCNT1 = 0;              // Reset counter
-
-    // Calculate OCR1A for 1ms interrupt based on F_CPU
-    // Formula: OCR1A = (F_CPU / 1000 / 64) - 1, but adjusted for timer behavior
-#if F_CPU == 20000000UL
-    OCR1A = 312;            // Compare value for 1ms at 20MHz (20MHz/64 = 312.5kHz, 312.5kHz/1000 = 312.5)
-#elif F_CPU == 8000000UL
-    OCR1A = 125;            // Compare value for 1ms at 8MHz (8MHz/64 = 125kHz, 125kHz/1000 = 125)
-#endif
-
-    TCCR1 |= (1 << CTC1);   // Clear timer on compare match
-    TCCR1 |= (1 << CS12) | (1 << CS11) | (1 << CS10); // Prescaler 64
-    TIMSK |= (1 << OCIE1A); // Enable compare interrupt
-
-    // Setup Timer0 for PWM (default 8-bit fast PWM)
-    TCCR0A = (1 << COM0A1) | (1 << WGM01) | (1 << WGM00); // Fast PWM, non-inverting
-
-    // Set prescaler based on F_CPU for ~1kHz PWM frequency
-#if F_CPU == 20000000UL
-    TCCR0B = (1 << CS02); // Prescaler 256, ~1.2kHz PWM frequency at 20MHz
-#elif F_CPU == 8000000UL
-    TCCR0B = (1 << CS01); // Prescaler 8, ~1kHz PWM frequency at 8MHz
-#endif
-}
-
-
-
-int calculateRPM() {
-    static unsigned long lastCalcTime_us = 0;  // Use microseconds for precision
-
-    unsigned long currentTime_us = timer_us;
-
-    if (currentTime_us - lastCalcTime_us >= RPM_CALC_INTERVAL * 1000UL) {  // Convert ms to microseconds
-        int rpm_scaled = 0;
-
-        // Timeout check: if no pulses received within timeout period, motor is stopped
-        if (currentTime_us - lastPulseMicros > RPM_TIMEOUT_US) {
-            rpm_scaled = 0; // Motor stopped
-        } else {
-            // Atomic read of volatile pulseInterval to avoid race conditions
-            cli();
-            unsigned long interval = pulseInterval;
-            sei();
-
-            // Calculate RPM using period measurement: RPM = (60,000,000) / (interval_μs * pulses_per_rev)
-            // For scaled result (RPM * 10): (600,000,000) / (interval_μs * pulses_per_rev)
-            // Use sequential division to avoid intermediate multiplication overflow
-            if (interval > 0) {
-                rpm_scaled = (int)(600000000UL / interval / pulsesPerRev);
-            }
-        }
-
-        // Apply Exponential Moving Average (EMA) filter (ATtiny85 optimized)
-        if (rpmFiltered == 0 && rpm_scaled > 0) {
-            rpmFiltered = rpm_scaled; // Initialize with first valid reading
-        } else {
-            updateEMAInt(rpmFiltered, rpm_scaled, EMA_ALPHA_SCALED);
-        }
-
-        lastCalcTime_us = currentTime_us;
-
-        return rpmFiltered;  // Return filtered value for maximum accuracy
-    }
-
-    return rpmFiltered; // Return previous filtered value if not enough time has passed
-}
-
-int computePID(int error_scaled) {
-    return computePID_fixed(error_scaled, integral_scaled, previousError_scaled,
-                           kp_scaled, ki_scaled, kd_scaled,
-                           INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
-                           PID_OUTPUT_MIN, PID_OUTPUT_MAX);
-}
-
-// Apply soft-start ramping to avoid current surges (Boosted Kickstart)
+// Boosted Soft-Start Implementation
 int applySoftStart(int targetPWM) {
-    if (!softStarting) {
-        return targetPWM;  // Normal operation
-    }
+    if (!softStarting) return targetPWM;
 
-    if (softStartStartTime == 0) {
-        softStartStartTime = timer_ms; // Use timer_ms instead of millis()
-    }
+    if (softStartStartTime == 0) softStartStartTime = millis();
 
-    unsigned long elapsed = timer_ms - softStartStartTime;
-    
-    // Check if soft start is complete
+    unsigned long elapsed = millis() - softStartStartTime;
     if (elapsed >= SOFT_START_DURATION_MS) {
         softStarting = false;
         return targetPWM;
     }
 
-    // Calculate ramp progress (0 to 1024 for fixed point precision)
-    // progress = elapsed / duration
-    long progress_scaled = (elapsed * 1024) / SOFT_START_DURATION_MS;
-
-    // Apply Boosted Ramp: output = min_threshold + (target - min_threshold) * progress
-    // Ensure motor overcomes static friction immediately
-    int kickstartPWM = PWM_MIN_THRESHOLD + (int)(((long)(targetPWM - PWM_MIN_THRESHOLD) * progress_scaled) / 1024);
+    float progress = (float)elapsed / SOFT_START_DURATION_MS;
     
-    // Ensure we don't exceed targetPWM
-    if (kickstartPWM > targetPWM) {
-        return targetPWM;
-    }
+    // Kickstart from PWM_MIN_THRESHOLD (45) to overcome friction
+    int kickstartPWM = PWM_MIN_THRESHOLD + (int)((targetPWM - PWM_MIN_THRESHOLD) * progress);
     
+    if (kickstartPWM > targetPWM) return targetPWM;
     return kickstartPWM;
-}
-
-void outputToESC(uint8_t pwmValue) {
-    // Clamp PWM value to safe range
-    if (pwmValue > 255) pwmValue = 255;
-    if (pwmValue < 0) pwmValue = 0;
-
-    // Apply soft-start with kickstart
-    int safePWM = applySoftStart(pwmValue);
-
-    // Set PWM duty cycle directly
-    OCR0A = safePWM;
-}
-
-// Simple constrain function for ATtiny85
-int constrain_value(int value, int min, int max) {
-    if (value < min) return min;
-    if (value > max) return max;
-    return value;
-}
-
-// Simple map function for ATtiny85
-long map(long x, long in_min, long in_max, long out_min, long out_max) {
-    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
