@@ -1,9 +1,5 @@
 # BLDC PID Controller - ATtiny85 Production Version
 
-**⚠️ FLASHING WARNING ⚠️**
-The ATtiny85 is a robust and tiny chip, but **flashing it can be difficult** (requires ISP programmer, capacitor on reset, correct fuses).
-For a **easier "small and stable" alternative**, we highly recommend the **[ESP32-C3 Version](../esp32_c3/README.md)** (USB flashing, better performance).
-
 ---
 
 This is the production-ready version of the BLDC PID controller running on ATtiny85.
@@ -44,5 +40,3 @@ Configuration is handled in:
     *   Clock: **8 MHz (Internal)** -> **Burn Bootloader** first to set fuses!
     *   Programmer: Arduino as ISP
 4.  **Upload**: Sketch -> Upload Using Programmer.
-
-*If this process fails often (Device Signature Error), consider switching to the ESP32-C3 version.*
