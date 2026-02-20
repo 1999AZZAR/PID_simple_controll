@@ -29,22 +29,45 @@ jobs:
         arduino-cli config init --additional-urls https://raw.githubusercontent.com/damellis/attiny/ide-1.6.x-boards-manager/package_damellis_attiny_index.json
         arduino-cli core install attiny:avr
 
+    - name: Install ESP32 core
+      run: |
+        arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+        arduino-cli core update-index
+        arduino-cli core install esp32:esp32
+
     - name: Compile Arduino Uno sketch
       run: |
         cd arduino_uno
         arduino-cli compile --fqbn arduino:avr:uno arduino_uno.ino --output-dir compiled/
 
-    - name: Compile ATtiny85 sketch
+    - name: Compile ATtiny85 v1 (Production Logic Port)
       run: |
-        cd attiny85
-        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal8 attiny85.ino --output-dir compiled/
+        cd attiny85/v1
+        # Set clock to 16MHz PLL (internal16pll)
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16pll attiny85.ino --output-dir compiled/
+
+    - name: Compile ATtiny85 v2 (Advanced Timer)
+      run: |
+        cd attiny85/v2
+        # Set clock to 16MHz PLL (internal16pll)
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16pll Closed-Loop-Motor-Control.ino --output-dir compiled/
+
+    - name: Compile ESP32-C3 Control
+      run: |
+        cd esp32-c3/control
+        # Using ESP32C3 Dev Module as generic target for SuperMini
+        arduino-cli compile --fqbn esp32:esp32:esp32c3:CDCOnBoot=default control.ino --output-dir compiled/
 
     - name: List compiled files
       run: |
         echo "Arduino Uno compiled files:"
         ls -la arduino_uno/compiled/
-        echo -e "\nATtiny85 compiled files:"
-        ls -la attiny85/compiled/
+        echo -e "\nATtiny85 v1 compiled files:"
+        ls -la attiny85/v1/compiled/
+        echo -e "\nATtiny85 v2 compiled files:"
+        ls -la attiny85/v2/compiled/
+        echo -e "\nESP32-C3 compiled files:"
+        ls -la esp32-c3/control/compiled/
 
     - name: Check memory usage
       run: |
@@ -52,9 +75,13 @@ jobs:
         cd arduino_uno
         arduino-cli compile --fqbn arduino:avr:uno arduino_uno.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
 
-        echo -e "\nATtiny85 compilation results:"
-        cd ../attiny85
-        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal8 attiny85.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
+        echo -e "\nATtiny85 v1 compilation results:"
+        cd ../attiny85/v1
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16pll attiny85.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
+
+        echo -e "\nATtiny85 v2 compilation results:"
+        cd ../../attiny85/v2
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16pll Closed-Loop-Motor-Control.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
 
     - name: Get current date
       id: date
@@ -113,13 +140,17 @@ jobs:
 
           ## Package Contents
           - **Source Code**: All Arduino sketches and configurations
-          - **Compiled Firmware**: Ready-to-flash \`.hex\` files for Arduino Uno and ATTiny85
+          - **Compiled Firmware**: Ready-to-flash \`.hex\` files for:
+            - Arduino Uno
+            - ATtiny85 v1 (Production Logic Port)
+            - ATtiny85 v2 (Advanced Timer)
+            - ESP32-C3 Control
           - **Documentation**: Complete setup guides and troubleshooting
-          - **Memory Usage**: Arduino Uno (42% flash), ATTiny85 (77% flash)
 
           ## Platforms Supported
-          - **Arduino Uno**: Full-featured development platform (13,726 bytes)
-          - **ATTiny85**: Production-optimized microcontroller (1,586 bytes)
+          - **Arduino Uno**: Full-featured development platform
+          - **ATTiny85**: Production-optimized microcontroller (v1 & v2)
+          - **ESP32-C3**: High-performance embedded controller
 
           ## Download
           Download the complete package: \`${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip\`
@@ -141,13 +172,5 @@ jobs:
 
           echo "New release created successfully."
         fi
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Upload ZIP to manual release (if release event)
-      if: github.event_name == 'release'
-      uses: softprops/action-gh-release@v1
-      with:
-        files: ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
