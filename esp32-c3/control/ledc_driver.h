@@ -10,7 +10,8 @@
 #define LEDC_DUTY_RES           LEDC_TIMER_8_BIT // 8-bit resolution (0-255) to match logic
 #define LEDC_FREQUENCY          5000 // 5 kHz PWM (High frequency for smoother ESC operation)
 
-void ledc_init(int gpio_num) {
+// Fix #1: marked inline to avoid ODR violations when included in multiple TUs
+inline void ledc_init(int gpio_num) {
     ledc_timer_config_t ledc_timer = {
         .speed_mode       = LEDC_MODE,
         .duty_resolution  = LEDC_DUTY_RES,
@@ -32,7 +33,10 @@ void ledc_init(int gpio_num) {
     ledc_channel_config(&ledc_channel);
 }
 
-void ledc_set_duty(int duty) {
+// Fix #1 + #2: renamed from ledc_set_duty() to motor_set_pwm() to avoid shadowing
+// the ESP-IDF ledc_set_duty(ledc_mode_t, ledc_channel_t, uint32_t) function,
+// and marked inline to avoid ODR violations.
+inline void motor_set_pwm(int duty) {
     ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, duty);
     ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
 }

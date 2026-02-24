@@ -103,7 +103,9 @@ void controlLoop(void *parameter) {
         int finalPWM = applySoftStart(targetPWM);
         
         // 6. Output to ESC
-        ledc_set_duty(finalPWM);
+        // Fix #2: renamed from ledc_set_duty() to motor_set_pwm() to avoid
+        // shadowing the ESP-IDF ledc_set_duty(ledc_mode_t, ledc_channel_t, uint32_t)
+        motor_set_pwm(finalPWM);
         lastPWMValue = finalPWM;
         
         // Wait for next cycle
