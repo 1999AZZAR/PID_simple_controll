@@ -10,6 +10,5 @@
 
 // Soft-Start
 #define SOFT_START_DURATION_MS  1500  // 1.5 seconds
-#define EMA_ALPHA               0.25  // Smoothing factor
 
 #endif // CONFIG_H

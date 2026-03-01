@@ -27,12 +27,12 @@
 
 // Global Variables
 volatile float currentRPM = 0.0;
-float targetRPM = DEFAULT_TARGET_RPM;
-float pidOutput = 0.0;
-int lastPWMValue = 0;
+volatile float targetRPM = DEFAULT_TARGET_RPM;
+volatile float pidOutput = 0.0;
+volatile int lastPWMValue = 0;
 
 // Filter & PID State
-float rpmFiltered = 0.0;
+RPMFilter rpmFilter;
 float integral = 0.0;
 float previousError = 0.0;
 
@@ -80,13 +80,9 @@ void controlLoop(void *parameter) {
         // 1. Calculate RPM
         float rawRPM = pcnt_get_rpm();
         
-        // 2. Filter RPM (EMA)
-        if (rpmFiltered == 0.0 && rawRPM > 0.0) {
-            rpmFiltered = rawRPM;
-        } else {
-            updateEMA(rpmFiltered, rawRPM, EMA_ALPHA);
-        }
-        currentRPM = rpmFiltered;
+        // 2. Apply sliding window filter
+        float filteredRPM = rpmFilter.update(rawRPM);
+        currentRPM = filteredRPM;
         
         // 3. Compute PID
         float error = targetRPM - currentRPM;
@@ -103,8 +99,6 @@ void controlLoop(void *parameter) {
         int finalPWM = applySoftStart(targetPWM);
         
         // 6. Output to ESC
-        // Fix #2: renamed from ledc_set_duty() to motor_set_pwm() to avoid
-        // shadowing the ESP-IDF ledc_set_duty(ledc_mode_t, ledc_channel_t, uint32_t)
         motor_set_pwm(finalPWM);
         lastPWMValue = finalPWM;
         
@@ -114,26 +108,17 @@ void controlLoop(void *parameter) {
 }
 
 int applySoftStart(int targetPWM) {
-    if (!softStarting) {
-        return targetPWM;
-    }
+    if (!softStarting) return targetPWM;
     
-    if (softStartStartTime == 0) {
-        softStartStartTime = millis();
-    }
+    if (softStartStartTime == 0) softStartStartTime = millis();
     
     unsigned long elapsed = millis() - softStartStartTime;
-    
     if (elapsed >= SOFT_START_DURATION_MS) {
         softStarting = false;
         return targetPWM;
     }
     
     float progress = (float)elapsed / SOFT_START_DURATION_MS;
-    
-    // Boosted Ramp: Start at PWM_MIN_THRESHOLD
     int kickstartPWM = PWM_MIN_THRESHOLD + (int)((targetPWM - PWM_MIN_THRESHOLD) * progress);
-    
-    if (kickstartPWM > targetPWM) return targetPWM;
-    return kickstartPWM;
+    return (kickstartPWM > targetPWM) ? targetPWM : kickstartPWM;
 }
