@@ -48,6 +48,7 @@ volatile bool running = false;
 RPMFilter rpmFilter;
 float integral = 0.0;
 float previousError = 0.0;
+float filteredDerivative = 0.0;
 
 bool softStarting = true;
 unsigned long softStartStartTime = 0;
@@ -223,7 +224,7 @@ void controlLoop(void* parameter) {
         }
 
         float error = localTargetRPM - filteredRPM;
-        float localPidOutput = computePID_float(error, integral, previousError,
+        float localPidOutput = computePID_float(error, integral, previousError, filteredDerivative,
             DEFAULT_KP, DEFAULT_KI, DEFAULT_KD,
             INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
             PID_OUTPUT_MIN, PID_OUTPUT_MAX);

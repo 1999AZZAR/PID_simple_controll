@@ -35,6 +35,7 @@ volatile int lastPWMValue = 0;
 RPMFilter rpmFilter;
 float integral = 0.0;
 float previousError = 0.0;
+float filteredDerivative = 0.0;
 
 // Startup State
 bool softStarting = true;
@@ -86,7 +87,7 @@ void controlLoop(void *parameter) {
         
         // 3. Compute PID
         float error = targetRPM - currentRPM;
-        pidOutput = computePID_float(error, integral, previousError, 
+        pidOutput = computePID_float(error, integral, previousError, filteredDerivative,
                                    DEFAULT_KP, DEFAULT_KI, DEFAULT_KD,
                                    INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
                                    PID_OUTPUT_MIN, PID_OUTPUT_MAX);

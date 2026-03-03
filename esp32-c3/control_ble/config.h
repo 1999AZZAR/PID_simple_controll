@@ -8,10 +8,9 @@
 // Motor Configuration
 #define PULSES_PER_REV  4   // 8-pole BLDC motor (4 pulses per rev)
 
+#define RPM_SAMPLE_MIN_US  40000
+
 // Soft-Start
 #define SOFT_START_DURATION_MS  1500  // 1.5 seconds
-
-// RPM Filtering
-#define RPM_FILTER_SIZE 10  // 10-point moving average (50ms at 200Hz)
 
 #endif // CONFIG_H

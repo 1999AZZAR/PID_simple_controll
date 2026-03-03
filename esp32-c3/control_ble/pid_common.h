@@ -3,23 +3,27 @@
 
 #include <Arduino.h>
 
+#ifndef D_TERM_FILTER_ALPHA
+#define D_TERM_FILTER_ALPHA 0.25f
+#endif
+
 inline float computePID_float(float error, float& integral, float& previousError,
+                              float& filteredDerivative,
                               float kp, float ki, float kd,
                               float integral_min, float integral_max,
                               float output_min, float output_max) {
-    // Proportional
     float proportional = kp * error;
 
-    // Integral
     float integral_increment = ki * error;
     integral += integral_increment;
     integral = constrain(integral, integral_min, integral_max);
 
-    // Derivative
-    float derivative = kd * (error - previousError);
+    float rawDerivative = error - previousError;
     previousError = error;
+    filteredDerivative = D_TERM_FILTER_ALPHA * rawDerivative +
+                         (1.0f - D_TERM_FILTER_ALPHA) * filteredDerivative;
+    float derivative = kd * filteredDerivative;
 
-    // Total Output
     float output = proportional + integral + derivative;
     output = constrain(output, output_min, output_max);
 

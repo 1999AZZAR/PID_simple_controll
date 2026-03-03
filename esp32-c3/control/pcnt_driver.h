@@ -4,52 +4,56 @@
 #include <Arduino.h>
 
 // RPM Configuration
-// Adjust based on motor poles (e.g., 8 poles = 4 pulses/rev, 14 poles = 7 pulses/rev)
-// This should match the physical hardware. Defaulting to 4 as per previous config.
 #ifndef PULSES_PER_REV
-#define PULSES_PER_REV      4   
+#define PULSES_PER_REV      4
 #endif
 
-// Fix #1: marked static to avoid ODR violations (multiple-definition linker errors)
-// when this header is included in more than one translation unit.
-static volatile uint32_t pulse_count = 0;
-static unsigned long last_rpm_calc_time = 0;
+// Minimum integration window (microseconds) for stable RPM measurement.
+// At 1440 RPM @ 4 PPR = 96 pulses/s. 40ms yields ~4 pulses (vs ~0.5 at 5ms).
+// Longer window = less quantization noise, slightly higher measurement latency.
+#ifndef RPM_SAMPLE_MIN_US
+#define RPM_SAMPLE_MIN_US   40000
+#endif
 
-// Interrupt Service Routine for Pulse Counting
-// IRAM_ATTR is kept; static ensures no ODR conflict across TUs.
+static volatile uint32_t pulse_count = 0;
+static unsigned long last_rpm_reset_time = 0;
+static uint32_t accumulated_pulses = 0;
+static float last_computed_rpm = 0.0;
+
 static void IRAM_ATTR pcnt_isr_handler() {
     pulse_count++;
 }
 
-// Fix #1: marked inline to avoid ODR violations
 inline void pcnt_init(int gpio_num) {
-    // Set up the input pin with internal pullup
     pinMode(gpio_num, INPUT_PULLUP);
-    
-    // Attach interrupt on Rising edge (configure as needed: RISING, FALLING, CHANGE)
     attachInterrupt(digitalPinToInterrupt(gpio_num), pcnt_isr_handler, RISING);
-    
-    last_rpm_calc_time = micros();
+    last_rpm_reset_time = micros();
+    accumulated_pulses = 0;
+    last_computed_rpm = 0.0;
 }
 
 inline float pcnt_get_rpm() {
-    // Critical section to read and reset counter atomically
     noInterrupts();
     uint32_t count = pulse_count;
     pulse_count = 0;
-    unsigned long current_time = micros();
+    unsigned long now = micros();
     interrupts();
-    
-    unsigned long interval = current_time - last_rpm_calc_time;
-    last_rpm_calc_time = current_time;
-    
-    if (interval == 0) return 0.0;
-    if (count == 0) return 0.0;
-    
-    // RPM = (Pulses * 60,000,000) / (Interval_us * PPR)
-    float rpm = ((float)count * 60000000.0) / ((float)interval * PULSES_PER_REV);
-    
-    return rpm;
+
+    accumulated_pulses += count;
+    unsigned long interval_us = now - last_rpm_reset_time;
+
+    if (interval_us >= RPM_SAMPLE_MIN_US && interval_us > 0) {
+        if (accumulated_pulses > 0) {
+            last_computed_rpm = ((float)accumulated_pulses * 60000000.0f) /
+                                ((float)interval_us * (float)PULSES_PER_REV);
+        } else {
+            last_computed_rpm = 0.0f;
+        }
+        accumulated_pulses = 0;
+        last_rpm_reset_time = now;
+    }
+
+    return last_computed_rpm;
 }
 
 #endif // PCNT_DRIVER_H

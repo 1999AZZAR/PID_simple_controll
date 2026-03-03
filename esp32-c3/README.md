@@ -195,9 +195,9 @@ The controller runs in a dedicated FreeRTOS task with highest priority (`configM
 ### Core Drivers
 
 **`pcnt_driver.h`**
-- Manages pulse counting via falling/rising edge interrupts
-- Calculates RPM from microsecond intervals between pulses
-- IRAM-resident ISR for minimal latency
+- Interrupt-driven pulse counting (ESP32-C3 has no hardware PCNT)
+- Minimum integration window (40ms default) for low quantization noise
+- At 1440 RPM @ 4 PPR: ~4 pulses per sample vs ~0.5 with 5ms window
 
 **`ledc_driver.h`**
 - Configures ESP32 LEDC peripheral for 5kHz PWM
@@ -207,12 +207,12 @@ The controller runs in a dedicated FreeRTOS task with highest priority (`configM
 **`pid_common.h`**
 - Floating-point PID implementation
 - Anti-windup with integral clamping
-- Configurable gains (Kp, Ki, Kd)
+- Low-pass filtered derivative to reduce noise amplification
 
 **`rpm_common.h`**
-- Sliding window filter for RPM stability
-- Configurable window size
-- Real-time filtering without lag
+- Sliding window (24 samples) with IIR smoothing
+- Decoupled from control period for stable averaging
+- Real-time filtering with low latency
 
 ## Configuration
 
@@ -222,9 +222,12 @@ The controller runs in a dedicated FreeRTOS task with highest priority (`configM
 #define RPM_INPUT_PIN   0   // Hall sensor input
 #define PWM_OUTPUT_PIN  1   // ESC control output
 #define PULSES_PER_REV  4   // Set to motor pole count / 2
+#define RPM_SAMPLE_MIN_US 40000  // 40ms integration window
 ```
 
-**PULSES_PER_REV**: For an 8-pole motor, use 4 (1 pulse per 2 poles). Adjust based on your motor specifications.
+**PULSES_PER_REV**: For an 8-pole motor, use 4. Adjust based on your motor specifications.
+
+**RPM_SAMPLE_MIN_US**: Minimum time to accumulate pulses before computing RPM. Longer = less fluctuation, higher latency. 40000 (40ms) yields ~4 pulses at 1440 RPM.
 
 ### PID Tuning (`config_common.h`)
 
