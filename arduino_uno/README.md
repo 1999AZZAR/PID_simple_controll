@@ -64,12 +64,12 @@ arduino_uno/
 |-----------|-------------|-------------|
 | BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from motor (interrupt pin) - provides 4 pulses per mechanical revolution |
 | PWM Output | Digital Pin 9 | PWM signal to ESC |
-| Mode Switch | Digital Pin 3 | LOW = Potentiometer mode, HIGH = Production/Serial mode |
-| PPR Pot | Analog A0 | Pulses per revolution (1-100) |
-| Kp Pot | Analog A1 | Proportional gain (0-2.0) |
-| Ki Pot | Analog A2 | Integral gain (0-1.0) |
-| Kd Pot | Analog A3 | Derivative gain (0-0.1) |
-| A4 | Analog A4 | Available for future use (I2C, etc.) |
+| Pot Enable | Digital Pin 3 | Pull LOW to enable pot target mode (internal pullup). HIGH = production mode |
+| Target RPM Pot | Analog A4 | Potentiometer for target RPM (1000-3000 RPM) |
+| PPR Pot | Analog A0 | Pulses per revolution (1-100, active in tuning mode) |
+| Kp Pot | Analog A1 | Proportional gain (0-2.0, active in tuning mode) |
+| Ki Pot | Analog A2 | Integral gain (0-1.0, active in tuning mode) |
+| Kd Pot | Analog A3 | Derivative gain (0-0.1, active in tuning mode) |
 
 ### Hall Sensor Signal Options
 
@@ -104,12 +104,12 @@ All Arduino Uno settings are centralized in `config.h`:
 ```cpp
 #define RPM_SENSOR_PIN      2   // Hall sensor input (interrupt)
 #define PWM_OUTPUT_PIN      9   // PWM output to ESC
-#define MODE_SWITCH_PIN     3   // Mode selection switch
+#define POT_ENABLE_PIN      3   // Pull LOW to enable pot target mode
+#define POT_TARGET_RPM_PIN  A4  // Potentiometer for target RPM (1000-3000)
 #define POT_PULSES_PER_REV  A0  // Pulses per revolution potentiometer
 #define POT_KP              A1  // Proportional gain pot
 #define POT_KI              A2  // Integral gain pot
 #define POT_KD              A3  // Derivative gain pot
-// A4 available for future use (I2C, etc.)
 ```
 
 ### Control Parameters

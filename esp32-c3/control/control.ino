@@ -30,6 +30,7 @@ volatile float currentRPM = 0.0;
 volatile float targetRPM = DEFAULT_TARGET_RPM;
 volatile float pidOutput = 0.0;
 volatile int lastPWMValue = 0;
+bool potEnabled = false;
 
 // Filter & PID State
 RPMFilter rpmFilter;
@@ -44,10 +45,13 @@ unsigned long softStartStartTime = 0;
 // Function Prototypes
 void controlLoop(void *parameter);
 int applySoftStart(int targetPWM);
+float readTargetRPM();
 
 void setup() {
-    // Initialize Serial for debug (optional, can be removed for production)
     Serial.begin(115200);
+    
+    // Pot enable pin: internal pullup, pull LOW to activate pot mode
+    pinMode(POT_ENABLE_PIN, INPUT_PULLUP);
     
     // Initialize Drivers
     pcnt_init(RPM_INPUT_PIN);
@@ -78,28 +82,36 @@ void controlLoop(void *parameter) {
     xLastWakeTime = xTaskGetTickCount();
     
     while (true) {
-        // 1. Calculate RPM
+        // 1. Read target RPM (pot or hardcoded)
+        potEnabled = (digitalRead(POT_ENABLE_PIN) == LOW);
+        if (potEnabled) {
+            targetRPM = readTargetRPM();
+        } else {
+            targetRPM = DEFAULT_TARGET_RPM;
+        }
+        
+        // 2. Calculate RPM
         float rawRPM = pcnt_get_rpm();
         
-        // 2. Apply sliding window filter
+        // 3. Apply sliding window filter
         float filteredRPM = rpmFilter.update(rawRPM);
         currentRPM = filteredRPM;
         
-        // 3. Compute PID
+        // 4. Compute PID
         float error = targetRPM - currentRPM;
         pidOutput = computePID_float(error, integral, previousError, filteredDerivative,
                                    DEFAULT_KP, DEFAULT_KI, DEFAULT_KD,
                                    INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
                                    PID_OUTPUT_MIN, PID_OUTPUT_MAX);
                                    
-        // 4. Map to PWM
+        // 5. Map to PWM
         int targetPWM = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
         targetPWM = constrain(targetPWM, PWM_MIN_THRESHOLD, PWM_MAX_VALUE);
         
-        // 5. Apply Soft Start (Kickstart)
+        // 6. Apply Soft Start (Kickstart)
         int finalPWM = applySoftStart(targetPWM);
         
-        // 6. Output to ESC
+        // 7. Output to ESC
         motor_set_pwm(finalPWM);
         lastPWMValue = finalPWM;
         
@@ -122,4 +134,10 @@ int applySoftStart(int targetPWM) {
     float progress = (float)elapsed / SOFT_START_DURATION_MS;
     int kickstartPWM = PWM_MIN_THRESHOLD + (int)((targetPWM - PWM_MIN_THRESHOLD) * progress);
     return (kickstartPWM > targetPWM) ? targetPWM : kickstartPWM;
+}
+
+float readTargetRPM() {
+    int raw = analogRead(POT_TARGET_RPM_PIN);
+    // ESP32-C3 ADC: 12-bit (0-4095)
+    return TARGET_RPM_MIN + ((float)raw / 4095.0) * (TARGET_RPM_MAX - TARGET_RPM_MIN);
 }

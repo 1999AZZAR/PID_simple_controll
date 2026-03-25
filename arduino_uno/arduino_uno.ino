@@ -55,8 +55,9 @@ volatile unsigned long lastPulseMicros = 0;
 // Safety features removed for simplified operation
 unsigned long lastRPMCalcTime = 0;
 float currentRPM = 0.0;
-const float targetRPM = DEFAULT_TARGET_RPM; // Fixed target RPM for constant speed control
-int pulsesPerRev = DEFAULT_PULSES_PER_REV; // Configurable pulses per revolution via potentiometer
+float targetRPM = DEFAULT_TARGET_RPM;
+int pulsesPerRev = DEFAULT_PULSES_PER_REV;
+bool potEnabled = false;
 int lastPWMValue = 0; // Last PWM value for hysteresis
 
 // Exponential Moving Average (EMA) filter for RPM smoothing
@@ -73,7 +74,6 @@ float pidOutput = 0.0;
 
 // Mode selection
 bool tuningMode = false;
-// Serial tuning removed
 
 // Safety features
 
@@ -90,9 +90,7 @@ void updatePIDGains();
 float computePID(float error);
 void outputToESC(int pwmValue);
 void printToSerialPlotter();
-// Serial commands removed
-// EEPROM functions removed
-// Print functions removed
+float readTargetRPM();
 
 void setup() {
     // Initialize serial communication
@@ -101,7 +99,7 @@ void setup() {
     // Configure pins
     pinMode(RPM_SENSOR_PIN, INPUT_PULLUP);
     pinMode(PWM_OUTPUT_PIN, OUTPUT);
-    pinMode(MODE_SWITCH_PIN, INPUT_PULLUP);
+    pinMode(POT_ENABLE_PIN, INPUT_PULLUP);
 
     // Set PWM frequency to 50Hz (standard for RC ESCs)
     // Timer1 is used for PWM on pin 9 (OC1A)
@@ -128,14 +126,22 @@ void loop() {
 
     unsigned long currentTime = millis();
 
-    // Check mode switch (serial tuning removed)
-    tuningMode = digitalRead(MODE_SWITCH_PIN) == LOW;
+    // Check pot enable pin (LOW = pot active, HIGH = hardcoded default)
+    potEnabled = (digitalRead(POT_ENABLE_PIN) == LOW);
+    
+    if (potEnabled) {
+        targetRPM = readTargetRPM();
+        tuningMode = true;
+    } else {
+        targetRPM = DEFAULT_TARGET_RPM;
+        tuningMode = false;
+    }
 
-    // Mode switching
-    static bool lastTuningMode = !tuningMode; // Force initial print
+    // Mode switching notification
+    static bool lastTuningMode = !tuningMode;
     if (tuningMode != lastTuningMode) {
-        Serial.print(F("Mode switch changed to: "));
-        Serial.println(tuningMode ? F("Potentiometer Tuning") : F("Production"));
+        Serial.print(F("Mode: "));
+        Serial.println(tuningMode ? F("Pot Target") : F("Production"));
         lastTuningMode = tuningMode;
     }
 
@@ -149,16 +155,11 @@ void loop() {
 
     // Update PID gains based on mode
     if (tuningMode) {
-        // Potentiometer tuning mode
         updatePIDGains();
-        Serial.println("Mode: Potentiometer Tuning");
     } else {
-        // Production mode - use hardcoded values
-        // targetRPM is now fixed at 1440.0 (const)
         kp = DEFAULT_KP;
         ki = DEFAULT_KI;
         kd = DEFAULT_KD;
-        Serial.println("Mode: Production");
     }
 
     // Compute PID output
@@ -262,6 +263,11 @@ float readPotentiometer(int pin, float minVal, float maxVal) {
 int readPotentiometerInt(int pin, int minVal, int maxVal) {
     int rawValue = analogRead(pin);
     return map(rawValue, 0, 1023, minVal, maxVal);
+}
+
+float readTargetRPM() {
+    int raw = analogRead(POT_TARGET_RPM_PIN);
+    return TARGET_RPM_MIN + ((float)raw / 1023.0) * (TARGET_RPM_MAX - TARGET_RPM_MIN);
 }
 
 // Update PID gains from potentiometers (tuning mode only)

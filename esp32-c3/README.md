@@ -92,8 +92,24 @@ esp32-c3/
 |-----------|--------------|-------------|
 | RPM Input | GPIO 0 | Pulse signal from motor Hall sensor |
 | PWM Output | GPIO 1 | PWM control signal to ESC |
+| Pot Target RPM | GPIO 2 (ADC) | Potentiometer wiper for target RPM (1000-3000) |
+| Pot Enable | GPIO 3 | Pull LOW to enable pot target mode (internal pullup) |
 | Power | 5V / VIN | 5V power supply |
 | Ground | GND | Common ground |
+
+### Target RPM Potentiometer (Optional)
+
+Wire a 10K potentiometer to GPIO 2 and a toggle switch or jumper to GPIO 3:
+
+```
+3.3V ----[ Pot 10K ]---- GND
+              |
+           GPIO 2 (wiper)
+
+GPIO 3 ----[ Switch ]---- GND   (closed = pot active, open = hardcoded default)
+```
+
+When GPIO 3 is pulled LOW (switch closed), the pot on GPIO 2 sets target RPM between 1000-3000. When HIGH (default/floating), the system uses `DEFAULT_TARGET_RPM` from config.
 
 ### Voltage Divider for 5V Hall Sensors
 
@@ -181,12 +197,13 @@ The controller runs in a dedicated FreeRTOS task with highest priority (`configM
 ┌─────────────────────────────────────┐
 │   Control Task (Highest Priority)   │
 │   ┌─────────────────────────────┐   │
-│   │ 1. Read RPM (pcnt_driver)   │   │
-│   │ 2. Filter RPM (sliding win) │   │
-│   │ 3. Compute PID               │   │
-│   │ 4. Map to PWM                │   │
-│   │ 5. Apply Soft-Start          │   │
-│   │ 6. Output PWM (ledc_driver)  │   │
+│   │ 1. Read Target (pot/config) │   │
+│   │ 2. Read RPM (pcnt_driver)   │   │
+│   │ 3. Filter RPM (sliding win) │   │
+│   │ 4. Compute PID               │   │
+│   │ 5. Map to PWM                │   │
+│   │ 6. Apply Soft-Start          │   │
+│   │ 7. Output PWM (ledc_driver)  │   │
 │   └─────────────────────────────┘   │
 │   vTaskDelayUntil(5ms)               │
 └─────────────────────────────────────┘
@@ -219,15 +236,21 @@ The controller runs in a dedicated FreeRTOS task with highest priority (`configM
 ### Motor Settings (`config.h`)
 
 ```cpp
-#define RPM_INPUT_PIN   0   // Hall sensor input
-#define PWM_OUTPUT_PIN  1   // ESC control output
-#define PULSES_PER_REV  4   // Set to motor pole count / 2
-#define RPM_SAMPLE_MIN_US 40000  // 40ms integration window
+#define RPM_INPUT_PIN       0   // Hall sensor input
+#define PWM_OUTPUT_PIN      1   // ESC control output
+#define POT_ENABLE_PIN      3   // Pull LOW to enable pot target mode
+#define POT_TARGET_RPM_PIN  2   // Potentiometer for target RPM
+#define TARGET_RPM_MIN      1000 // Pot minimum (RPM)
+#define TARGET_RPM_MAX      3000 // Pot maximum (RPM)
+#define PULSES_PER_REV      4   // Set to motor pole count / 2
+#define RPM_SAMPLE_MIN_US   40000  // 40ms integration window
 ```
 
 **PULSES_PER_REV**: For an 8-pole motor, use 4. Adjust based on your motor specifications.
 
 **RPM_SAMPLE_MIN_US**: Minimum time to accumulate pulses before computing RPM. Longer = less fluctuation, higher latency. 40000 (40ms) yields ~4 pulses at 1440 RPM.
+
+**TARGET_RPM_MIN / TARGET_RPM_MAX**: Defines the pot mapping range. Adjust if your motor operates outside 1000-3000 RPM.
 
 ### PID Tuning (`config_common.h`)
 

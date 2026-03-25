@@ -34,7 +34,8 @@ volatile unsigned long lastPulseMicros = 0;
 unsigned long lastRPMCalcTime = 0;
 
 float currentRPM = 0.0;
-const float targetRPM = DEFAULT_TARGET_RPM; // Fixed target
+float targetRPM = DEFAULT_TARGET_RPM;
+bool potEnabled = false;
 
 // PID State
 float integral = 0.0;
@@ -58,6 +59,7 @@ bool emergencyRecoveryMode = false;
 
 // Function Prototypes
 int applySoftStart(int targetPWM);
+float readTargetRPM();
 
 // Pin Change Interrupt Service Routine for PB3
 ISR(PCINT0_vect) {
@@ -72,6 +74,7 @@ void setup() {
     // 1. Configure Pins
     pinMode(PWM_OUTPUT_PIN, OUTPUT);
     pinMode(RPM_SENSOR_PIN, INPUT_PULLUP);
+    pinMode(POT_ENABLE_PIN, INPUT_PULLUP);
 
     // 2. Enable Pin Change Interrupt on PB3
     GIMSK |= (1 << PCIE);   // Enable Pin Change Interrupts
@@ -117,7 +120,15 @@ void loop() {
         lastRPMCalcTime = currentTime;
     }
 
-    // --- 2. Control Loop ---
+    // --- 2. Read Target RPM ---
+    potEnabled = (digitalRead(POT_ENABLE_PIN) == LOW);
+    if (potEnabled) {
+        targetRPM = readTargetRPM();
+    } else {
+        targetRPM = DEFAULT_TARGET_RPM;
+    }
+
+    // --- 3. Control Loop ---
     static unsigned long lastControlTime = 0;
     if (currentTime - lastControlTime >= CONTROL_PERIOD_MS) {
         lastControlTime = currentTime;
@@ -184,4 +195,10 @@ int applySoftStart(int targetPWM) {
     
     if (kickstartPWM > targetPWM) return targetPWM;
     return kickstartPWM;
+}
+
+float readTargetRPM() {
+    int raw = analogRead(POT_TARGET_RPM_PIN);
+    // ATtiny85 ADC: 10-bit (0-1023)
+    return TARGET_RPM_MIN + ((float)raw / 1023.0) * (TARGET_RPM_MAX - TARGET_RPM_MIN);
 }

@@ -22,7 +22,9 @@ Ensure your IDE is set to compile for **16MHz (Internal PLL)**.
 | Function | ATtiny85 Pin | Physical Pin | Description |
 | :--- | :--- | :--- | :--- |
 | **PWM Output** | PB0 | Pin 5 | Signal to ESC |
+| **Pot Enable** | PB1 | Pin 6 | Pull LOW to enable pot target mode (internal pullup) |
 | **RPM Input** | PB3 | Pin 2 | Hall Sensor Signal |
+| **Pot Target RPM** | PB4 (ADC2) | Pin 3 | Potentiometer for target RPM (1000-3000) |
 | **VCC** | VCC | Pin 8 | 5V Power |
 | **GND** | GND | Pin 4 | Ground |
 
