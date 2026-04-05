@@ -12,23 +12,17 @@
  *
  * Features:
  * - PID control with anti-windup protection
- * - Three operating modes: Production, Potentiometer Tuning, and Serial Tuning
  * - RPM feedback via Hall sensor (direct motor connection)
  * - PWM output to ESC
- * - Real-time tuning via potentiometers, serial commands, or Serial Plotter
- * - EEPROM storage for PID parameters
- * - Interactive serial command interface
- * - Configurable parameters (pulses per revolution, etc.)
+ * - Optional sensitivity trim: D3 + A4 scale Kp/Ki/Kd together (target RPM fixed at DEFAULT_TARGET_RPM)
+ * - Serial Plotter output for monitoring
  *
  * Hardware Requirements:
  * - Arduino board (Uno, Mega, or similar)
  * - 3-Hall BLDC motor (such as 42BLF20-22.0223 or equivalent)
  * - BLDC motor controller (ESC) compatible with the motor
  * - Any one Hall sensor wire from the BLDC motor (Hall A, B, or C)
- * - Mode switch (jumper/digital input for tuning mode)
- *
- * Optional Hardware (for potentiometer tuning):
- * - 5 potentiometers for real-time tuning
+ * - Optional: jumper on D3 + trim pot on A4 for PID gain scale
  *
  * Configuration:
  * - All configuration parameters are defined in config.h
@@ -55,10 +49,10 @@ volatile unsigned long lastPulseMicros = 0;
 // Safety features removed for simplified operation
 unsigned long lastRPMCalcTime = 0;
 float currentRPM = 0.0;
-float targetRPM = DEFAULT_TARGET_RPM;
-int pulsesPerRev = DEFAULT_PULSES_PER_REV;
-bool potEnabled = false;
-int lastPWMValue = 0; // Last PWM value for hysteresis
+const float targetRPM = DEFAULT_TARGET_RPM;
+const int pulsesPerRev = DEFAULT_PULSES_PER_REV;
+float sensitivityScale = 1.0f;
+int lastPWMValue = 0;
 
 // Exponential Moving Average (EMA) filter for RPM smoothing
 #define EMA_ALPHA 0.25  // Smoothing factor (0.1 = stable, 1.0 = instant)
@@ -72,9 +66,6 @@ float previousError = 0.0;
 float integral = 0.0;
 float pidOutput = 0.0;
 
-// Mode selection
-bool tuningMode = false;
-
 // Safety features
 
 // Soft-start ramping to avoid current surges
@@ -85,12 +76,10 @@ int softStartStep = 0;
 // Function prototypes
 void rpmSensorISR();
 float calculateRPM();
-float readPotentiometer(int pin, float minVal, float maxVal);
-void updatePIDGains();
 float computePID(float error);
 void outputToESC(int pwmValue);
 void printToSerialPlotter();
-float readTargetRPM();
+float readSensitivityScale();
 
 void setup() {
     // Initialize serial communication
@@ -126,23 +115,17 @@ void loop() {
 
     unsigned long currentTime = millis();
 
-    // Check pot enable pin (LOW = pot active, HIGH = hardcoded default)
-    potEnabled = (digitalRead(POT_ENABLE_PIN) == LOW);
-    
-    if (potEnabled) {
-        targetRPM = readTargetRPM();
-        tuningMode = true;
-    } else {
-        targetRPM = DEFAULT_TARGET_RPM;
-        tuningMode = false;
-    }
+    bool trimActive = (digitalRead(POT_ENABLE_PIN) == LOW);
+    sensitivityScale = trimActive ? readSensitivityScale() : 1.0f;
+    kp = DEFAULT_KP * sensitivityScale;
+    ki = DEFAULT_KI * sensitivityScale;
+    kd = DEFAULT_KD * sensitivityScale;
 
-    // Mode switching notification
-    static bool lastTuningMode = !tuningMode;
-    if (tuningMode != lastTuningMode) {
+    static bool lastTrim = !trimActive;
+    if (trimActive != lastTrim) {
         Serial.print(F("Mode: "));
-        Serial.println(tuningMode ? F("Pot Target") : F("Production"));
-        lastTuningMode = tuningMode;
+        Serial.println(trimActive ? F("Sensitivity trim") : F("Production"));
+        lastTrim = trimActive;
     }
 
     // Calculate RPM at regular intervals
@@ -152,15 +135,6 @@ void loop() {
     }
 
 // Safety features removed for simplified operation
-
-    // Update PID gains based on mode
-    if (tuningMode) {
-        updatePIDGains();
-    } else {
-        kp = DEFAULT_KP;
-        ki = DEFAULT_KI;
-        kd = DEFAULT_KD;
-    }
 
     // Compute PID output
     float error = targetRPM - currentRPM;
@@ -253,29 +227,9 @@ float calculateRPM() {
     return rpmFiltered; // Return previous filtered value if not enough time has passed
 }
 
-// Read potentiometer and map to specified range (float)
-float readPotentiometer(int pin, float minVal, float maxVal) {
-    int rawValue = analogRead(pin);
-    return map(rawValue, 0, 1023, minVal * 100, maxVal * 100) / 100.0;
-}
-
-// Read potentiometer and map to specified integer range
-int readPotentiometerInt(int pin, int minVal, int maxVal) {
-    int rawValue = analogRead(pin);
-    return map(rawValue, 0, 1023, minVal, maxVal);
-}
-
-float readTargetRPM() {
-    int raw = analogRead(POT_TARGET_RPM_PIN);
-    return TARGET_RPM_MIN + ((float)raw / 1023.0) * (TARGET_RPM_MAX - TARGET_RPM_MIN);
-}
-
-// Update PID gains from potentiometers (tuning mode only)
-void updatePIDGains() {
-    pulsesPerRev = readPotentiometerInt(POT_PULSES_PER_REV, 1, 100); // 1-100 pulses per revolution
-    kp = readPotentiometer(POT_KP, 0, 2.0);                         // 0-2.0 Kp range
-    ki = readPotentiometer(POT_KI, 0, 1.0);                         // 0-1.0 Ki range
-    kd = readPotentiometer(POT_KD, 0, 0.1);                         // 0-0.1 Kd range
+float readSensitivityScale() {
+    int raw = analogRead(POT_SENSITIVITY_PIN);
+    return PID_SENSITIVITY_MIN + ((float)raw / 1023.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
 }
 
 // Compute PID output using shared function with overflow protection
@@ -353,5 +307,8 @@ void printToSerialPlotter() {
     Serial.print(kd, 2);
     Serial.print(",");
     Serial.print("PPR:");
-    Serial.println(pulsesPerRev);
+    Serial.print(pulsesPerRev);
+    Serial.print(",");
+    Serial.print("Sens:");
+    Serial.println(sensitivityScale, 3);
 }

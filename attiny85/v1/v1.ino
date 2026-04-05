@@ -34,8 +34,7 @@ volatile unsigned long lastPulseMicros = 0;
 unsigned long lastRPMCalcTime = 0;
 
 float currentRPM = 0.0;
-float targetRPM = DEFAULT_TARGET_RPM;
-bool potEnabled = false;
+const float targetRPM = DEFAULT_TARGET_RPM;
 
 // PID State
 float integral = 0.0;
@@ -59,7 +58,7 @@ bool emergencyRecoveryMode = false;
 
 // Function Prototypes
 int applySoftStart(int targetPWM);
-float readTargetRPM();
+float readSensitivityScale();
 
 // Pin Change Interrupt Service Routine for PB3
 ISR(PCINT0_vect) {
@@ -120,18 +119,16 @@ void loop() {
         lastRPMCalcTime = currentTime;
     }
 
-    // --- 2. Read Target RPM ---
-    potEnabled = (digitalRead(POT_ENABLE_PIN) == LOW);
-    if (potEnabled) {
-        targetRPM = readTargetRPM();
-    } else {
-        targetRPM = DEFAULT_TARGET_RPM;
-    }
-
-    // --- 3. Control Loop ---
+    // --- 2. Control Loop ---
     static unsigned long lastControlTime = 0;
     if (currentTime - lastControlTime >= CONTROL_PERIOD_MS) {
         lastControlTime = currentTime;
+
+        bool trimActive = (digitalRead(POT_ENABLE_PIN) == LOW);
+        float sens = trimActive ? readSensitivityScale() : 1.0f;
+        float kp = DEFAULT_KP * sens;
+        float ki = DEFAULT_KI * sens;
+        float kd = DEFAULT_KD * sens;
 
         float error = targetRPM - currentRPM;
 
@@ -149,7 +146,7 @@ void loop() {
         } else {
             // Normal PID Operation
             pidOutput = computePID_float(error, integral, previousError,
-                                       DEFAULT_KP, DEFAULT_KI, DEFAULT_KD,
+                                       kp, ki, kd,
                                        INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
                                        PID_OUTPUT_MIN, PID_OUTPUT_MAX);
 
@@ -197,8 +194,7 @@ int applySoftStart(int targetPWM) {
     return kickstartPWM;
 }
 
-float readTargetRPM() {
-    int raw = analogRead(POT_TARGET_RPM_PIN);
-    // ATtiny85 ADC: 10-bit (0-1023)
-    return TARGET_RPM_MIN + ((float)raw / 1023.0) * (TARGET_RPM_MAX - TARGET_RPM_MIN);
+float readSensitivityScale() {
+    int raw = analogRead(POT_SENSITIVITY_PIN);
+    return PID_SENSITIVITY_MIN + ((float)raw / 1023.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
 }

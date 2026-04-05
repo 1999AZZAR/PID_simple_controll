@@ -19,7 +19,7 @@ Bluetooth Low Energy control interface for the BLDC PID controller.
 
 | Characteristic | UUID | Type | Description |
 |----------------|------|------|-------------|
-| Status | `beb5483e-36e1-4688-b7f5-ea07361b26a8` | Read/Notify | JSON status (run, rpm, target, pwm) |
+| Status | `beb5483e-36e1-4688-b7f5-ea07361b26a8` | Read/Notify | JSON: `run`, `rpm`, `target`, `pwm`, `sens` (gain scale from optional GPIO2/3 trim) |
 | Control | `beb5483e-36e1-4688-b7f5-ea07361b26a9` | Write | Send "start" or "stop" |
 | Target | `beb5483e-36e1-4688-b7f5-ea07361b26aa` | Read/Write | Set target RPM (e.g. "1440") |
 
@@ -70,4 +70,4 @@ asyncio.run(main())
 
 ## Hardware
 
-Same as `control/`: GPIO 0 (RPM input with voltage divider), GPIO 1 (PWM to ESC).
+Same as `control/`: GPIO 0 (RPM with divider if 5V), GPIO 1 (PWM to ESC), GPIO 2 (sensitivity pot ADC), GPIO 3 (pull LOW to enable trim). The pot scales Kp/Ki/Kd only; target RPM is still set over BLE via the Target characteristic (or initial `DEFAULT_TARGET_RPM` until written).

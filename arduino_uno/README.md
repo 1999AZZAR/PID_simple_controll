@@ -1,6 +1,6 @@
 # Arduino Uno BLDC PID Controller
 
-**Simplified PID controller** for BLDC motors with potentiometer tuning and serial monitoring.
+**Simplified PID controller** for BLDC motors with optional PID sensitivity trim and serial monitoring.
 
 ## Table of Contents
 
@@ -17,23 +17,22 @@
 
 ## Overview
 
-The Arduino Uno version provides a streamlined PID controller for BLDC motors with potentiometer-based tuning and serial monitoring output.
+The Arduino Uno version keeps a fixed target RPM (`DEFAULT_TARGET_RPM`, 1440) and optionally scales Kp, Ki, and Kd together with one trim pot for field calibration.
 
 ### Key Features
 
-- **Fixed Target Speed**: `DEFAULT_TARGET_RPM` constant speed control
-- **Potentiometer Tuning**: 4 potentiometers for real-time parameter adjustment
-- **Serial Plotter Integration**: Real-time visualization of control performance
-- **Modular Configuration**: All settings centralized in `config.h`
-- **Two Operating Modes**: Production (fixed parameters) and Potentiometer Tuning
-- **Simplified Design**: No serial commands or EEPROM storage for maximum reliability
+- **Fixed target RPM**: Always `DEFAULT_TARGET_RPM` from `config_common.h`
+- **Sensitivity trim**: Pull D3 LOW and use A4 to scale all three gains (about 0.75x to 1.25x)
+- **Serial Plotter**: Real-time visualization including gain scale
+- **Modular configuration**: Pins and limits in `config.h`
+- **Simplified design**: No serial commands or EEPROM
 
 ## Quick Start
 
 1. **Hardware Setup**: Connect components according to pin assignments below
 2. **Upload Code**: Load `arduino_uno.ino` to Arduino Uno
 3. **Configure**: Modify `config.h` for your specific setup
-4. **Tune Parameters**: Use potentiometers for real-time adjustment
+4. **Optional trim**: Use D3 + A4 to fine-tune PID sensitivity on the bench or PCB
 5. **Monitor**: Use Serial Plotter for real-time feedback
 
 ## Project Structure
@@ -54,9 +53,9 @@ arduino_uno/
 - BLDC motor controller (ESC) compatible with motor
 - SPDT switch or jumper (mode selection)
 
-### Optional Components (for potentiometer tuning)
-- 4x 10kΩ potentiometers
-- Breadboard and jumper wires
+### Optional components (sensitivity trim)
+- 1x 10kΩ potentiometer (or PCB trimmer) on A4
+- Jumper or switch from D3 to GND to enable trim
 
 ### Pin Connections
 
@@ -64,12 +63,8 @@ arduino_uno/
 |-----------|-------------|-------------|
 | BLDC Hall Sensor | Digital Pin 2 | Any Hall wire from motor (interrupt pin) - provides 4 pulses per mechanical revolution |
 | PWM Output | Digital Pin 9 | PWM signal to ESC |
-| Pot Enable | Digital Pin 3 | Pull LOW to enable pot target mode (internal pullup). HIGH = production mode |
-| Target RPM Pot | Analog A4 | Potentiometer for target RPM (1000-3000 RPM) |
-| PPR Pot | Analog A0 | Pulses per revolution (1-100, active in tuning mode) |
-| Kp Pot | Analog A1 | Proportional gain (0-2.0, active in tuning mode) |
-| Ki Pot | Analog A2 | Integral gain (0-1.0, active in tuning mode) |
-| Kd Pot | Analog A3 | Derivative gain (0-0.1, active in tuning mode) |
+| Trim enable | Digital Pin 3 | Pull LOW to apply sensitivity pot (internal pullup). HIGH = scale 1.0 |
+| Sensitivity pot | Analog A4 | Wiper scales Kp, Ki, Kd together; target RPM stays 1440 |
 
 ### Hall Sensor Signal Options
 
@@ -100,16 +95,14 @@ The controller uses a single Hall sensor wire for RPM feedback, but for enhanced
 
 All Arduino Uno settings are centralized in `config.h`:
 
-### Pin Definitions
+### Pin definitions
 ```cpp
-#define RPM_SENSOR_PIN      2   // Hall sensor input (interrupt)
-#define PWM_OUTPUT_PIN      9   // PWM output to ESC
-#define POT_ENABLE_PIN      3   // Pull LOW to enable pot target mode
-#define POT_TARGET_RPM_PIN  A4  // Potentiometer for target RPM (1000-3000)
-#define POT_PULSES_PER_REV  A0  // Pulses per revolution potentiometer
-#define POT_KP              A1  // Proportional gain pot
-#define POT_KI              A2  // Integral gain pot
-#define POT_KD              A3  // Derivative gain pot
+#define RPM_SENSOR_PIN        2   // Hall sensor input (interrupt)
+#define PWM_OUTPUT_PIN        9   // PWM output to ESC
+#define POT_ENABLE_PIN        3   // Pull LOW to enable sensitivity trim
+#define POT_SENSITIVITY_PIN   A4  // Trims Kp/Ki/Kd scale
+#define PID_SENSITIVITY_MIN   0.75f
+#define PID_SENSITIVITY_MAX   1.25f
 ```
 
 ### Control Parameters
@@ -131,55 +124,39 @@ All Arduino Uno settings are centralized in `config.h`:
 // Emergency stop feature removed for simplified operation
 ```
 
-## Operating Modes
+## Operating modes
 
-The Arduino Uno version supports two operating modes selected by the mode switch (Digital Pin 3):
+Digital pin 3 selects whether the sensitivity pot on A4 is active.
 
-### Production Mode (Default)
-- **Mode Switch**: HIGH or floating
-- **Behavior**: Uses fixed target RPM (`DEFAULT_TARGET_RPM`) with potentiometer-adjustable PID parameters
-- **Features**: Stable, predictable operation
-- **Use Case**: Final production deployment
+### Production (default)
+- **Pin 3**: HIGH or floating
+- **Behavior**: Kp, Ki, Kd equal `DEFAULT_KP`, `DEFAULT_KI`, `DEFAULT_KD`; target RPM is `DEFAULT_TARGET_RPM`
 
-### Potentiometer Tuning Mode
-- **Mode Switch**: LOW (connected to GND)
-- **Behavior**: Real-time parameter adjustment via 4 potentiometers
-- **Monitoring**: Serial Plotter shows live control response
-- **Use Case**: Initial PID tuning and testing
+### Sensitivity trim
+- **Pin 3**: LOW
+- **Behavior**: Same target RPM; pot on A4 sets a multiplier on all three gains (`PID_SENSITIVITY_MIN` to `PID_SENSITIVITY_MAX`)
+- **Use case**: Calibrate each unit or ESC so speed settles cleanly on 1440 RPM without changing firmware
 
 ## Serial Plotter Output
 
-The system outputs seven comma-separated values for Serial Plotter visualization:
+The system outputs comma-separated values:
 ```
-Target,Current,Error,PID_Output,Kp,Ki,Kd,PPR
+Target,Current,Error,PID_Output,PWM,Kp,Ki,Kd,PPR,Sens
 ```
 
-- **Target**: Desired RPM setpoint
-- **Current**: Measured motor RPM
-- **Error**: Difference between target and current
-- **PID_Output**: Computed PID control value
-- **Kp**: Proportional gain
-- **Ki**: Integral gain
-- **Kd**: Derivative gain
-- **PPR**: Pulses per revolution
+- **Sens**: Current gain scale (1.0 when trim disabled)
 
-### Plotter Setup
-1. Open Arduino IDE → Tools → Serial Plotter
-2. Set baud rate to 115200
-3. Seven traces will display real-time control performance and parameters
+### Plotter setup
+1. Open Arduino IDE, Serial Plotter, 115200 baud
+2. Traces include live gains and sensitivity multiplier
 
-## Tuning Procedure
+## Tuning procedure
 
-### Potentiometer Tuning
-1. Set mode switch to LOW (potentiometer mode)
-2. Open Serial Plotter (115200 baud)
-3. Adjust potentiometers while monitoring response:
-   - **Pot A0 (PPR)**: Pulses per revolution (1-100 range)
-   - **Pot A1 (Kp)**: Proportional gain (0-2.0 range)
-   - **Pot A2 (Ki)**: Integral gain (0-1.0 range)
-   - **Pot A3 (Kd)**: Derivative gain (0-0.1 range)
-4. Record optimal potentiometer positions
-5. Transfer values to production constants in `config.h`
+### Sensitivity trim on hardware
+1. Flash firmware with baseline `DEFAULT_KP`, `DEFAULT_KI`, `DEFAULT_KD` in `config_common.h`
+2. Tie D3 LOW (trim on), connect trim pot to A4
+3. Run at load and adjust the pot until speed is stable on 1440 RPM with acceptable overshoot
+4. For sealed production, leave D3 HIGH or strap per your PCB after setting the trimmer once in test
 
 ## Troubleshooting
 

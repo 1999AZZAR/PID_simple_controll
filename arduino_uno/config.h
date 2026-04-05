@@ -10,16 +10,11 @@
 // Pin definitions
 #define RPM_SENSOR_PIN      2   // Interrupt pin for BLDC Hall sensor (any Hall wire from motor)
 #define PWM_OUTPUT_PIN      9   // PWM output to ESC
-#define POT_ENABLE_PIN      3   // Digital input - Pull LOW to enable pot target mode (INPUT_PULLUP)
-#define POT_TARGET_RPM_PIN  A4  // Potentiometer for target RPM (1000-3000)
-#define POT_PULSES_PER_REV  A0  // Potentiometer for pulses per revolution (tuning mode)
-#define POT_KP              A1  // Potentiometer for Kp gain (tuning mode)
-#define POT_KI              A2  // Potentiometer for Ki gain (tuning mode)
-#define POT_KD              A3  // Potentiometer for Kd gain (tuning mode)
+#define POT_ENABLE_PIN        3   // Pull LOW to enable PID sensitivity trim (INPUT_PULLUP)
+#define POT_SENSITIVITY_PIN   A4  // Trims Kp/Ki/Kd scale; target RPM stays DEFAULT_TARGET_RPM
 
-// Target RPM Range (when pot is enabled)
-#define TARGET_RPM_MIN  1000
-#define TARGET_RPM_MAX  3000
+#define PID_SENSITIVITY_MIN  0.75f
+#define PID_SENSITIVITY_MAX  1.25f
 
 // Arduino Uno specific configuration overrides
 #define DEFAULT_PULSES_PER_REV 4    // 8-pole BLDC motor with single Hall sensor = 4 pulses per revolution (1 pulse per pole pair)

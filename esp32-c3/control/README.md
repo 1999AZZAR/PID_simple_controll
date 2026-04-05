@@ -70,6 +70,8 @@ esp32-c3/control/
 |-----------|--------------|-------------|
 | **RPM Input** | GPIO 0 | Pulse signal from motor Hall sensor (Requires 5V->3.3V divider) |
 | **PWM Output** | GPIO 1 | PWM control signal to the ESC |
+| **Sensitivity pot** | GPIO 2 (ADC) | Optional: scales Kp/Ki/Kd when GPIO 3 is LOW |
+| **Trim enable** | GPIO 3 | Optional: LOW = apply pot; HIGH = gain scale 1.0 |
 | **Power** | 5V / VIN | 5V Power supply |
 | **Ground** | GND | Common ground |
 
@@ -91,7 +93,7 @@ Settings are split between `config.h` (Hardware/Motor) and `config_common.h` (PI
 ### Key Constants (`config.h`)
 - `PULSES_PER_REV`: Set to 4 for an 8-pole motor (1 pulse per 2 poles).
 - `SOFT_START_DURATION_MS`: 1500ms ramp time.
-- `EMA_ALPHA`: 0.25 (Adjust for more/less smoothing).
+- `POT_ENABLE_PIN` / `POT_SENSITIVITY_PIN` / `PID_SENSITIVITY_MIN` / `PID_SENSITIVITY_MAX`: optional gain trim (target RPM stays in `config_common.h`).
 
 ### PID Constants (`config_common.h`)
 - `DEFAULT_TARGET_RPM`: 1440.0

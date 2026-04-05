@@ -4,7 +4,7 @@
  * BLE control interface
  * Connect via BLE, write commands to control
  *
- * Hardware: Same as control/ (GPIO 0 RPM, GPIO 1 PWM)
+ * Hardware: Same as control/ (GPIO 0 RPM, GPIO 1 PWM, GPIO 2 sensitivity pot, GPIO 3 trim enable)
  */
 
 #include <Arduino.h>
@@ -40,6 +40,7 @@ volatile float targetRPM = DEFAULT_TARGET_RPM;
 volatile float pidOutput = 0.0;
 volatile int lastPWMValue = 0;
 volatile bool running = false;
+volatile float gainScale = 1.0f;
 
 // Helper macros for atomic read/write of a single shared variable
 #define SHARED_READ(var, out)  do { portENTER_CRITICAL(&sharedMux); (out) = (var); portEXIT_CRITICAL(&sharedMux); } while(0)
@@ -123,8 +124,10 @@ void controlLoop(void* parameter);
 int applySoftStart(int targetPWM);
 void setupBLE();
 void updateStatus();
+static float readSensitivityScale();
 
 void setup() {
+    pinMode(POT_ENABLE_PIN, INPUT_PULLUP);
     pcnt_init(RPM_INPUT_PIN);
     ledc_init(PWM_OUTPUT_PIN);
 
@@ -183,7 +186,7 @@ void setupBLE() {
 
 void updateStatus() {
     // Fix #3: take atomic snapshots of shared variables before formatting
-    float snapRPM, snapTarget;
+    float snapRPM, snapTarget, snapSens;
     int snapPWM;
     bool snapRunning;
     portENTER_CRITICAL(&sharedMux);
@@ -191,11 +194,12 @@ void updateStatus() {
     snapRPM     = currentRPM;
     snapTarget  = targetRPM;
     snapPWM     = lastPWMValue;
+    snapSens    = gainScale;
     portEXIT_CRITICAL(&sharedMux);
 
-    char status[128];
-    snprintf(status, sizeof(status), "{\"run\":%d,\"rpm\":%.0f,\"target\":%.0f,\"pwm\":%d}",
-        snapRunning ? 1 : 0, snapRPM, snapTarget, snapPWM);
+    char status[160];
+    snprintf(status, sizeof(status), "{\"run\":%d,\"rpm\":%.0f,\"target\":%.0f,\"pwm\":%d,\"sens\":%.3f}",
+        snapRunning ? 1 : 0, snapRPM, snapTarget, snapPWM, snapSens);
     pStatusChar->setValue(status);
     pStatusChar->notify();
 }
@@ -206,6 +210,13 @@ void controlLoop(void* parameter) {
     xLastWakeTime = xTaskGetTickCount();
 
     while (true) {
+        bool trimActive = (digitalRead(POT_ENABLE_PIN) == LOW);
+        float sens = trimActive ? readSensitivityScale() : 1.0f;
+        SHARED_WRITE(gainScale, sens);
+        float kp = DEFAULT_KP * sens;
+        float ki = DEFAULT_KI * sens;
+        float kd = DEFAULT_KD * sens;
+
         float rawRPM = pcnt_get_rpm();
         
         // Apply sliding window filter
@@ -225,7 +236,7 @@ void controlLoop(void* parameter) {
 
         float error = localTargetRPM - filteredRPM;
         float localPidOutput = computePID_float(error, integral, previousError, filteredDerivative,
-            DEFAULT_KP, DEFAULT_KI, DEFAULT_KD,
+            kp, ki, kd,
             INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
             PID_OUTPUT_MIN, PID_OUTPUT_MAX);
         SHARED_WRITE(pidOutput, localPidOutput);
@@ -256,4 +267,9 @@ int applySoftStart(int targetPWM) {
     float progress = (float)elapsed / SOFT_START_DURATION_MS;
     int kickstartPWM = PWM_MIN_THRESHOLD + (int)((targetPWM - PWM_MIN_THRESHOLD) * progress);
     return (kickstartPWM > targetPWM) ? targetPWM : kickstartPWM;
+}
+
+static float readSensitivityScale() {
+    int raw = analogRead(POT_SENSITIVITY_PIN);
+    return PID_SENSITIVITY_MIN + ((float)raw / 4095.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
 }

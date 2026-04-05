@@ -7,17 +7,16 @@
 
 // Pin Definitions (ATtiny85 Arduino-style pin numbering)
 //   PB0 (pin 5) -> PWM Output
-//   PB1 (pin 6) -> Pot Enable (INPUT_PULLUP, pull LOW to enable)
+//   PB1 (pin 6) -> Sensitivity trim enable (INPUT_PULLUP, pull LOW to enable)
 //   PB3 (pin 2) -> RPM Sensor (Hall)
-//   PB4 (pin 3) -> Pot Target RPM (ADC2)
-#define RPM_SENSOR_PIN      3    // Arduino pin 3 (PB3), Hall sensor input
-#define PWM_OUTPUT_PIN      0    // Arduino pin 0 (PB0), PWM output
-#define POT_ENABLE_PIN      1    // Arduino pin 1 (PB1), pull LOW to enable pot
-#define POT_TARGET_RPM_PIN  A2   // Arduino pin 4 (PB4/ADC2), pot for target RPM
+//   PB4 (pin 3) -> Sensitivity pot (ADC2)
+#define RPM_SENSOR_PIN        3    // Arduino pin 3 (PB3), Hall sensor input
+#define PWM_OUTPUT_PIN        0    // Arduino pin 0 (PB0), PWM output
+#define POT_ENABLE_PIN        1    // Arduino pin 1 (PB1)
+#define POT_SENSITIVITY_PIN   A2   // Arduino pin 4 (PB4/ADC2)
 
-// Target RPM Range (when pot is enabled)
-#define TARGET_RPM_MIN  1000
-#define TARGET_RPM_MAX  3000
+#define PID_SENSITIVITY_MIN  0.75f
+#define PID_SENSITIVITY_MAX  1.25f
 
 // Include shared constants
 #include "config_common.h"

@@ -65,7 +65,7 @@ esp32-c3/
 ### For Real Motor
 
 1. **Choose Firmware**: Use `control/` for always-on operation, or `control_ble/` for wireless control
-2. **Hardware Setup**: Connect RPM sensor to GPIO 0 (with voltage divider if 5V) and ESC to GPIO 1
+2. **Hardware Setup**: RPM on GPIO 0 (divider if 5V), ESC on GPIO 1; optional trim on GPIO 2/3
 3. **Configure**: Review `config.h` and `config_common.h` for motor-specific parameters
 4. **Upload**: Flash using Arduino IDE or PlatformIO
 5. **Monitor**: Open Serial Monitor at 115200 baud to verify startup
@@ -92,24 +92,26 @@ esp32-c3/
 |-----------|--------------|-------------|
 | RPM Input | GPIO 0 | Pulse signal from motor Hall sensor |
 | PWM Output | GPIO 1 | PWM control signal to ESC |
-| Pot Target RPM | GPIO 2 (ADC) | Potentiometer wiper for target RPM (1000-3000) |
-| Pot Enable | GPIO 3 | Pull LOW to enable pot target mode (internal pullup) |
+| Sensitivity pot | GPIO 2 (ADC) | Trimmer scales Kp, Ki, Kd together (target RPM stays 1440) |
+| Trim enable | GPIO 3 | Pull LOW to apply pot; HIGH = nominal gains from `config_common.h` |
 | Power | 5V / VIN | 5V power supply |
 | Ground | GND | Common ground |
 
-### Target RPM Potentiometer (Optional)
+### PID sensitivity trim (optional)
 
-Wire a 10K potentiometer to GPIO 2 and a toggle switch or jumper to GPIO 3:
+Target speed remains `DEFAULT_TARGET_RPM` (1440). The pot only scales all three gains by the same factor so you can fine-tune stability and steady-state error on the bench or on a production PCB.
+
+Wire a 10K potentiometer to GPIO 2 and a jumper or switch on GPIO 3:
 
 ```
 3.3V ----[ Pot 10K ]---- GND
               |
            GPIO 2 (wiper)
 
-GPIO 3 ----[ Switch ]---- GND   (closed = pot active, open = hardcoded default)
+GPIO 3 ----[ Switch ]---- GND   (closed = trim active; open = scale 1.0)
 ```
 
-When GPIO 3 is pulled LOW (switch closed), the pot on GPIO 2 sets target RPM between 1000-3000. When HIGH (default/floating), the system uses `DEFAULT_TARGET_RPM` from config.
+With trim active, the pot maps approximately 0.75x to 1.25x on `DEFAULT_KP`, `DEFAULT_KI`, and `DEFAULT_KD` (see `PID_SENSITIVITY_MIN` / `PID_SENSITIVITY_MAX` in `config.h`).
 
 ### Voltage Divider for 5V Hall Sensors
 
@@ -197,7 +199,7 @@ The controller runs in a dedicated FreeRTOS task with highest priority (`configM
 ┌─────────────────────────────────────┐
 │   Control Task (Highest Priority)   │
 │   ┌─────────────────────────────┐   │
-│   │ 1. Read Target (pot/config) │   │
+│   │ 1. Sensitivity scale (pot)  │   │
 │   │ 2. Read RPM (pcnt_driver)   │   │
 │   │ 3. Filter RPM (sliding win) │   │
 │   │ 4. Compute PID               │   │
@@ -238,19 +240,19 @@ The controller runs in a dedicated FreeRTOS task with highest priority (`configM
 ```cpp
 #define RPM_INPUT_PIN       0   // Hall sensor input
 #define PWM_OUTPUT_PIN      1   // ESC control output
-#define POT_ENABLE_PIN      3   // Pull LOW to enable pot target mode
-#define POT_TARGET_RPM_PIN  2   // Potentiometer for target RPM
-#define TARGET_RPM_MIN      1000 // Pot minimum (RPM)
-#define TARGET_RPM_MAX      3000 // Pot maximum (RPM)
-#define PULSES_PER_REV      4   // Set to motor pole count / 2
-#define RPM_SAMPLE_MIN_US   40000  // 40ms integration window
+#define POT_ENABLE_PIN        3   // Pull LOW to enable sensitivity trim
+#define POT_SENSITIVITY_PIN   2   // Pot scales Kp/Ki/Kd
+#define PID_SENSITIVITY_MIN   0.75f
+#define PID_SENSITIVITY_MAX   1.25f
+#define PULSES_PER_REV        4   // Set to motor pole count / 2
+#define RPM_SAMPLE_MIN_US     40000  // 40ms integration window
 ```
 
 **PULSES_PER_REV**: For an 8-pole motor, use 4. Adjust based on your motor specifications.
 
 **RPM_SAMPLE_MIN_US**: Minimum time to accumulate pulses before computing RPM. Longer = less fluctuation, higher latency. 40000 (40ms) yields ~4 pulses at 1440 RPM.
 
-**TARGET_RPM_MIN / TARGET_RPM_MAX**: Defines the pot mapping range. Adjust if your motor operates outside 1000-3000 RPM.
+**PID_SENSITIVITY_MIN / MAX**: Gain multiplier range when trim is enabled. Mid-travel is near 1.0 (nominal gains).
 
 ### PID Tuning (`config_common.h`)
 
@@ -295,7 +297,7 @@ The controller runs in a dedicated FreeRTOS task with highest priority (`configM
 
 | Name | UUID | Type | Description |
 |------|------|------|-------------|
-| Status | `beb5483e-36e1-4688-b7f5-ea07361b26a8` | Read/Notify | JSON status: `{"run":1,"rpm":1440,"target":1440,"pwm":128}` |
+| Status | `beb5483e-36e1-4688-b7f5-ea07361b26a8` | Read/Notify | JSON status: `{"run":1,"rpm":1440,"target":1440,"pwm":128,"sens":1.000}` (`sens` = PID gain scale from trim pot) |
 | Control | `beb5483e-36e1-4688-b7f5-ea07361b26a9` | Write | Commands: `"start"` or `"stop"` |
 | Target | `beb5483e-36e1-4688-b7f5-ea07361b26aa` | Read/Write | Set target RPM: `"1800"` |
 

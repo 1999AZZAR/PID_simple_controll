@@ -16,15 +16,11 @@
 |                     |
 |  [RPM Sensor] → 2   |  // Interrupt pin
 |                     |
-|  [Mode Switch] → 3  |  // LOW = Potentiometer Tuning, HIGH = Production
+|  [Trim enable] → 3  |  // LOW = apply sensitivity pot, HIGH = scale 1.0
 |                     |
 |  [PWM to ESC] ← 9   |  // PWM output
 |                     |
-|  [Target RPM Pot] → A0 |
-|  [Kp Pot] → A1      |
-|  [Ki Pot] → A2      |
-|  [Kd Pot] → A3      |
-|  [Pulses/Rev Pot] → A4 |
+|  [Sensitivity pot] → A4 |  // scales Kp/Ki/Kd together
 +---------------------+
 ```
 
@@ -35,19 +31,16 @@
 - Hall sensors share power/ground with Arduino (5V/GND)
 - No additional components needed for most BLDC motors
 
-### Mode Switch
+### Trim enable (optional)
 - One side → Arduino Pin 3
-- Other side → GND (when closed = tuning mode)
+- Other side → GND (when closed = sensitivity pot active)
 
 ### PWM Output to ESC
 - Arduino Pin 9 → ESC signal input
 - ESC power and motor connections as per ESC manual
 
-### Potentiometers (5x 10kΩ linear)
-- **Target RPM**: Wiper → A0, ends → GND and 5V
-- **Kp**: Wiper → A1, ends → GND and 5V
-- **Ki**: Wiper → A2, ends → GND and 5V
-- **Kd**: Wiper → A3, ends → GND and 5V
+### Sensitivity pot (optional, 10kΩ linear or trimmer)
+- Wiper → A4, ends → GND and 5V
 
 ## Power Supply
 - **Arduino**: USB or external 7-12V

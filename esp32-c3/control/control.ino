@@ -9,6 +9,7 @@
  * - GND -> GND
  * - GPIO 0 -> RPM Input (via Voltage Divider! 5V -> ~3.3V)
  * - GPIO 1 -> PWM Output (Direct to ESC)
+ * - GPIO 2 -> Sensitivity pot (ADC); GPIO 3 -> pull LOW to enable trim (scales Kp/Ki/Kd)
  */
 
 #include <Arduino.h>
@@ -30,7 +31,6 @@ volatile float currentRPM = 0.0;
 volatile float targetRPM = DEFAULT_TARGET_RPM;
 volatile float pidOutput = 0.0;
 volatile int lastPWMValue = 0;
-bool potEnabled = false;
 
 // Filter & PID State
 RPMFilter rpmFilter;
@@ -45,12 +45,11 @@ unsigned long softStartStartTime = 0;
 // Function Prototypes
 void controlLoop(void *parameter);
 int applySoftStart(int targetPWM);
-float readTargetRPM();
+float readSensitivityScale();
 
 void setup() {
     Serial.begin(115200);
     
-    // Pot enable pin: internal pullup, pull LOW to activate pot mode
     pinMode(POT_ENABLE_PIN, INPUT_PULLUP);
     
     // Initialize Drivers
@@ -82,36 +81,35 @@ void controlLoop(void *parameter) {
     xLastWakeTime = xTaskGetTickCount();
     
     while (true) {
-        // 1. Read target RPM (pot or hardcoded)
-        potEnabled = (digitalRead(POT_ENABLE_PIN) == LOW);
-        if (potEnabled) {
-            targetRPM = readTargetRPM();
-        } else {
-            targetRPM = DEFAULT_TARGET_RPM;
-        }
-        
-        // 2. Calculate RPM
+        bool trimActive = (digitalRead(POT_ENABLE_PIN) == LOW);
+        float sens = trimActive ? readSensitivityScale() : 1.0f;
+        float kp = DEFAULT_KP * sens;
+        float ki = DEFAULT_KI * sens;
+        float kd = DEFAULT_KD * sens;
+        targetRPM = DEFAULT_TARGET_RPM;
+
+        // 1. Calculate RPM
         float rawRPM = pcnt_get_rpm();
         
-        // 3. Apply sliding window filter
+        // 2. Apply sliding window filter
         float filteredRPM = rpmFilter.update(rawRPM);
         currentRPM = filteredRPM;
         
-        // 4. Compute PID
+        // 3. Compute PID
         float error = targetRPM - currentRPM;
         pidOutput = computePID_float(error, integral, previousError, filteredDerivative,
-                                   DEFAULT_KP, DEFAULT_KI, DEFAULT_KD,
+                                   kp, ki, kd,
                                    INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
                                    PID_OUTPUT_MIN, PID_OUTPUT_MAX);
                                    
-        // 5. Map to PWM
+        // 4. Map to PWM
         int targetPWM = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
         targetPWM = constrain(targetPWM, PWM_MIN_THRESHOLD, PWM_MAX_VALUE);
         
-        // 6. Apply Soft Start (Kickstart)
+        // 5. Apply Soft Start (Kickstart)
         int finalPWM = applySoftStart(targetPWM);
         
-        // 7. Output to ESC
+        // 6. Output to ESC
         motor_set_pwm(finalPWM);
         lastPWMValue = finalPWM;
         
@@ -136,8 +134,7 @@ int applySoftStart(int targetPWM) {
     return (kickstartPWM > targetPWM) ? targetPWM : kickstartPWM;
 }
 
-float readTargetRPM() {
-    int raw = analogRead(POT_TARGET_RPM_PIN);
-    // ESP32-C3 ADC: 12-bit (0-4095)
-    return TARGET_RPM_MIN + ((float)raw / 4095.0) * (TARGET_RPM_MAX - TARGET_RPM_MIN);
+float readSensitivityScale() {
+    int raw = analogRead(POT_SENSITIVITY_PIN);
+    return PID_SENSITIVITY_MIN + ((float)raw / 4095.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
 }
