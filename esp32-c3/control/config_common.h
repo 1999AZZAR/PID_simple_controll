@@ -21,5 +21,11 @@
 #define PWM_MIN_VALUE       0
 #define PWM_MAX_VALUE       255
 #define PWM_MIN_THRESHOLD   45  // Kickstart torque
+#define PWM_IDLE            0   // Safe output when stalled (motor off)
+
+// RPM calibration offset. The ESP32-C3 external/main crystal is far more
+// accurate than the ATtiny RC, but a small trim still helps hit exact RPM.
+// DEFAULT_TARGET_RPM is multiplied by this. 1.0 = no correction.
+#define RPM_CAL_SCALE 1.0f
 
 #endif // CONFIG_COMMON_H

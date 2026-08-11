@@ -21,9 +21,14 @@
 #define PWM_MIN_VALUE       0
 #define PWM_MAX_VALUE       255
 #define PWM_MIN_THRESHOLD   45  // Kickstart torque
+#define PWM_IDLE            0   // Safe output when stalled (motor off)
 
 // Target RPM Limits (safety)
 #define TARGET_RPM_MIN 100.0
 #define TARGET_RPM_MAX 10000.0
+
+// Stall / sensor-loss failsafe: cut power if no pulse for this long while the
+// motor has reached near-target speed. 150ms is ~14x the target pulse period.
+#define STALL_TIMEOUT_MS 150
 
 #endif // CONFIG_COMMON_H

@@ -20,4 +20,9 @@
 // Soft-Start
 #define SOFT_START_DURATION_MS  1500  // 1.5 seconds
 
+// Stall / sensor-loss failsafe: if no pulse arrives for this long while the
+// motor has reached near-target speed, power is cut to protect the motor/driver.
+// 150ms is ~14x the target pulse period (10.4ms @ 1440 RPM).
+#define STALL_TIMEOUT_MS 150
+
 #endif // CONFIG_H

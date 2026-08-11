@@ -54,6 +54,10 @@ float filteredDerivative = 0.0;
 bool softStarting = true;
 unsigned long softStartStartTime = 0;
 
+// Failsafe state (mirrors ATtiny v3)
+bool stalled = false;
+bool hasValidFeedback = false;
+
 BLEServer *pServer = NULL;
 BLECharacteristic *pStatusChar = NULL;
 BLECharacteristic *pControlChar = NULL;
@@ -99,19 +103,19 @@ class TargetCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
         uint8_t* data = pCharacteristic->getData();
         size_t len = pCharacteristic->getLength();
-        
+
         if (len > 0) {
             char buffer[16];
             size_t copyLen = (len < 15) ? len : 15;
             memcpy(buffer, data, copyLen);
             buffer[copyLen] = '\0';
-            
+
             float rpm = atof(buffer);
             if (rpm >= TARGET_RPM_MIN && rpm <= TARGET_RPM_MAX) {
                 // Fix #3: write targetRPM atomically so the control task never
                 // reads a torn float value mid-update.
                 SHARED_WRITE(targetRPM, rpm);
-                
+
                 char response[32];
                 snprintf(response, sizeof(response), "%.0f", rpm);
                 pCharacteristic->setValue(response);
@@ -138,7 +142,7 @@ void setup() {
         "ControlLoop",
         4096,
         NULL,
-        configMAX_PRIORITIES - 1,
+        configMAX_PRIORITIES - 3,
         NULL,
         0
     );
@@ -218,7 +222,7 @@ void controlLoop(void* parameter) {
         float kd = DEFAULT_KD * sens;
 
         float rawRPM = pcnt_get_rpm();
-        
+
         // Apply sliding window filter
         float filteredRPM = rpmFilter.update(rawRPM);
         SHARED_WRITE(currentRPM, filteredRPM);
@@ -230,6 +234,38 @@ void controlLoop(void* parameter) {
         SHARED_READ(targetRPM, localTargetRPM);
 
         if (!localRunning) {
+            vTaskDelayUntil(&xLastWakeTime, xFrequency);
+            continue;
+        }
+
+        // Failsafe: mark feedback valid once we've genuinely reached speed.
+        if (filteredRPM >= localTargetRPM * 0.7 && filteredRPM <= localTargetRPM * 1.3) {
+            hasValidFeedback = true;
+        }
+
+        // If stalled, wait for the motor to be moving again near speed, then
+        // re-arm via soft-start (no hard kick). Otherwise hold the motor off.
+        if (stalled) {
+            if (filteredRPM >= localTargetRPM * 0.7 && filteredRPM <= localTargetRPM * 1.3) {
+                stalled = false;
+                softStarting = true;
+                softStartStartTime = 0;
+                integral = 0.0f;
+            } else {
+                motor_set_pwm(PWM_IDLE);
+                SHARED_WRITE(lastPWMValue, PWM_IDLE);
+                vTaskDelayUntil(&xLastWakeTime, xFrequency);
+                continue;
+            }
+        }
+
+        // Stall detection: valid feedback gained, then pulses lost too long.
+        if (hasValidFeedback && !stalled &&
+            pcnt_pulse_age_us() > (unsigned long)STALL_TIMEOUT_MS * 1000UL) {
+            stalled = true;
+            integral = 0.0f;
+            motor_set_pwm(PWM_IDLE);
+            SHARED_WRITE(lastPWMValue, PWM_IDLE);
             vTaskDelayUntil(&xLastWakeTime, xFrequency);
             continue;
         }
