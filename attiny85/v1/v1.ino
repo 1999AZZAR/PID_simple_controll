@@ -21,12 +21,12 @@
 #endif
 
 #include "config.h"
+#include "isr_common.h"
 #include "pid_common.h"
 #include "rpm_common.h"
-#include "isr_common.h"
 
-#include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/io.h>
 
 // --- Global Variables (Matching Arduino Uno) ---
 volatile unsigned long pulseInterval = 0;
@@ -63,7 +63,7 @@ float readSensitivityScale();
 // Pin Change Interrupt Service Routine for PB3
 ISR(PCINT0_vect) {
     // Check for RISING edge (LOW -> HIGH)
-    if (digitalRead(RPM_SENSOR_PIN) == HIGH) { 
+    if (digitalRead(RPM_SENSOR_PIN) == HIGH) {
         unsigned long currentMicros = micros();
         rpmSensorISR_common(currentMicros, lastPulseMicros, pulseInterval, MIN_PULSE_WIDTH_US);
     }
@@ -89,7 +89,7 @@ void loop() {
 
     // --- 1. Calculate RPM ---
     if (currentTime - lastRPMCalcTime >= RPM_CALC_INTERVAL) {
-        
+
         // Atomic read
         noInterrupts();
         unsigned long interval = pulseInterval;
@@ -106,12 +106,13 @@ void loop() {
         // Apply Median Filter (Spike Rejection)
         // Note: MEDIAN_SIZE is defined in rpm_common.h
         float medianRPM = getMedian(rawRPM, rpmMedianBuffer, rpmMedianIndex);
-        
+
         // Apply EMA Filter (Smoothing)
         if (rpmFiltered == 0.0 && medianRPM > 0.0) {
             rpmFiltered = medianRPM;
             // Fill buffer to prevent drag on startup
-            for(int i=0; i<MEDIAN_SIZE; i++) rpmMedianBuffer[i] = medianRPM;
+            for (int i = 0; i < MEDIAN_SIZE; i++)
+                rpmMedianBuffer[i] = medianRPM;
         } else {
             updateEMA(rpmFiltered, medianRPM, EMA_ALPHA);
         }
@@ -136,23 +137,22 @@ void loop() {
         // If error is huge (>2000 RPM) for too long, cut power.
         // This protects against sensor failure or stalled motor burnout.
         int pwmValue;
-        
+
         if (abs(error) > 2000 && !emergencyRecoveryMode) {
             if (emergencyStartTime == 0) {
                 emergencyStartTime = millis();
             }
             // If error persists, ensure PWM is 0 (or Min Value if ESC needs signal)
-            pwmValue = PWM_MIN_VALUE; 
+            pwmValue = PWM_MIN_VALUE;
         } else {
             // Normal PID Operation
-            pidOutput = computePID_float(error, integral, previousError,
-                                       kp, ki, kd,
-                                       INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
-                                       PID_OUTPUT_MIN, PID_OUTPUT_MAX);
+            pidOutput =
+                computePID_float(error, integral, previousError, kp, ki, kd, INTEGRAL_WINDUP_MIN,
+                                 INTEGRAL_WINDUP_MAX, PID_OUTPUT_MIN, PID_OUTPUT_MAX);
 
             pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
             pwmValue = constrain(pwmValue, PWM_MIN_THRESHOLD, PWM_MAX_VALUE);
-            
+
             // Apply Soft Start
             pwmValue = applySoftStart(pwmValue);
         }
@@ -174,9 +174,11 @@ void loop() {
 
 // Boosted Soft-Start Implementation
 int applySoftStart(int targetPWM) {
-    if (!softStarting) return targetPWM;
+    if (!softStarting)
+        return targetPWM;
 
-    if (softStartStartTime == 0) softStartStartTime = millis();
+    if (softStartStartTime == 0)
+        softStartStartTime = millis();
 
     unsigned long elapsed = millis() - softStartStartTime;
     if (elapsed >= SOFT_START_DURATION_MS) {
@@ -185,16 +187,18 @@ int applySoftStart(int targetPWM) {
     }
 
     float progress = (float)elapsed / SOFT_START_DURATION_MS;
-    
+
     // Kickstart from PWM_MIN_THRESHOLD (usually 45)
     // Formula: Output = Start + (Target - Start) * Progress
     int kickstartPWM = PWM_MIN_THRESHOLD + (int)((targetPWM - PWM_MIN_THRESHOLD) * progress);
-    
-    if (kickstartPWM > targetPWM) return targetPWM;
+
+    if (kickstartPWM > targetPWM)
+        return targetPWM;
     return kickstartPWM;
 }
 
 float readSensitivityScale() {
     int raw = analogRead(POT_SENSITIVITY_PIN);
-    return PID_SENSITIVITY_MIN + ((float)raw / 1023.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
+    return PID_SENSITIVITY_MIN +
+           ((float)raw / 1023.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
 }

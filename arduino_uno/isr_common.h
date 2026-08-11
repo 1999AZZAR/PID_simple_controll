@@ -7,8 +7,9 @@
 
 // Generic RPM sensor ISR with rollover protection
 // Updates pulseInterval with the measured period between pulses
-inline void rpmSensorISR_common(unsigned long currentTime, volatile unsigned long& lastPulseMicros,
-                               volatile unsigned long& pulseInterval, unsigned long minPulseWidthUs) {
+inline void rpmSensorISR_common(unsigned long currentTime, volatile unsigned long &lastPulseMicros,
+                                volatile unsigned long &pulseInterval,
+                                unsigned long minPulseWidthUs) {
     // Handle timer rollover
     unsigned long interval;
     if (currentTime >= lastPulseMicros) {

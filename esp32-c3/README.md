@@ -133,7 +133,7 @@ If your sensor already outputs 3.3V logic, connect directly to GPIO 0.
 
 **Use Case**: Production environments requiring continuous motor control without external intervention.
 
-**Behavior**: 
+**Behavior**:
 - Motor control starts immediately on power-up
 - No start/stop commands needed
 - Minimal overhead, maximum performance
@@ -325,14 +325,14 @@ STATUS_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
 async def control_motor():
     device = await BleakScanner.find_device_by_name(DEVICE_NAME)
-    
+
     async with BleakClient(device) as client:
         await client.write_gatt_char(CONTROL_UUID, b"start")
         await client.write_gatt_char(TARGET_UUID, b"1800")
-        
+
         status = await client.read_gatt_char(STATUS_UUID)
         print(f"Status: {status.decode()}")
-        
+
         await asyncio.sleep(10)
         await client.write_gatt_char(CONTROL_UUID, b"stop")
 

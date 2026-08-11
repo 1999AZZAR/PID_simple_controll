@@ -22,7 +22,7 @@ Complete guide for assembling, wiring, programming, and tuning the BLDC Motor PI
 - **Electronic Speed Controller (ESC)**: PWM-compatible motor driver
   - Voltage rating matching motor requirements (e.g., 12V, 24V, 36V)
   - Current rating 2x motor maximum current for safety margin
-- **Power Supply**: 
+- **Power Supply**:
   - Motor power: Voltage matching ESC/motor requirements, 2-3x running current capacity
   - Logic power: 5V for Arduino/ATtiny85, or 5V/3.3V for ESP32-C3
 - **Microcontroller**: Choose one platform (see below)

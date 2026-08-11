@@ -25,12 +25,12 @@ jobs:
       run: |
         # Initialize config file first
         arduino-cli config init --overwrite
-        
+
         # Add Board Manager URLs
         # Switching back to Damellis core because Spence Konde's servers (azduino.com) are unreliable in CI
         arduino-cli config add board_manager.additional_urls https://raw.githubusercontent.com/damellis/attiny/ide-1.6.x-boards-manager/package_damellis_attiny_index.json
         arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
-        
+
         # Update index
         arduino-cli core update-index
 

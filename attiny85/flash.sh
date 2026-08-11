@@ -27,8 +27,8 @@ sig_fuses() {
 echo "Reading target chip ($PORT)..."
 sig_fuses | grep -iE "signature|done|error" || true
 
-SIG=$(cat /tmp/t85_sig.txt 2>/dev/null | tr -d '\r')
-LFUSE=$(cat /tmp/t85_lfuse.txt 2>/dev/null | tr -d '\r')
+SIG=$(tr -d '\r' < /tmp/t85_sig.txt 2>/dev/null)
+LFUSE=$(tr -d '\r' < /tmp/t85_lfuse.txt 2>/dev/null)
 
 if [ -z "$SIG" ]; then
     echo "ERROR: could not read signature. Check wiring/programmer." >&2

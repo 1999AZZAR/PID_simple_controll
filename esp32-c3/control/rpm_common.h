@@ -8,14 +8,14 @@
 #define RPM_IIR_ALPHA 0.35f
 
 class RPMFilter {
-private:
+  private:
     float buffer[RPM_FILTER_SIZE];
     int index;
     int count;
     float sum;
     float iir_state;
 
-public:
+  public:
     RPMFilter() : index(0), count(0), sum(0.0f), iir_state(0.0f) {
         for (int i = 0; i < RPM_FILTER_SIZE; i++) {
             buffer[i] = 0.0f;

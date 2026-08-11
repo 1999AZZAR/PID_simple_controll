@@ -57,10 +57,10 @@ async def main():
     async with BleakClient(device) as client:
         # Start
         await client.write_gatt_char(CONTROL_UUID, b"start")
-        
+
         # Set target RPM
         await client.write_gatt_char(TARGET_UUID, b"1800")
-        
+
         # Read status
         status = await client.read_gatt_char(STATUS_UUID)
         print(status.decode())

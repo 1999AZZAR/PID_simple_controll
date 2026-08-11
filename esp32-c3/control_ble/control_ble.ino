@@ -8,24 +8,24 @@
  */
 
 #include <Arduino.h>
+#include <BLE2902.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
-#include <BLE2902.h>
 
 #include "config.h"
 #include "config_common.h"
 
-#include "pcnt_driver.h"
 #include "ledc_driver.h"
+#include "pcnt_driver.h"
 #include "pid_common.h"
 #include "rpm_common.h"
 
 // BLE UUIDs
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define STATUS_CHAR_UUID    "beb5483e-36e1-4688-b7f5-ea07361b26a8"
-#define CONTROL_CHAR_UUID   "beb5483e-36e1-4688-b7f5-ea07361b26a9"
-#define TARGET_CHAR_UUID    "beb5483e-36e1-4688-b7f5-ea07361b26aa"
+#define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define STATUS_CHAR_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define CONTROL_CHAR_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a9"
+#define TARGET_CHAR_UUID "beb5483e-36e1-4688-b7f5-ea07361b26aa"
 
 // Fix #3: spinlock protecting all shared state written by BLE callbacks and
 // read by the control task running on a different core.  Using portMUX_TYPE
@@ -43,8 +43,18 @@ volatile bool running = false;
 volatile float gainScale = 1.0f;
 
 // Helper macros for atomic read/write of a single shared variable
-#define SHARED_READ(var, out)  do { portENTER_CRITICAL(&sharedMux); (out) = (var); portEXIT_CRITICAL(&sharedMux); } while(0)
-#define SHARED_WRITE(var, val) do { portENTER_CRITICAL(&sharedMux); (var) = (val); portEXIT_CRITICAL(&sharedMux); } while(0)
+#define SHARED_READ(var, out)                                                                      \
+    do {                                                                                           \
+        portENTER_CRITICAL(&sharedMux);                                                            \
+        (out) = (var);                                                                             \
+        portEXIT_CRITICAL(&sharedMux);                                                             \
+    } while (0)
+#define SHARED_WRITE(var, val)                                                                     \
+    do {                                                                                           \
+        portENTER_CRITICAL(&sharedMux);                                                            \
+        (var) = (val);                                                                             \
+        portEXIT_CRITICAL(&sharedMux);                                                             \
+    } while (0)
 
 RPMFilter rpmFilter;
 float integral = 0.0;
@@ -64,17 +74,17 @@ BLECharacteristic *pControlChar = NULL;
 BLECharacteristic *pTargetChar = NULL;
 bool deviceConnected = false;
 
-class ServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
+class ServerCallbacks : public BLEServerCallbacks {
+    void onConnect(BLEServer *pServer) {
         deviceConnected = true;
     };
-    void onDisconnect(BLEServer* pServer) {
+    void onDisconnect(BLEServer *pServer) {
         deviceConnected = false;
         BLEDevice::startAdvertising();
     }
 };
 
-class ControlCallbacks: public BLECharacteristicCallbacks {
+class ControlCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
         String value = pCharacteristic->getValue();
         if (value == "start") {
@@ -99,9 +109,9 @@ class ControlCallbacks: public BLECharacteristicCallbacks {
     }
 };
 
-class TargetCallbacks: public BLECharacteristicCallbacks {
+class TargetCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
-        uint8_t* data = pCharacteristic->getData();
+        uint8_t *data = pCharacteristic->getData();
         size_t len = pCharacteristic->getLength();
 
         if (len > 0) {
@@ -124,7 +134,7 @@ class TargetCallbacks: public BLECharacteristicCallbacks {
     }
 };
 
-void controlLoop(void* parameter);
+void controlLoop(void *parameter);
 int applySoftStart(int targetPWM);
 void setupBLE();
 void updateStatus();
@@ -137,15 +147,8 @@ void setup() {
 
     setupBLE();
 
-    xTaskCreatePinnedToCore(
-        controlLoop,
-        "ControlLoop",
-        4096,
-        NULL,
-        configMAX_PRIORITIES - 3,
-        NULL,
-        0
-    );
+    xTaskCreatePinnedToCore(controlLoop, "ControlLoop", 4096, NULL, configMAX_PRIORITIES - 3, NULL,
+                            0);
 }
 
 void loop() {
@@ -163,21 +166,15 @@ void setupBLE() {
     BLEService *pService = pServer->createService(SERVICE_UUID);
 
     pStatusChar = pService->createCharacteristic(
-        STATUS_CHAR_UUID,
-        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
-    );
+        STATUS_CHAR_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
     pStatusChar->addDescriptor(new BLE2902());
 
-    pControlChar = pService->createCharacteristic(
-        CONTROL_CHAR_UUID,
-        BLECharacteristic::PROPERTY_WRITE
-    );
+    pControlChar =
+        pService->createCharacteristic(CONTROL_CHAR_UUID, BLECharacteristic::PROPERTY_WRITE);
     pControlChar->setCallbacks(new ControlCallbacks());
 
     pTargetChar = pService->createCharacteristic(
-        TARGET_CHAR_UUID,
-        BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_READ
-    );
+        TARGET_CHAR_UUID, BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_READ);
     pTargetChar->setCallbacks(new TargetCallbacks());
 
     pService->start();
@@ -195,20 +192,21 @@ void updateStatus() {
     bool snapRunning;
     portENTER_CRITICAL(&sharedMux);
     snapRunning = running;
-    snapRPM     = currentRPM;
-    snapTarget  = targetRPM;
-    snapPWM     = lastPWMValue;
-    snapSens    = gainScale;
+    snapRPM = currentRPM;
+    snapTarget = targetRPM;
+    snapPWM = lastPWMValue;
+    snapSens = gainScale;
     portEXIT_CRITICAL(&sharedMux);
 
     char status[160];
-    snprintf(status, sizeof(status), "{\"run\":%d,\"rpm\":%.0f,\"target\":%.0f,\"pwm\":%d,\"sens\":%.3f}",
-        snapRunning ? 1 : 0, snapRPM, snapTarget, snapPWM, snapSens);
+    snprintf(status, sizeof(status),
+             "{\"run\":%d,\"rpm\":%.0f,\"target\":%.0f,\"pwm\":%d,\"sens\":%.3f}",
+             snapRunning ? 1 : 0, snapRPM, snapTarget, snapPWM, snapSens);
     pStatusChar->setValue(status);
     pStatusChar->notify();
 }
 
-void controlLoop(void* parameter) {
+void controlLoop(void *parameter) {
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = pdMS_TO_TICKS(CONTROL_PERIOD_MS);
     xLastWakeTime = xTaskGetTickCount();
@@ -271,13 +269,13 @@ void controlLoop(void* parameter) {
         }
 
         float error = localTargetRPM - filteredRPM;
-        float localPidOutput = computePID_float(error, integral, previousError, filteredDerivative,
-            kp, ki, kd,
-            INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
-            PID_OUTPUT_MIN, PID_OUTPUT_MAX);
+        float localPidOutput = computePID_float(
+            error, integral, previousError, filteredDerivative, kp, ki, kd, INTEGRAL_WINDUP_MIN,
+            INTEGRAL_WINDUP_MAX, PID_OUTPUT_MIN, PID_OUTPUT_MAX);
         SHARED_WRITE(pidOutput, localPidOutput);
 
-        int targetPWM = map(localPidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
+        int targetPWM =
+            map(localPidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
         targetPWM = constrain(targetPWM, PWM_MIN_THRESHOLD, PWM_MAX_VALUE);
 
         int finalPWM = applySoftStart(targetPWM);
@@ -290,9 +288,11 @@ void controlLoop(void* parameter) {
 }
 
 int applySoftStart(int targetPWM) {
-    if (!softStarting) return targetPWM;
+    if (!softStarting)
+        return targetPWM;
 
-    if (softStartStartTime == 0) softStartStartTime = millis();
+    if (softStartStartTime == 0)
+        softStartStartTime = millis();
 
     unsigned long elapsed = millis() - softStartStartTime;
     if (elapsed >= SOFT_START_DURATION_MS) {
@@ -307,5 +307,6 @@ int applySoftStart(int targetPWM) {
 
 static float readSensitivityScale() {
     int raw = analogRead(POT_SENSITIVITY_PIN);
-    return PID_SENSITIVITY_MIN + ((float)raw / 4095.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
+    return PID_SENSITIVITY_MIN +
+           ((float)raw / 4095.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
 }

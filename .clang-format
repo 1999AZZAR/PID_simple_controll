@@ -1,0 +1,11 @@
+# clang-format style for this project (Arduino/AVR + ESP-IDF C/C++).
+# Matches existing code: 4-space indent, Attach (K&R-like) braces, compact.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ContinuationIndentWidth: 4
+TabWidth: 4
+UseTab: Never
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: false
+ColumnLimit: 100

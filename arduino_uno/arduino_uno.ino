@@ -14,7 +14,8 @@
  * - PID control with anti-windup protection
  * - RPM feedback via Hall sensor (direct motor connection)
  * - PWM output to ESC
- * - Optional sensitivity trim: D3 + A4 scale Kp/Ki/Kd together (target RPM fixed at DEFAULT_TARGET_RPM)
+ * - Optional sensitivity trim: D3 + A4 scale Kp/Ki/Kd together (target RPM fixed at
+ * DEFAULT_TARGET_RPM)
  * - Serial Plotter output for monitoring
  *
  * Hardware Requirements:
@@ -37,14 +38,14 @@
 #include "config.h"
 
 // Include shared common headers
+#include "isr_common.h"
 #include "pid_common.h"
 #include "rpm_common.h"
-#include "isr_common.h"
 
 // Serial removed - no interactive commands
 
 // Global variables
-volatile unsigned long pulseInterval = 0;  // Time interval between pulses in microseconds
+volatile unsigned long pulseInterval = 0; // Time interval between pulses in microseconds
 volatile unsigned long lastPulseMicros = 0;
 // Safety features removed for simplified operation
 unsigned long lastRPMCalcTime = 0;
@@ -55,7 +56,7 @@ float sensitivityScale = 1.0f;
 int lastPWMValue = 0;
 
 // Exponential Moving Average (EMA) filter for RPM smoothing
-#define EMA_ALPHA 0.25  // Smoothing factor (0.1 = stable, 1.0 = instant)
+#define EMA_ALPHA 0.25 // Smoothing factor (0.1 = stable, 1.0 = instant)
 float rpmFiltered = 0.0;
 
 // PID variables
@@ -92,7 +93,7 @@ void setup() {
 
     // Set PWM frequency to 50Hz (standard for RC ESCs)
     // Timer1 is used for PWM on pin 9 (OC1A)
-    TCCR1B = (TCCR1B & 0xF8) | 0x03;  // Set prescaler to 64 for ~50Hz
+    TCCR1B = (TCCR1B & 0xF8) | 0x03; // Set prescaler to 64 for ~50Hz
 
     // Attach interrupt for BLDC Hall sensor
     attachInterrupt(digitalPinToInterrupt(RPM_SENSOR_PIN), rpmSensorISR, RISING);
@@ -134,7 +135,7 @@ void loop() {
         lastRPMCalcTime = currentTime;
     }
 
-// Safety features removed for simplified operation
+    // Safety features removed for simplified operation
 
     // Compute PID output
     float error = targetRPM - currentRPM;
@@ -145,23 +146,25 @@ void loop() {
     static unsigned long emergencyStartTime = 0;
     static bool emergencyRecoveryMode = false;
 
-    if (abs(error) > 2000 && !emergencyRecoveryMode) {  // If error > 2000 RPM, emergency stop (increased threshold)
+    if (abs(error) > 2000 &&
+        !emergencyRecoveryMode) { // If error > 2000 RPM, emergency stop (increased threshold)
         if (emergencyStartTime == 0) {
             emergencyStartTime = millis();
             Serial.println("EMERGENCY STOP: Motor out of control!");
         }
-        pwmValue = 0;  // Cut power completely for 2 seconds
+        pwmValue = 0; // Cut power completely for 2 seconds
     } else {
         // Convert PID output to PWM value and output to ESC
         // Map PID output range to PWM range with minimum threshold for torque
         pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
-        pwmValue = constrain(pwmValue, PWM_MIN_THRESHOLD, PWM_MAX_VALUE);  // Minimum threshold for motor torque
+        pwmValue = constrain(pwmValue, PWM_MIN_THRESHOLD,
+                             PWM_MAX_VALUE); // Minimum threshold for motor torque
     }
 
     // Reset emergency timer after 2 seconds regardless of current error state
     if (emergencyStartTime > 0 && millis() - emergencyStartTime > 2000) {
-        emergencyStartTime = 0;  // Reset emergency after 2 seconds
-        emergencyRecoveryMode = true;  // Allow one recovery cycle before checking emergency again
+        emergencyStartTime = 0;       // Reset emergency after 2 seconds
+        emergencyRecoveryMode = true; // Allow one recovery cycle before checking emergency again
     }
 
     // Clear recovery mode after one cycle to allow emergency checks again
@@ -191,9 +194,9 @@ void rpmSensorISR() {
 float calculateRPM() {
     static unsigned long lastCalcTime = 0;
 
-    unsigned long currentTime = micros();  // Use micros for maximum precision
+    unsigned long currentTime = micros(); // Use micros for maximum precision
 
-    if (currentTime - lastCalcTime >= RPM_CALC_INTERVAL * 1000UL) {  // Convert ms to microseconds
+    if (currentTime - lastCalcTime >= RPM_CALC_INTERVAL * 1000UL) { // Convert ms to microseconds
         float rpm = 0.0;
 
         // Timeout check: if no pulses received within timeout period, motor is stopped
@@ -205,8 +208,8 @@ float calculateRPM() {
             unsigned long interval = pulseInterval;
             interrupts();
 
-            // Calculate RPM using period measurement: RPM = (60,000,000) / (interval_μs * pulses_per_rev)
-            // Use sequential division to avoid intermediate multiplication overflow
+            // Calculate RPM using period measurement: RPM = (60,000,000) / (interval_μs *
+            // pulses_per_rev) Use sequential division to avoid intermediate multiplication overflow
             if (interval > 0) {
                 rpm = 60000000.0 / interval / pulsesPerRev;
             }
@@ -221,7 +224,7 @@ float calculateRPM() {
 
         lastCalcTime = currentTime;
 
-        return rpmFiltered;  // Return filtered value for maximum accuracy
+        return rpmFiltered; // Return filtered value for maximum accuracy
     }
 
     return rpmFiltered; // Return previous filtered value if not enough time has passed
@@ -229,20 +232,20 @@ float calculateRPM() {
 
 float readSensitivityScale() {
     int raw = analogRead(POT_SENSITIVITY_PIN);
-    return PID_SENSITIVITY_MIN + ((float)raw / 1023.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
+    return PID_SENSITIVITY_MIN +
+           ((float)raw / 1023.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
 }
 
 // Compute PID output using shared function with overflow protection
 float computePID(float error) {
-    return computePID_float(error, integral, previousError, kp, ki, kd,
-                           INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
-                           PID_OUTPUT_MIN, PID_OUTPUT_MAX);
+    return computePID_float(error, integral, previousError, kp, ki, kd, INTEGRAL_WINDUP_MIN,
+                            INTEGRAL_WINDUP_MAX, PID_OUTPUT_MIN, PID_OUTPUT_MAX);
 }
 
 // Apply soft-start ramping to avoid current surges
 int applySoftStart(int targetPWM) {
     if (!softStarting) {
-        return targetPWM;  // Normal operation
+        return targetPWM; // Normal operation
     }
 
     unsigned long currentTime = millis();
@@ -265,12 +268,12 @@ int applySoftStart(int targetPWM) {
     // Formula: output = min_threshold + (target - min_threshold) * rampProgress
     // This ensures motor overcomes static friction immediately
     int kickstartPWM = PWM_MIN_THRESHOLD + (int)((targetPWM - PWM_MIN_THRESHOLD) * rampProgress);
-    
+
     // Ensure we don't exceed targetPWM
     if (kickstartPWM > targetPWM) {
         return targetPWM;
     }
-    
+
     return kickstartPWM;
 }
 
@@ -295,7 +298,7 @@ void printToSerialPlotter() {
     Serial.print(pidOutput);
     Serial.print(",");
     Serial.print("PWM:");
-    Serial.print(lastPWMValue);  // Show actual PWM being sent
+    Serial.print(lastPWMValue); // Show actual PWM being sent
     Serial.print(",");
     Serial.print("Kp:");
     Serial.print(kp, 2);

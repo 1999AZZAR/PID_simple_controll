@@ -27,7 +27,7 @@ main() {
     print_header
 
     echo -e "${YELLOW}Testing 8MHz Internal Oscillator configuration...${NC}"
-    
+
     # Create build dir if not exists
     mkdir -p "${BUILD_DIR}"
 
@@ -36,17 +36,17 @@ main() {
         --fqbn "${BOARD_FQBN}" \
         --build-path "${BUILD_DIR}" \
         "${SKETCH_DIR}" > /tmp/compile_output.log 2>&1; then
-        
+
         # Check if hex file was created
         if [ -f "${BUILD_DIR}/${SKETCH_NAME}.hex" ]; then
             echo -e "${GREEN}✓ Compilation successful${NC}"
-            
+
             # Show memory usage
             if grep -q "Sketch uses\|Global variables use" /tmp/compile_output.log; then
                 echo "  Memory usage:"
                 grep "Sketch uses\|Global variables use" /tmp/compile_output.log | head -2 | sed 's/^/    /'
             fi
-            
+
             echo ""
             echo "Current hex file: ${BUILD_DIR}/${SKETCH_NAME}.hex"
             ls -lh "${BUILD_DIR}/${SKETCH_NAME}.hex"
@@ -58,7 +58,7 @@ main() {
     else
         echo -e "${RED}✗ Compilation failed${NC}"
         echo "  Error output:"
-        cat /tmp/compile_output.log | sed 's/^/    /'
+        sed 's/^/    /' < /tmp/compile_output.log
         exit 1
     fi
 }

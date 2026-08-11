@@ -5,21 +5,21 @@
 
 // RPM Configuration
 #ifndef PULSES_PER_REV
-#define PULSES_PER_REV      4
+#define PULSES_PER_REV 4
 #endif
 
 // Minimum integration window (microseconds) for stable RPM measurement.
 // At 1440 RPM @ 4 PPR = 96 pulses/s. 40ms yields ~4 pulses (vs ~0.5 at 5ms).
 // Longer window = less quantization noise, slightly higher measurement latency.
 #ifndef RPM_SAMPLE_MIN_US
-#define RPM_SAMPLE_MIN_US   40000
+#define RPM_SAMPLE_MIN_US 40000
 #endif
 
 // Compute a fresh RPM estimate once this many pulses have accumulated (even
 // before the full window elapses). Keeps the PID from running on a stale RPM
 // between window boundaries. At 1440 RPM (96 pulses/s) 2 pulses ~= 20ms.
 #ifndef RPM_MIN_PULSES
-#define RPM_MIN_PULSES      2
+#define RPM_MIN_PULSES 2
 #endif
 
 static volatile uint32_t pulse_count = 0;

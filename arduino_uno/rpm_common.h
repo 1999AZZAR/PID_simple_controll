@@ -21,30 +21,30 @@ inline unsigned long safeInterval(unsigned long current, unsigned long previous)
 }
 
 // Moving average filter update
-inline void updateMovingAverage(float& filteredValue, float newValue,
-                               float history[], int& historyIndex, int filterSize) {
+inline void updateMovingAverage(float &filteredValue, float newValue, float history[],
+                                int &historyIndex, int filterSize) {
     // Add new value to history
     history[historyIndex] = newValue;
     historyIndex = (historyIndex + 1) % filterSize;
 
     // Calculate filtered average
     float sum = 0.0;
-    for(int i = 0; i < filterSize; i++) {
+    for (int i = 0; i < filterSize; i++) {
         sum += history[i];
     }
     filteredValue = sum / filterSize;
 }
 
 // Moving average filter update for integer values
-inline void updateMovingAverageInt(int& filteredValue, int newValue,
-                                  int history[], int& historyIndex, int filterSize) {
+inline void updateMovingAverageInt(int &filteredValue, int newValue, int history[],
+                                   int &historyIndex, int filterSize) {
     // Add new value to history
     history[historyIndex] = newValue;
     historyIndex = (historyIndex + 1) % filterSize;
 
     // Calculate filtered average
     long sum = 0;
-    for(int i = 0; i < filterSize; i++) {
+    for (int i = 0; i < filterSize; i++) {
         sum += history[i];
     }
     filteredValue = (int)(sum / filterSize);
@@ -52,7 +52,7 @@ inline void updateMovingAverageInt(int& filteredValue, int newValue,
 
 // Exponential Moving Average (EMA) filter update
 // alpha: Smoothing factor between 0 and 1. Lower = smoother but slower response.
-inline void updateEMA(float& filteredValue, float newValue, float alpha) {
+inline void updateEMA(float &filteredValue, float newValue, float alpha) {
     filteredValue = (alpha * newValue) + ((1.0 - alpha) * filteredValue);
 }
 

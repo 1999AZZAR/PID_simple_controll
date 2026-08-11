@@ -56,7 +56,7 @@ esp32-c3/control/
 - **Voltage Divider**: Necessary for RPM input (5V Hall sensor signal -> 3.3V ESP32 GPIO).
   - **R1 (2.2kΩ)**: Connects between the 5V Hall Sensor Signal and GPIO 0.
   - **R2 (3.3kΩ)**: Connects between GPIO 0 and Ground.
-  
+
   **Wiring Diagram:**
   ```text
   5V Hall Signal ----[ R1: 2.2kΩ ]---- GPIO 0

@@ -23,12 +23,12 @@
 #endif
 
 #include "config.h"
+#include "isr_common.h"
 #include "pid_common.h"
 #include "rpm_common.h"
-#include "isr_common.h"
 
-#include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/io.h>
 
 // --- Global Variables (same as v1/v2) ---
 volatile unsigned long pulseInterval = 0;
@@ -114,7 +114,8 @@ void loop() {
 
         if (rpmFiltered == 0.0 && medianRPM > 0.0) {
             rpmFiltered = medianRPM;
-            for (int i = 0; i < MEDIAN_SIZE; i++) rpmMedianBuffer[i] = medianRPM;
+            for (int i = 0; i < MEDIAN_SIZE; i++)
+                rpmMedianBuffer[i] = medianRPM;
         } else {
             updateEMA(rpmFiltered, medianRPM, EMA_ALPHA);
         }
@@ -137,7 +138,7 @@ void loop() {
             // Waiting for the motor to be moving again near speed.
             if (currentRPM >= targetRPM * 0.7 && currentRPM <= targetRPM * 1.3) {
                 stalled = false;
-                softStarting = true;      // re-ramp, no hard kick
+                softStarting = true; // re-ramp, no hard kick
                 softStartStartTime = 0;
                 integral = 0.0;
             } else {
@@ -171,10 +172,9 @@ void loop() {
             pwmValue = PWM_MIN_VALUE;
         } else {
             // Normal PID Operation
-            pidOutput = computePID_float(error, integral, previousError,
-                                       kp, ki, kd,
-                                       INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
-                                       PID_OUTPUT_MIN, PID_OUTPUT_MAX);
+            pidOutput =
+                computePID_float(error, integral, previousError, kp, ki, kd, INTEGRAL_WINDUP_MIN,
+                                 INTEGRAL_WINDUP_MAX, PID_OUTPUT_MIN, PID_OUTPUT_MAX);
 
             pwmValue = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
             pwmValue = constrain(pwmValue, PWM_MIN_THRESHOLD, PWM_MAX_VALUE);
@@ -199,9 +199,11 @@ void loop() {
 
 // Boosted Soft-Start Implementation (same as v1/v2)
 int applySoftStart(int targetPWM) {
-    if (!softStarting) return targetPWM;
+    if (!softStarting)
+        return targetPWM;
 
-    if (softStartStartTime == 0) softStartStartTime = millis();
+    if (softStartStartTime == 0)
+        softStartStartTime = millis();
 
     unsigned long elapsed = millis() - softStartStartTime;
     if (elapsed >= SOFT_START_DURATION_MS) {
@@ -213,11 +215,13 @@ int applySoftStart(int targetPWM) {
 
     int kickstartPWM = PWM_MIN_THRESHOLD + (int)((targetPWM - PWM_MIN_THRESHOLD) * progress);
 
-    if (kickstartPWM > targetPWM) return targetPWM;
+    if (kickstartPWM > targetPWM)
+        return targetPWM;
     return kickstartPWM;
 }
 
 float readSensitivityScale() {
     int raw = analogRead(POT_SENSITIVITY_PIN);
-    return PID_SENSITIVITY_MIN + ((float)raw / 1023.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
+    return PID_SENSITIVITY_MIN +
+           ((float)raw / 1023.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
 }

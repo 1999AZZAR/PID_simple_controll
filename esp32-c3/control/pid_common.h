@@ -7,11 +7,10 @@
 #define D_TERM_FILTER_ALPHA 0.25f
 #endif
 
-inline float computePID_float(float error, float& integral, float& previousError,
-                              float& filteredDerivative,
-                              float kp, float ki, float kd,
-                              float integral_min, float integral_max,
-                              float output_min, float output_max) {
+inline float computePID_float(float error, float &integral, float &previousError,
+                              float &filteredDerivative, float kp, float ki, float kd,
+                              float integral_min, float integral_max, float output_min,
+                              float output_max) {
     float proportional = kp * error;
 
     float integral_increment = ki * error;
@@ -20,8 +19,8 @@ inline float computePID_float(float error, float& integral, float& previousError
 
     float rawDerivative = error - previousError;
     previousError = error;
-    filteredDerivative = D_TERM_FILTER_ALPHA * rawDerivative +
-                        (1.0f - D_TERM_FILTER_ALPHA) * filteredDerivative;
+    filteredDerivative =
+        D_TERM_FILTER_ALPHA * rawDerivative + (1.0f - D_TERM_FILTER_ALPHA) * filteredDerivative;
     float derivative = kd * filteredDerivative;
 
     float output = proportional + integral + derivative;

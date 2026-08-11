@@ -19,8 +19,8 @@
 #include "config_common.h"
 
 // Drivers
-#include "pcnt_driver.h"
 #include "ledc_driver.h"
+#include "pcnt_driver.h"
 
 // Core Logic
 #include "pid_common.h"
@@ -62,14 +62,13 @@ void setup() {
 
     // Create Control Loop Task (High Priority, but not max - leaves room for
     // WiFi/BLE and other system tasks to run)
-    xTaskCreatePinnedToCore(
-        controlLoop,    // Function
-        "ControlLoop",  // Name
-        4096,           // Stack size
-        NULL,           // Parameters
-        configMAX_PRIORITIES - 3, // Priority (high, but not starving the stack)
-        NULL,           // Task handle
-        0               // Core ID (0 for ESP32-C3 single core)
+    xTaskCreatePinnedToCore(controlLoop,              // Function
+                            "ControlLoop",            // Name
+                            4096,                     // Stack size
+                            NULL,                     // Parameters
+                            configMAX_PRIORITIES - 3, // Priority (high, but not starving the stack)
+                            NULL,                     // Task handle
+                            0                         // Core ID (0 for ESP32-C3 single core)
     );
 
     Serial.println("ESP32-C3 BLDC Controller Started");
@@ -134,13 +133,13 @@ void controlLoop(void *parameter) {
 
         // 3. Compute PID
         float error = targetRPM - currentRPM;
-        pidOutput = computePID_float(error, integral, previousError, filteredDerivative,
-                                   kp, ki, kd,
-                                   INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX,
-                                   PID_OUTPUT_MIN, PID_OUTPUT_MAX);
+        pidOutput = computePID_float(error, integral, previousError, filteredDerivative, kp, ki, kd,
+                                     INTEGRAL_WINDUP_MIN, INTEGRAL_WINDUP_MAX, PID_OUTPUT_MIN,
+                                     PID_OUTPUT_MAX);
 
         // 4. Map to PWM
-        int targetPWM = map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
+        int targetPWM =
+            map(pidOutput, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PWM_MIN_VALUE, PWM_MAX_VALUE);
         targetPWM = constrain(targetPWM, PWM_MIN_THRESHOLD, PWM_MAX_VALUE);
 
         // 5. Apply Soft Start (Kickstart)
@@ -156,9 +155,11 @@ void controlLoop(void *parameter) {
 }
 
 int applySoftStart(int targetPWM) {
-    if (!softStarting) return targetPWM;
+    if (!softStarting)
+        return targetPWM;
 
-    if (softStartStartTime == 0) softStartStartTime = millis();
+    if (softStartStartTime == 0)
+        softStartStartTime = millis();
 
     unsigned long elapsed = millis() - softStartStartTime;
     if (elapsed >= SOFT_START_DURATION_MS) {
@@ -173,5 +174,6 @@ int applySoftStart(int targetPWM) {
 
 float readSensitivityScale() {
     int raw = analogRead(POT_SENSITIVITY_PIN);
-    return PID_SENSITIVITY_MIN + ((float)raw / 4095.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
+    return PID_SENSITIVITY_MIN +
+           ((float)raw / 4095.0f) * (PID_SENSITIVITY_MAX - PID_SENSITIVITY_MIN);
 }
