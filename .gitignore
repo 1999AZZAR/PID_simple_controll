@@ -379,6 +379,12 @@ arduino_uno/compiled/
 attiny85/compiled/
 auto_tune/code/build/
 
+# backup
+backup/*
+backup/
+backups/*
+backups/
+
 # Python virtual environments (if created locally)
 venv/
 .venv/
@@ -480,3 +486,7 @@ docker-compose.yml
 # ==============================================
 # End of .gitignore
 # ==============================================
+
+# Project Guardian
+memory.db
+memory.db-journal
