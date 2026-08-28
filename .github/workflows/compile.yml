@@ -139,11 +139,26 @@ jobs:
       run: |
         echo "Checking release status for ${{ steps.date.outputs.date }}..."
 
-        # Check if release already exists
-        if gh release view ${{ steps.date.outputs.date }} >/dev/null 2>&1; then
+        # Helper: retry a command up to 3 times with backoff for transient GitHub API 502s
+        retry() {
+          local n=0
+          until [ "$n" -ge 3 ]; do
+            "$@" && return 0
+            n=$((n+1))
+            echo "Attempt $n failed for: $*"
+            if [ "$n" -lt 3 ]; then
+              sleep $((n * 10))
+              echo "Retrying ($n/3)..."
+            fi
+          done
+          return 1
+        }
+
+        # Check if release already exists (with retry)
+        if retry gh release view ${{ steps.date.outputs.date }} >/dev/null 2>&1; then
           echo "Release ${{ steps.date.outputs.date }} already exists, updating..."
-          # Update existing release with new files
-          gh release upload ${{ steps.date.outputs.date }} ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip --clobber
+          # Update existing release with new files (retry on transient 502)
+          retry gh release upload ${{ steps.date.outputs.date }} ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip --clobber
           echo "Release updated successfully."
         else
           echo "Creating new release ${{ steps.date.outputs.date }}..."
@@ -178,8 +193,8 @@ jobs:
           ---
           *This release was automatically generated on ${{ steps.date.outputs.date }}*"
 
-          # Create the release
-          echo "$RELEASE_NOTES" | gh release create ${{ steps.date.outputs.date }} \
+          # Create the release (retry on transient 502)
+          echo "$RELEASE_NOTES" | retry gh release create ${{ steps.date.outputs.date }} \
             --title "Release ${{ steps.date.outputs.date }}" \
             --notes-file - \
             ${{ steps.date.outputs.date }}_${{ steps.repo.outputs.name }}.zip

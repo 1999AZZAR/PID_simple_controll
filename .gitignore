@@ -438,9 +438,8 @@ package-lock.json
 yarn.lock
 
 # ==============================================
-# CI/CD and Deployment
+# CI/CD and Deployment (workflows are tracked)
 # ==============================================
-.github/workflows/
 .gitlab-ci.yml
 .travis.yml
 .circleci/
