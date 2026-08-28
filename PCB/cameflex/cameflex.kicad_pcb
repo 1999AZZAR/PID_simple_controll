@@ -1003,7 +1003,7 @@
 	(footprint "Package_DFN_QFN:Texas_PicoStar_DFN-3_0.69x0.60mm"
 		(layer "F.Cu")
 		(uuid "254b06a1-0d5d-4e94-bfdc-b97ae0b1233a")
-		(at 115.275 70.5)
+		(at 115.2 70.5)
 		(descr "Texas Picostar DFN-3, 0.73x0.64mm max, 0.69x0.60mm nom, https://www.ti.com/lit/ds/symlink/csd13380f3.pdf")
 		(tags "TI YJM0003A")
 		(property "Reference" "Q1"

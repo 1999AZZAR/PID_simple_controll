@@ -384,6 +384,7 @@ backup/*
 backup/
 backups/*
 backups/
+note.txt
 
 # Python virtual environments (if created locally)
 venv/
@@ -490,3 +491,4 @@ docker-compose.yml
 # Project Guardian
 memory.db
 memory.db-journal
+memory.db-*
