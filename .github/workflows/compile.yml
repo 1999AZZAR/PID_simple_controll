@@ -67,6 +67,11 @@ jobs:
         cd attiny85/v2
         arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16 v2.ino --output-dir compiled/
 
+    - name: Compile ATtiny85 v3 (Failsafe)
+      run: |
+        cd attiny85/v3
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16 v3.ino --output-dir compiled/
+
     - name: Compile ESP32-C3 Control
       run: |
         cd esp32-c3/control
@@ -80,6 +85,8 @@ jobs:
         ls -la attiny85/v1/compiled/
         echo -e "\nATtiny85 v2 compiled files:"
         ls -la attiny85/v2/compiled/
+        echo -e "\nATtiny85 v3 compiled files:"
+        ls -la attiny85/v3/compiled/
         echo -e "\nESP32-C3 compiled files:"
         ls -la esp32-c3/control/compiled/
 
@@ -96,6 +103,10 @@ jobs:
         echo -e "\nATtiny85 v2 compilation results:"
         cd ../../attiny85/v2
         arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16 v2.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
+
+        echo -e "\nATtiny85 v3 compilation results:"
+        cd ../v3
+        arduino-cli compile --fqbn attiny:avr:ATtinyX5:cpu=attiny85,clock=internal16 v3.ino 2>/dev/null | grep -E "(bytes|Maximum|Global variables)"
 
     - name: Get current date
       id: date
@@ -173,12 +184,13 @@ jobs:
             - Arduino Uno
             - ATtiny85 v1 (Production Logic Port)
             - ATtiny85 v2 (Advanced Timer)
+            - ATtiny85 v3 (Failsafe)
             - ESP32-C3 Control
           - **Documentation**: Complete setup guides and troubleshooting
 
           ## Platforms Supported
           - **Arduino Uno**: Full-featured development platform
-          - **ATTiny85**: Production-optimized microcontroller (v1 & v2)
+          - **ATTiny85**: Production-optimized microcontroller (v1, v2 & v3)
           - **ESP32-C3**: High-performance embedded controller
 
           ## Download
