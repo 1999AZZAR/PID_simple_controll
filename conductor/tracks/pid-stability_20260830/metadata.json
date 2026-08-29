@@ -1,0 +1,10 @@
+{
+  "track_id": "pid-stability_20260830",
+  "type": "bug",
+  "title": "PID Runtime Stability — intermittent start, slow warmup, overspeed",
+  "status": "new",
+  "created": "2026-08-30",
+  "platforms": ["ATtiny85 v1", "ATtiny85 v2", "ATtiny85 v3", "ESP32-C3 control", "ESP32-C3 control_ble"],
+  "reference_product": "BLDC Motor PID Controller",
+  "success_metric": "100% start reliability (10/10 cold starts @1440 RPM)"
+}
